@@ -2587,6 +2587,35 @@ function markLocalMusicUnavailable() {
     card.setAttribute('title', 'Spotifie is not running on this device, so the music on it cannot be read.');
 }
 
+/**
+ * Say, in the manager, that there is nothing on this machine to manage from
+ * here.
+ *
+ * A published copy read on somebody's phone has no helper and never will;
+ * saying so plainly is better than an empty panel that looks like a failure.
+ */
+function renderLocalHelperMissing() {
+    const health = document.getElementById('localHealth');
+    if (health) {
+        const note = document.createElement('p');
+        note.className = 'local-note';
+        note.textContent =
+            'Spotifie is not running on this device, so the music on it cannot be read from here. ' +
+            'Start Spotifie on the computer your music is on to manage it.';
+        health.replaceChildren(note);
+        clearSkeleton(health);
+    }
+
+    ['localLocations', 'localTracks'].forEach((id) => {
+        const list = document.getElementById(id);
+        if (!list) return;
+        list.replaceChildren();
+        clearSkeleton(list);
+    });
+
+    markLocalMusicUnavailable();
+}
+
 /** And that it is reachable again. */
 function markLocalMusicAvailable() {
     document.body.classList.remove('local-music-unavailable');
@@ -7907,6 +7936,18 @@ function closeLocalManager() {
 async function refreshLocalManager() {
     const client = getCatalogClient();
     if (!client) return;
+
+    // Opening this is somebody asking about the music on their device, which
+    // is the moment a published copy goes looking for a helper - and the only
+    // moment. A copy running from its own server has already found one.
+    const platform = getPlatform();
+    if (platform && typeof platform.requestLocalMusic === 'function') {
+        const here = await platform.requestLocalMusic();
+        if (!here) {
+            renderLocalHelperMissing();
+            return;
+        }
+    }
 
     // The first time this is opened there is nothing in it: the counts and the
     // folders both come from the server. Their places are held while that

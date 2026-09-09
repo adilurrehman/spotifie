@@ -30,7 +30,12 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
-const OUT = path.join(ROOT, 'public-release', 'dist');
+// Where the release is written. One place, unless somebody names another:
+// the test suite builds several releases at once and each one needs its own
+// directory, because a build starts by emptying the one it is given.
+const OUT = process.env.SPOTIFIE_RELEASE_OUT
+    ? path.resolve(process.env.SPOTIFIE_RELEASE_OUT)
+    : path.join(ROOT, 'public-release', 'dist');
 
 // ============================================
 // What goes in
@@ -55,6 +60,9 @@ const PAGES = [
 
 /** Browser code the pages load. js/admin.js is not part of the application. */
 const BROWSER_SCRIPTS = [
+    // What this copy is - a checkout, or something published. Read before
+    // anything asks an origin for an API it may not have.
+    'js/deployment.js',
     // What this installation can do, asked rather than assumed. Loaded before
     // anything that reads the answer.
     'js/platform.js',
@@ -221,24 +229,120 @@ function neutralisePublicConfig(source) {
  * A service-role key is never read here, never written here, and would be
  * refused by the release check if it somehow arrived.
  */
-function publicRuntimeConfig() {
+let publicSettingsRead = null;
+
+function publicSettings() {
+    // Read once. The same settings are written twice, as a script and as data,
+    // and a build that is missing them should say so once rather than twice.
+    if (publicSettingsRead) return publicSettingsRead;
+    publicSettingsRead = readPublicSettings();
+    return publicSettingsRead;
+}
+
+function readPublicSettings() {
     const url = (process.env.SUPABASE_URL || '').trim();
     const anonKey = (process.env.SUPABASE_ANON_KEY || '').trim();
+    const siteUrl = (process.env.PUBLIC_SITE_URL || '').trim();
 
     // A secret would be a catastrophe rather than a bug, so it is checked for
-    // by shape rather than trusted to be absent.
+    // by shape rather than trusted to be absent. The name is reported; the
+    // value never is.
     if (/service.role/i.test(anonKey) || /^sb_secret_/.test(anonKey)) {
         throw new Error('SUPABASE_ANON_KEY looks like a secret key. Use the anon/publishable key.');
     }
 
+    const missing = [];
+    if (!url) missing.push('SUPABASE_URL');
+    if (!anonKey) missing.push('SUPABASE_ANON_KEY');
+    if (!siteUrl) missing.push('PUBLIC_SITE_URL');
+
+    // A build that is going to be deployed must not be allowed to produce an
+    // application that cannot sign anybody in. Under Cloudflare's builder this
+    // is a hard stop: a broken deployment is worse than a failed one, because
+    // the failure is visible to whoever ran the build and the breakage is
+    // visible to everybody else.
+    if (missing.length && process.env.WORKERS_CI === '1') {
+        throw new Error(
+            'The public build needs these environment variables and they are not set: ' +
+                missing.join(', ') +
+                '. Set them in the Cloudflare project and build again.'
+        );
+    }
+
+    if (missing.length) {
+        console.warn('  Building without ' + missing.join(', ') + '.');
+        console.warn('  The result runs locally; published, it cannot reach Supabase.');
+    }
+
+    const configured = Boolean(url && anonKey);
+
+    // What the copy will say it is. A build handed public settings carries
+    // them and needs no server; a build handed none is the same files, and
+    // saying it were published would leave the person who runs the release
+    // themselves with an application that ignores their own /api/config and
+    // then reports that Supabase is not configured. So it says what is true.
+    return {
+        url: url,
+        anonKey: anonKey,
+        siteUrl: siteUrl,
+        configured: configured,
+        deployment: configured ? 'cloudflare' : 'local'
+    };
+}
+
+/**
+ * The settings a published copy carries, as a file it loads.
+ *
+ * A script rather than data on purpose: it is read before anything asks a
+ * question, so nothing has to fetch it, wait for it, or decide what to do
+ * while it has not arrived. A copy that has these knows what it is; a copy
+ * that does not is a local checkout, and says so.
+ */
+function publicRuntimeScript() {
+    const settings = publicSettings();
+
+    return (
+        [
+            '/**',
+            ' * What this copy of Spotifie is, written when it was built.',
+            ' *',
+            ' * Public values only: the Supabase project, the key meant for a browser,',
+            ' * and the address this was published at. A service-role key, a database',
+            ' * password or a JWT secret would each be a catastrophe here, and the build',
+            ' * that writes this file refuses to write one.',
+            ' *',
+            ' * Its presence is also the answer to "is there a Spotifie server on this',
+            ' * origin?" - a published copy has none, and asks it for nothing.',
+            ' */',
+            'window.__SPOTIFIE_CONFIG__ = ' +
+                JSON.stringify(
+                    {
+                        supabaseUrl: settings.url,
+                        supabaseAnonKey: settings.anonKey,
+                        publicSiteUrl: settings.siteUrl,
+                        deployment: settings.deployment
+                    },
+                    null,
+                    4
+                ) +
+                ';',
+            ''
+        ].join('\n')
+    );
+}
+
+/** The same settings as data, for anything that would rather read JSON. */
+function publicRuntimeConfig() {
+    const settings = publicSettings();
+
     return (
         JSON.stringify(
             {
-                supabaseUrl: url,
-                supabaseAnonKey: anonKey,
-                // Said out loud, so a copy built without settings reports that
-                // rather than looking broken.
-                configured: Boolean(url && anonKey)
+                supabaseUrl: settings.url,
+                supabaseAnonKey: settings.anonKey,
+                publicSiteUrl: settings.siteUrl,
+                deployment: settings.deployment,
+                configured: settings.configured
             },
             null,
             2
@@ -278,11 +382,14 @@ function publicHeaders() {
     const csp = [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "style-src 'self' 'unsafe-inline'",
+        // The pages ask Google Fonts for two families: the stylesheet from one
+        // host, the font files from another. Both named exactly - "any" for
+        // either would open far more than a typeface.
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "worker-src 'self'",
         ["img-src 'self'", origin, 'data:', 'blob:', helper, 'https://ui-avatars.com'].filter(Boolean).join(' '),
         ["media-src 'self'", origin, 'blob:', helper].filter(Boolean).join(' '),
-        "font-src 'self' data:",
+        "font-src 'self' data: https://fonts.gstatic.com",
         ["connect-src 'self'", origin, origin.replace(/^https:/, 'wss:'), helper].filter(Boolean).join(' '),
         "object-src 'none'",
         "base-uri 'self'",
@@ -453,7 +560,10 @@ function build() {
     // And what a static host must leave alone when it publishes this.
     fs.writeFileSync(path.join(OUT, '.assetsignore'), assetsIgnore());
 
-    // The two public Supabase values, for a copy with no server to ask.
+    // What this copy is, and the two public Supabase values with it. The
+    // script is what the application reads; the JSON is the same thing for
+    // anything that would rather have data.
+    fs.writeFileSync(path.join(OUT, 'js', 'config.js'), publicRuntimeScript());
     fs.writeFileSync(path.join(OUT, 'config.json'), publicRuntimeConfig());
 
     // What a static host should send with each kind of file.

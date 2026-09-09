@@ -130,14 +130,26 @@
         var self = this;
 
         return this._shared(url, function () {
+            // A published copy has no server on this origin, and knows it. It
+            // reads the two published tables itself rather than asking a static
+            // host for an API and collecting a 404 on every load.
+            if (self._published()) return self._fromCloud(kind);
+
             return self._request(url).catch(function (error) {
-                // A route that is not there is a copy with no server, not a
-                // failure. Anything else - refused, broken, unreachable - is
-                // passed on, because pretending otherwise would hide it.
+                // A copy served as files without having been built. The same
+                // path, reached the other way. Anything but a missing route -
+                // refused, broken, unreachable - is passed on, because
+                // pretending otherwise would hide it.
                 if (error.status !== 404) throw error;
                 return self._fromCloud(kind);
             });
         });
+    };
+
+    /** Is this a copy published to a host that serves files and nothing else? */
+    CatalogClient.prototype._published = function () {
+        var deployment = typeof window !== 'undefined' ? window.spotifieDeployment : null;
+        return Boolean(deployment && deployment.isPublished());
     };
 
     /** Everything published, read from Supabase and shaped as a server would. */
@@ -218,6 +230,27 @@
     CatalogClient.prototype.getLocalCatalog = function () {
         var url = this.baseUrl + '/local';
         var self = this;
+
+        // The music on a device is answered by the helper on that device. A
+        // published copy has none on its own origin, so it answers for itself:
+        // nothing here, and the local half of the library is empty rather than
+        // pending. The platform looks for a helper separately, and this
+        // becomes real the moment one is found.
+        if (this._published()) {
+            return Promise.resolve({
+                total: 0,
+                albums: [],
+                tracks: [],
+                sources: {
+                    local: { available: false, trackCount: 0, error: null },
+                    global: { available: null, skipped: true, trackCount: 0, error: null }
+                },
+                overrides: {},
+                addedToGlobalAlbums: {},
+                hidden: { globalTracks: [], globalAlbums: [], localTracks: [] }
+            });
+        }
+
         return this._shared(url, function () {
             return self._request(url);
         });
@@ -247,6 +280,26 @@
         var cached = this.mediaCache.get('stream:' + trackId);
         if (cached && cached.expiresAt > Date.now()) {
             return Promise.resolve(cached.url);
+        }
+
+        if (this._published()) {
+            return this._cloudCatalogue()
+                .then(function (reader) {
+                    if (!reader) return null;
+                    return reader.resolveAudio(trackId);
+                })
+                .then(function (signed) {
+                    if (!signed) return null;
+
+                    self.mediaCache.set('stream:' + trackId, {
+                        url: signed,
+                        expiresAt: Date.now() + (3600 - 60) * 1000
+                    });
+                    return signed;
+                })
+                .catch(function () {
+                    return null;
+                });
         }
 
         return this._request(this.baseUrl + '/tracks/' + encodeURIComponent(trackId) + '/stream')
@@ -295,7 +348,7 @@
         // to the default while a perfectly good one waited in storage.
         // Answering null here sends the caller to the signed address instead,
         // which is the one that works where there is no server.
-        if (this._cloud) return null;
+        if (this._cloud || this._published()) return null;
 
         var settings = options || {};
         var kind = settings.kind === 'album' ? 'albums' : 'tracks';
@@ -321,6 +374,34 @@
             return Promise.resolve(cached.url);
         }
         this.mediaCache.delete('artwork:' + id);
+
+        // The same distinction as the catalogue: a published copy signs its own
+        // address rather than asking an origin that has no route to answer.
+        //
+        // The reader is waited for rather than required to be ready. A card is
+        // often painted while the catalogue is still arriving, and giving up
+        // then would show the fallback cover for a picture that was moments
+        // away - which is exactly what happened when this asked for a reader
+        // that had not been made yet.
+        if (this._published()) {
+            return this._cloudCatalogue()
+                .then(function (cloud) {
+                    if (!cloud) return fallback;
+                    return cloud.resolveArtwork(id);
+                })
+                .then(function (signed) {
+                    if (!signed) return fallback;
+
+                    self.mediaCache.set('artwork:' + id, {
+                        url: signed,
+                        expiresAt: Date.now() + (3600 - 60) * 1000
+                    });
+                    return signed;
+                })
+                .catch(function () {
+                    return fallback;
+                });
+        }
 
         return this._request(this.baseUrl + '/' + kind + '/' + encodeURIComponent(id) + '/artwork')
             .catch(function (error) {
@@ -495,11 +576,50 @@
     // Kept on this machine: this account's own state file when signed in, the
     // device's own file when not. Never Supabase.
 
+    // Where a published copy keeps it, since there is no state file to keep it
+    // in. This browser, this device, and nowhere else: a position in a song is
+    // as personal as the listening was, and it is not something to send to a
+    // host that has no business knowing what anybody played.
+    var PROGRESS_KEY = 'spotifie_progress';
+
+    /** What this browser remembers, or nothing. */
+    CatalogClient.prototype._localProgress = function () {
+        try {
+            var raw = window.localStorage.getItem(PROGRESS_KEY);
+            var stored = raw ? JSON.parse(raw) : null;
+            return stored && typeof stored === 'object' ? stored : {};
+        } catch (e) {
+            // A browser that keeps nothing, or something unreadable in the way.
+            // Either is a listener who starts each song at the beginning, which
+            // is a small loss and not a failure.
+            return {};
+        }
+    };
+
+    CatalogClient.prototype._rememberLocally = function (trackId, position, duration) {
+        try {
+            var all = this._localProgress();
+
+            if (!trackId) return false;
+            all[trackId] = { position: position, duration: duration, at: Date.now() };
+
+            window.localStorage.setItem(PROGRESS_KEY, JSON.stringify(all));
+            return true;
+        } catch (e) {
+            return false;
+        }
+    };
+
     CatalogClient.prototype.getPlaybackProgress = function () {
+        if (this._published()) return Promise.resolve({ trackProgress: this._localProgress() });
         return this._request(this.baseUrl + '/progress');
     };
 
     CatalogClient.prototype.savePlaybackProgress = function (trackId, position, duration) {
+        if (this._published()) {
+            return Promise.resolve({ saved: this._rememberLocally(trackId, position, duration) });
+        }
+
         return this._request(this.baseUrl + '/progress', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -516,6 +636,10 @@
      * and a guest's lands in this device's.
      */
     CatalogClient.prototype.savePlaybackProgressOnExit = function (trackId, position, duration) {
+        // Writing to this browser is immediate, so there is nothing that has to
+        // outlive the page.
+        if (this._published()) return this._rememberLocally(trackId, position, duration);
+
         try {
             this._request(this.baseUrl + '/progress', {
                 method: 'PUT',

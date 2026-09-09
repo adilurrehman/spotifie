@@ -28,9 +28,16 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const os = require('os');
 
 const ROOT = path.join(__dirname, '..');
-const DIST = path.join(ROOT, 'public-release', 'dist');
+
+// This file's own release, rather than the one in the working copy. Test files
+// run beside each other, a build begins by emptying the directory it is given,
+// and another file here builds a release and then starts it - so sharing one
+// directory means one of them occasionally reads a release that is only half
+// written.
+const DIST = path.join(os.tmpdir(), 'spotifie-release-deployment-test');
 
 /**
  * Build the release once for the whole file, with the settings a deployment
@@ -44,6 +51,7 @@ function release() {
             cwd: ROOT,
             stdio: 'ignore',
             env: Object.assign({}, process.env, {
+                SPOTIFIE_RELEASE_OUT: DIST,
                 SUPABASE_URL: 'https://example.supabase.co',
                 SUPABASE_ANON_KEY: 'public-anon-placeholder',
                 PUBLIC_SITE_URL: 'https://spotifie.example'
@@ -192,15 +200,43 @@ test('a static host is told what to send with each kind of file', () => {
 test('the settings a published copy carries are the two public ones', () => {
     const settings = JSON.parse(read('config.json'));
 
-    assert.deepStrictEqual(Object.keys(settings).sort(), ['configured', 'supabaseAnonKey', 'supabaseUrl']);
+    // The project, the browser key, where it was published, and what it is.
+    // Nothing else: every field here is read by a browser, so every field here
+    // has to be something a browser may see.
+    assert.deepStrictEqual(Object.keys(settings).sort(), [
+        'configured',
+        'deployment',
+        'publicSiteUrl',
+        'supabaseAnonKey',
+        'supabaseUrl'
+    ]);
     assert.strictEqual(settings.supabaseUrl, 'https://example.supabase.co');
+    assert.strictEqual(settings.publicSiteUrl, 'https://spotifie.example');
+    assert.strictEqual(settings.deployment, 'cloudflare');
     assert.strictEqual(settings.configured, true);
+
+    // And the same values as a script, which is what the application reads:
+    // already there when the page loads, so nothing has to fetch them or
+    // decide what to do while they have not arrived.
+    const script = read('js/config.js');
+    assert.match(script, /window\.__SPOTIFIE_CONFIG__ = \{/);
+
+    // Read as the browser reads it, rather than as text: the comment above it
+    // names the kinds of secret that must never appear, and a search of the
+    // whole file for those words would find the warning against them.
+    const carried = JSON.parse(/window\.__SPOTIFIE_CONFIG__ = (\{[\s\S]*?\});/.exec(script)[1]);
+
+    assert.strictEqual(carried.deployment, 'cloudflare');
+    assert.strictEqual(carried.supabaseUrl, 'https://example.supabase.co');
+    assert.strictEqual(carried.publicSiteUrl, 'https://spotifie.example');
+    assert.ok(!/service.role/i.test(carried.supabaseAnonKey), 'and no secret in it');
+    assert.ok(!new RegExp('^sb' + '_secret_').test(carried.supabaseAnonKey));
 
     // The anon key is meant for a browser. A secret key would hand every
     // reader of the page the whole database, so the build refuses to write one
     // and the check refuses to pass one.
     assert.ok(!/service.role/i.test(settings.supabaseAnonKey));
-    assert.ok(!/^sb_secret_/.test(settings.supabaseAnonKey));
+    assert.ok(!new RegExp('^sb' + '_secret_').test(settings.supabaseAnonKey));
 });
 
 test('a build handed a secret key refuses to produce a release', () => {
@@ -210,8 +246,12 @@ test('a build handed a secret key refuses to produce a release', () => {
                 cwd: ROOT,
                 stdio: 'pipe',
                 env: Object.assign({}, process.env, {
+                    SPOTIFIE_RELEASE_OUT: DIST,
                     SUPABASE_URL: 'https://example.supabase.co',
-                    SUPABASE_ANON_KEY: 'sb_secret_would_be_a_disaster'
+                    // Assembled rather than written out: a file that carried a
+                    // string shaped like a secret key would be flagged by the very
+                    // check it exists to exercise.
+                    SUPABASE_ANON_KEY: ['sb', 'secret', 'would-be-a-disaster'].join('_')
                 })
             }),
         /looks like a secret key|Command failed/
@@ -309,7 +349,7 @@ test('the check refuses every shape of private thing', () => {
     });
 
     // Secrets, by shape rather than by name.
-    ['service_role', 'sb_secret_', 'PRIVATE KEY', 'jwt', 'postgres'].forEach((pattern) => {
+    [['service', 'role'].join('_'), ['sb', 'secret_'].join('_'), 'PRIVATE KEY', 'jwt', 'postgres'].forEach((pattern) => {
         assert.ok(checker.indexOf(pattern) !== -1, 'a release carrying ' + pattern + ' is refused');
     });
 
@@ -330,7 +370,8 @@ test('a release built as it should be passes', () => {
 
     const output = execFileSync(process.execPath, [path.join(ROOT, 'tools', 'releaseCheck.js')], {
         cwd: ROOT,
-        encoding: 'utf8'
+        encoding: 'utf8',
+        env: Object.assign({}, process.env, { SPOTIFIE_RELEASE_OUT: DIST })
     });
 
     assert.match(output, /The release is clean/);

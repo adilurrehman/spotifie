@@ -22,7 +22,11 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
-const DIST = path.join(ROOT, 'public-release', 'dist');
+// The release this is asked about - the one the build just wrote, which is
+// the usual place unless the build was pointed somewhere else.
+const DIST = process.env.SPOTIFIE_RELEASE_OUT
+    ? path.resolve(process.env.SPOTIFIE_RELEASE_OUT)
+    : path.join(ROOT, 'public-release', 'dist');
 
 // ============================================
 // What must never be in a release
@@ -206,9 +210,46 @@ function checkRuntimeConfig(failures) {
         failures.push('config.json points at this machine rather than at a Supabase project.');
     }
 
+    // Every field here is read by a browser, so every field here has to be
+    // something a browser may see. The list is closed on purpose: a new field
+    // has to be argued for here before it can be published.
+    const allowed = ['supabaseUrl', 'supabaseAnonKey', 'publicSiteUrl', 'deployment', 'configured'];
+
     for (const field of Object.keys(settings)) {
-        if (['supabaseUrl', 'supabaseAnonKey', 'configured'].indexOf(field) === -1) {
+        if (allowed.indexOf(field) === -1) {
             failures.push('config.json carries an unexpected field: ' + field + '.');
+        }
+    }
+
+    // The same settings as a script, which is what the application reads.
+    const script = path.join(DIST, 'js', 'config.js');
+    if (fs.existsSync(script)) {
+        const text = fs.readFileSync(script, 'utf8');
+        const written = /window\.__SPOTIFIE_CONFIG__ = (\{[\s\S]*?\});/.exec(text);
+
+        if (!written) {
+            failures.push('js/config.js does not set the settings a published copy reads.');
+        } else {
+            let carried;
+            try {
+                carried = JSON.parse(written[1]);
+            } catch (e) {
+                failures.push('js/config.js does not carry readable settings.');
+                carried = null;
+            }
+
+            if (carried) {
+                const carriedKey = String(carried.supabaseAnonKey || '');
+                if (/service.role/i.test(carriedKey) || /^sb_secret_/.test(carriedKey)) {
+                    failures.push('js/config.js carries a secret key.');
+                }
+
+                for (const field of Object.keys(carried)) {
+                    if (['supabaseUrl', 'supabaseAnonKey', 'publicSiteUrl', 'deployment'].indexOf(field) === -1) {
+                        failures.push('js/config.js carries an unexpected field: ' + field + '.');
+                    }
+                }
+            }
         }
     }
 }

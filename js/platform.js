@@ -213,7 +213,20 @@
      */
     function LocalHelperAdapter(options) {
         var settings = options || {};
-        this.baseUrl = settings.baseUrl || '';
+
+        // Where a helper is, which is never "wherever this page came from".
+        //
+        // A published copy is served from a host that has nothing to do with
+        // anybody's computer, and building a helper address out of that origin
+        // asked workers.dev for /api/library/health - the wrong machine, a 404,
+        // and then the same question again. A helper is on loopback or it is
+        // nowhere; a checkout is already on loopback and asks itself.
+        var deployment = global.spotifieDeployment;
+        this.baseUrl =
+            settings.baseUrl !== undefined
+                ? settings.baseUrl
+                : (deployment && deployment.localHelperOrigin()) || '';
+
         this.failures = 0;
         this.checkedAt = 0;
         this.available = null;
@@ -239,6 +252,25 @@
         if (!settings.force && this.available !== null) {
             var wait = this.available ? 30000 : backoffFor(this.failures);
             if (now - this.checkedAt < wait) return Promise.resolve(this.available);
+        }
+
+        // A published copy does not go looking for a helper on its own.
+        //
+        // Most visitors have none, and a page that probed loopback would spend
+        // a request per visit finding that out - blocked as mixed content on
+        // an HTTPS page, or refused by the helper for not being an origin it
+        // trusts, and reported in the console either way as though something
+        // were broken. The answer is "no" until somebody asks for the music on
+        // their device, which is the only moment asking is worth anything.
+        //
+        // "asked for" means exactly that: a person choosing Local Music, not a
+        // timer. Nothing scheduled sets this.
+        var deployment = global.spotifieDeployment;
+        if (deployment && deployment.isPublished() && !settings.requested) {
+            this.available = false;
+            this.checkedAt = now;
+            capabilities.set({ localHelper: 'disconnected' });
+            return Promise.resolve(false);
         }
 
         this.checking = fetchWithin(this.baseUrl + '/api/library/health', TIMEOUTS.health, {
@@ -419,6 +451,17 @@
         return this.local.detectLocalCapability(options);
     };
 
+    /**
+     * Somebody asked for the music on their device. Look properly.
+     *
+     * The one thing that makes a published copy reach for a helper: a person
+     * choosing Local Music, rather than a timer deciding to check. Answers
+     * whether one was found.
+     */
+    Platform.prototype.requestLocalMusic = function () {
+        return this.local.detectLocalCapability({ force: true, requested: true });
+    };
+
     /** What is known about this installation, for a decision or a log. */
     Platform.prototype.capabilities = function () {
         return capabilities.describe();
@@ -477,6 +520,21 @@
         var stopListening = capabilities.onChange(function (state) {
             if (onChange) onChange(state);
         });
+
+        // A published copy watches nothing.
+        //
+        // There is no helper to watch for on most of the machines it is read
+        // on, and looking anyway - on a timer, and again whenever somebody
+        // comes back to the tab - is how a page came to make hundreds of
+        // requests to an address that was never going to answer it. Changes in
+        // capability are still reported; they simply come from somebody asking
+        // for the music on their device rather than from a clock.
+        var deployment = global.spotifieDeployment;
+        if (deployment && deployment.isPublished()) {
+            return function () {
+                stopListening();
+            };
+        }
 
         function schedule() {
             if (stopped) return;

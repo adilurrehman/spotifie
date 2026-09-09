@@ -93,18 +93,39 @@
     }
 
 /**
-     * The settings, from whichever of the two places has them.
+     * The settings, from whichever place this copy of Spotifie keeps them.
      *
-     * The local server first, because when there is one it is the authority on
-     * this installation. A 404 or an unreachable origin is not an error here -
-     * it is how a published copy answers, and the file beside the application
-     * is asked next. Only when neither has anything is there a problem to
-     * report.
+     * A published copy carries them: the build wrote them into a script the
+     * page loads, so they are already here and nothing is fetched at all. That
+     * is asked first, and when it answers nothing else is.
+     *
+     * A checkout somebody is running asks its own server, which is the
+     * authority on that installation.
+     *
+     * The two are not tried in turn on a guess. Asking a static host for
+     * /api/config is how a published copy came to collect a 404 on every load
+     * and then report that Supabase was not configured - the one endpoint that
+     * would have said otherwise being the one that was missing.
      */
     async function loadPublicConfig() {
+        const deployment = global.spotifieDeployment;
+
+        if (deployment && deployment.isPublished()) {
+            const carried = deployment.supabase();
+            if (carried) return { supabaseUrl: carried.url, supabaseAnonKey: carried.anonKey };
+
+            throw new Error(
+                'This copy of Spotifie was published without its Supabase settings. ' +
+                    'Set SUPABASE_URL and SUPABASE_ANON_KEY in the build environment and build it again.'
+            );
+        }
+
         const fromServer = await tryConfigSource(CONFIG_URL, { cache: 'no-store' });
         if (fromServer) return fromServer;
 
+        // A copy served as files without having been built - opened from a
+        // folder, or from a static server during development. The settings
+        // beside it, if a build put any there.
         const fromFile = await tryConfigSource(STATIC_CONFIG_URL, {});
         if (fromFile) return fromFile;
 

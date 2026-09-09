@@ -162,7 +162,11 @@ function contentSecurityPolicy() {
     return [
         "default-src 'self'",
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "style-src 'self' 'unsafe-inline'",
+        // The pages ask Google Fonts for two families. Named exactly, both of
+        // them: the stylesheet comes from one host and the font files from
+        // another, and allowing "any" for either would open far more than a
+        // typeface.
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         // The service worker that keeps the application itself, so Spotifie
         // opens without the network. This origin's own, and nobody else's.
         "worker-src 'self'",
@@ -170,7 +174,7 @@ function contentSecurityPolicy() {
         // bundled image cannot be read.
         'img-src ' + images + ' https://ui-avatars.com',
         'media-src ' + media,
-        "font-src 'self' data:",
+        "font-src 'self' data: https://fonts.gstatic.com",
         'connect-src ' + connect,
         "object-src 'none'",
         "base-uri 'self'",
@@ -187,6 +191,80 @@ function supabaseOrigin() {
     } catch (e) {
         return '';
     }
+}
+
+/**
+ * Which other origins this helper will answer, and why the list is usually
+ * empty.
+ *
+ * This server holds somebody's music library and can be told to search their
+ * disks. It listens on loopback, which keeps it off the network - but loopback
+ * does not keep it away from a browser, and any page in any tab can try to
+ * reach it. What stops that is the browser's own rule: a page on one origin
+ * gets no answer from another unless the other says it may.
+ *
+ * So the answer is no, to everybody, unless the person running it has named an
+ * origin. That is what SPOTIFIE_ALLOWED_ORIGINS is for: somebody who has
+ * published their own copy and wants Local Music to work there names it, and
+ * nothing else is trusted. There is deliberately no wildcard - "*" here would
+ * mean any website anybody visits could list, and search, the music on their
+ * machine.
+ */
+function allowedOrigins() {
+    // Read when it is needed rather than when this file loads. The rules in
+    // here are also read by tests that evaluate this source without a process
+    // around it, and a top-level read of the environment would stop them dead.
+    const environment = typeof process !== 'undefined' && process.env ? process.env : {};
+    const raw = (environment.SPOTIFIE_ALLOWED_ORIGINS || '').trim();
+    if (!raw) return [];
+
+    return raw
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+        .filter((entry) => {
+            if (entry === '*') {
+                console.warn('SPOTIFIE_ALLOWED_ORIGINS may not contain "*"; that entry is ignored.');
+                return false;
+            }
+            try {
+                return Boolean(new URL(entry).origin);
+            } catch (e) {
+                console.warn('SPOTIFIE_ALLOWED_ORIGINS has an entry that is not an origin; it is ignored.');
+                return false;
+            }
+        })
+        .map((entry) => new URL(entry).origin);
+}
+
+let allowedOriginsCache = null;
+
+function trustedOrigins() {
+    if (!allowedOriginsCache) allowedOriginsCache = allowedOrigins();
+    return allowedOriginsCache;
+}
+
+/**
+ * What to tell a browser about a request from somewhere else.
+ *
+ * Only for an origin that was named. Everything else gets no header at all,
+ * which is the browser's cue to refuse the answer - the same as before any of
+ * this existed.
+ */
+function crossOriginHeaders(req) {
+    const origin = req && req.headers ? req.headers.origin : null;
+    if (!origin || trustedOrigins().indexOf(origin) === -1) return {};
+
+    return {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Max-Age': '600',
+        // The answer differs by who asked, so a cache must not hand one
+        // origin's answer to another.
+        Vary: 'Origin'
+    };
 }
 
 /**
@@ -459,12 +537,23 @@ const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url, true);
     const pathname = parsedUrl.pathname || '/';
 
+    // An origin this installation was told to trust, or nothing at all. The
+    // headers are empty for everybody else, which is a browser's cue to refuse
+    // the answer - and is what keeps a page on some other site from listing, or
+    // searching, the music on this machine.
+    const crossOrigin = crossOriginHeaders(req);
+
     if (req.method === 'OPTIONS') {
-        // Same-origin only: advertise the methods, no cross-origin grant.
-        res.writeHead(204, { 'Allow': 'GET, HEAD, POST, OPTIONS' });
+        // Advertise the methods. The permission to use them cross-origin is
+        // only in there when the asking origin was named.
+        res.writeHead(204, Object.assign({ Allow: 'GET, HEAD, POST, PUT, DELETE, OPTIONS' }, crossOrigin));
         res.end();
         return;
     }
+
+    // Carried by every answer below, so a trusted origin's request succeeds
+    // wherever it lands and an untrusted one is refused wherever it lands.
+    for (const header of Object.keys(crossOrigin)) res.setHeader(header, crossOrigin[header]);
 
     // Health check (both paths kept so existing clients keep working)
     if (pathname === '/health' || pathname === '/api/health') {
