@@ -1,0 +1,48 @@
+{
+    "name": "Spotifie - Hybrid Local & Global Music Player",
+    "short_name": "Spotifie",
+    "description": "Spotifie brings the music already on your device together with a published global catalogue in one library - playlists, liked songs, offline playback of local files, and a responsive player for desktop, tablet and phone.",
+    "id": "/",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "any",
+    "lang": "en",
+    "dir": "ltr",
+    "theme_color": "#121212",
+    "background_color": "#121212",
+    "categories": ["music", "entertainment"],
+    "icons": [
+        {
+            "src": "favicons/favicon-48x48.png",
+            "sizes": "48x48",
+            "type": "image/png"
+        },
+        {
+            "src": "favicons/favicon-64x64.png",
+            "sizes": "64x64",
+            "type": "image/png"
+        },
+        {
+            "src": "favicons/favicon-128x128.png",
+            "sizes": "128x128",
+            "type": "image/png"
+        },
+        {
+            "src": "favicons/favicon-256x256.png",
+            "sizes": "256x256",
+            "type": "image/png"
+        },
+        {
+            "src": "favicons/favicon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "favicons/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png"
+        }
+    ]
+}

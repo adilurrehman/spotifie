@@ -1,0 +1,7228 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@700&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+
+/* ==================== Skeleton Loading Animation ==================== */
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: -200px 0;
+    }
+    100% {
+        background-position: calc(200px + 100%) 0;
+    }
+}
+
+.auth-skeleton {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.skeleton-btn {
+    border-radius: 500px;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+    background: linear-gradient(90deg, 
+        var(--bg-tertiary, #1a1a1a) 0%, 
+        var(--bg-hover, #2a2a2a) 50%, 
+        var(--bg-tertiary, #1a1a1a) 100%);
+    background-size: 200px 100%;
+}
+
+.skeleton-signup {
+    width: 70px;
+    height: 32px;
+}
+
+.skeleton-login {
+    width: 90px;
+    height: 48px;
+}
+
+/* Light theme skeleton */
+[data-theme="light"] .skeleton-btn {
+    background: linear-gradient(90deg, 
+        #e0e0e0 0%, 
+        #f5f5f5 50%, 
+        #e0e0e0 100%);
+    background-size: 200px 100%;
+}
+
+/* Hide skeleton when auth is loaded */
+.auth-skeleton.hidden {
+    display: none;
+}
+
+/* ==================== Theme Variables ==================== */
+:root,
+[data-theme="dark"] {
+    --play-button-opacity: 0;
+    --play-button-offset: 0;
+    
+    /* Background colors */
+    --bg-primary: #000000;
+    --bg-secondary: #121212;
+    --bg-tertiary: #1a1a1a;
+    --bg-elevated: #242424;
+    --bg-hover: #2a2a2a;
+    
+    /* Text colors */
+    --text-primary: #ffffff;
+    --text-secondary: #b3b3b3;
+    /* Quiet, but still meant to be read: a hint that fades into the page is
+       not a hint. */
+    --text-muted: #8f8f8f;
+    
+    /* Accent colors */
+    --accent-primary: #1db954;
+    --accent-hover: #1ed760;
+    
+    /* Border colors */
+    --border-color: rgba(255, 255, 255, 0.1);
+    
+    /* Card colors */
+    --card-bg: #181818;
+    --card-hover: #282828;
+
+    /* What a surface turns into when it is pointed at or held, and what has
+       to stay readable on it. A hover that changes the ground under text says
+       here what the text becomes; nothing has to guess. */
+    --surface-hover: #2a2a2a;
+    --surface-active: #333333;
+    --text-on-hover: #ffffff;
+
+    /* The accent, and what can be read on top of it. Written as a word
+       rather than a surface, the accent needs a shade that carries on the
+       theme's own ground. */
+    --text-on-accent: #000000;
+    --accent-text: #1ed760;
+
+    /* Something that destroys: the colour it is filled with, the colour it
+       is written in, and the wash it gets when pointed at. The word needs a
+       lighter red than the button, or it disappears into the wash. */
+    --danger: #e91429;
+    --danger-hover: #ff2f43;
+    --danger-text: #ff6b7a;
+    --danger-surface: rgba(233, 20, 41, 0.2);
+    --text-on-danger: #ffffff;
+
+    /* Borders that have to be seen, and the ring that says where the keyboard
+       is. */
+    --border-strong: rgba(255, 255, 255, 0.28);
+    --focus-ring: #1ed760;
+
+    /* Text that is only a hint. */
+    --placeholder: #8a8a8a;
+
+    /* The faint lift that marks a panel out from the page behind it. */
+    --surface-wash: rgba(255, 255, 255, 0.03);
+
+    /* The note stood in for an album with no picture of its own. The file is
+       drawn in the accent, so the very first paint of it is already green -
+       no stylesheet has to arrive and correct a navy one. This theme is the
+       one the file was drawn for, so it is left exactly as it is. */
+    --music-fallback-tint: none;
+}
+
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f5f5f5;
+    --bg-tertiary: #e8e8e8;
+    --bg-elevated: #ffffff;
+    --bg-hover: #e0e0e0;
+    
+    --text-primary: #000000;
+    --text-secondary: #5a5a5a;
+    --text-muted: #6f6f6f;
+    
+    --accent-primary: #1db954;
+    --accent-hover: #1ed760;
+    
+    --border-color: rgba(0, 0, 0, 0.12);
+
+    --card-bg: #ffffff;
+    --card-hover: #f0f0f0;
+
+    /* The light theme darkens a surface to answer a pointer, so the text on it
+       stays dark: the dark theme's white would vanish here. */
+    --surface-hover: #e6e6e6;
+    --surface-active: #d8d8d8;
+    --text-on-hover: #121212;
+
+    /* Black reads on this green; white does not. And a green word on white
+       has to be darker than the green a surface can be. */
+    --text-on-accent: #06331a;
+    --accent-text: #0f7a37;
+
+    --danger: #c0102a;
+    --danger-hover: #8f0c20;
+    --danger-text: #a80d24;
+    --danger-surface: rgba(192, 16, 42, 0.12);
+    --text-on-danger: #ffffff;
+
+    --border-strong: rgba(0, 0, 0, 0.35);
+    --focus-ring: #0f7a37;
+
+    --placeholder: #6b6b6b;
+
+    /* A wash of white over a light page is nothing at all, so this one goes
+       the other way. */
+    --surface-wash: rgba(0, 0, 0, 0.03);
+
+    /* The same green, taken down until it holds against a pale page: the
+       accent is meant for a dark ground and washes out on this one. Darkening
+       the one ink a drawing is made of is the one thing a filter does exactly,
+       which is why it is the whole adjustment. */
+    --music-fallback-tint: brightness(0.55);
+}
+
+/* ==================== Theme Toggle Button ==================== */
+.theme-toggle {
+    position: relative;
+    width: 56px;
+    height: 28px;
+    cursor: pointer;
+    border-radius: 500px;
+    transition: all 0.3s ease;
+}
+
+.theme-toggle:hover {
+    transform: scale(1.05);
+}
+
+.theme-toggle-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #333;
+    border-radius: 500px;
+    padding: 3px;
+    box-sizing: border-box;
+    transition: background 0.3s ease;
+}
+
+[data-theme="light"] .theme-toggle-track {
+    background: #d1d5db;
+}
+
+.theme-toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    background: #1db954;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.3s ease, background 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .theme-toggle-thumb {
+    transform: translateX(28px);
+}
+
+.theme-toggle-thumb .theme-icon {
+    width: 14px;
+    height: 14px;
+    color: #fff;
+}
+
+.theme-toggle-thumb .moon-icon {
+    display: block;
+}
+
+.theme-toggle-thumb .sun-icon {
+    display: none;
+}
+
+[data-theme="light"] .theme-toggle-thumb .moon-icon {
+    display: none;
+}
+
+[data-theme="light"] .theme-toggle-thumb .sun-icon {
+    display: block;
+}
+
+.theme-toggle-inactive-icon {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    transition: all 0.3s ease;
+}
+
+[data-theme="light"] .theme-toggle-inactive-icon {
+    right: auto;
+    left: 6px;
+}
+
+.theme-toggle-inactive-icon .inactive-sun {
+    display: block;
+}
+
+.theme-toggle-inactive-icon .inactive-moon {
+    display: none;
+}
+
+[data-theme="light"] .theme-toggle-inactive-icon .inactive-sun {
+    display: none;
+}
+
+[data-theme="light"] .theme-toggle-inactive-icon .inactive-moon {
+    display: block;
+}
+
+.theme-toggle-inactive-icon .theme-icon {
+    width: 14px;
+    height: 14px;
+}
+
+/* ==================== Light Theme Overrides ==================== */
+[data-theme="light"] body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .bg-black {
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .bg-gray {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .invert {
+    filter: invert(0);
+}
+
+[data-theme="light"] .color-2 {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .right {
+    background-color: var(--bg-secondary);
+}
+
+[data-theme="light"] .playbar {
+    background-color: var(--bg-elevated);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Card Styles for Light Theme */
+[data-theme="light"] .cardcontainer {
+    border: 1px solid var(--border-color);
+}
+
+/* Search Styles for Light Theme */
+[data-theme="light"] .search-box {
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .search-results {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .search-result-item {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .search-result-item:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Library/Sidebar Styles for Light Theme */
+[data-theme="light"] .songslist ul li {
+    border-color: var(--border-color);
+    background-color: var(--bg-elevated);
+}
+
+[data-theme="light"] .songslist ul li:hover {
+    background-color: var(--bg-hover);
+}
+
+[data-theme="light"] .musicinfo {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .musicinfo div:first-child {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .libcard:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Footer for Light Theme */
+[data-theme="light"] .footer a {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .footer a:hover {
+    color: var(--text-primary);
+}
+
+/* Modal Styles for Light Theme */
+[data-theme="light"] .modal-content {
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .modal-header {
+    border-bottom-color: var(--border-color);
+}
+
+[data-theme="light"] .modal-header h2 {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .form-input,
+[data-theme="light"] .form-group input,
+[data-theme="light"] .form-group textarea {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .form-input::placeholder,
+[data-theme="light"] .form-group input::placeholder,
+[data-theme="light"] .form-group textarea::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .form-label,
+[data-theme="light"] .form-group label {
+    color: var(--text-primary);
+}
+
+/* Buttons for Light Theme */
+[data-theme="light"] .btns button {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .btns .fc-black {
+    background-color: var(--text-primary);
+    color: var(--bg-primary);
+}
+
+[data-theme="light"] .btn-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Auth Buttons in Header for Light Theme */
+[data-theme="light"] .btns .auth-btn-link button {
+    font-weight: 600;
+}
+
+[data-theme="light"] .btns .auth-btn-link button.fw-1:not(.fc-black) {
+    color: var(--text-secondary);
+    border-color: transparent;
+}
+
+[data-theme="light"] .btns .auth-btn-link button.fw-1:not(.fc-black):hover {
+    color: var(--text-primary);
+    border-color: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] .btns .auth-btn-link button.fc-black {
+    background-color: #000000;
+    color: #ffffff;
+}
+
+[data-theme="light"] .btns .auth-btn-link button.fc-black:hover {
+    background-color: #333333;
+}
+
+/* Auth Page Styles for Light Theme */
+[data-theme="light"] .auth-page {
+    background: var(--bg-primary);
+}
+
+[data-theme="light"] .auth-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .auth-title,
+[data-theme="light"] .auth-logo span {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .auth-subtitle {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .auth-form .form-input {
+    background: var(--bg-elevated);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .auth-form .form-input:focus {
+    border-color: #1db954;
+    background: var(--bg-elevated);
+}
+
+[data-theme="light"] .auth-form .form-input::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .auth-form .form-label {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .auth-form .form-hint {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .auth-btn {
+    background: #1db954;
+    color: #000000;
+}
+
+[data-theme="light"] .auth-btn:hover {
+    background: #1ed760;
+}
+
+[data-theme="light"] .auth-divider::before,
+[data-theme="light"] .auth-divider::after {
+    background: var(--border-color);
+}
+
+[data-theme="light"] .auth-divider span {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .auth-footer {
+    border-top-color: var(--border-color);
+}
+
+[data-theme="light"] .auth-footer p {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .forgot-link a {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .forgot-link a:hover {
+    color: #1db954;
+}
+
+[data-theme="light"] .password-toggle {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .password-toggle:hover {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .terms-text {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .terms-text a {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .strength-bar {
+    background: var(--border-color);
+}
+
+[data-theme="light"] .strength-text {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .char-counter {
+    color: var(--text-muted);
+}
+
+/* Theme Toggle in Auth Pages */
+[data-theme="light"] .theme-toggle-container .theme-toggle {
+    background: var(--bg-tertiary);
+}
+
+/* Alert Styles for Light Theme (Auth Pages) */
+[data-theme="light"] .alert.error {
+    background: rgba(233, 20, 41, 0.08);
+    color: #d11429;
+    border: 1px solid rgba(233, 20, 41, 0.25);
+}
+
+[data-theme="light"] .alert.success {
+    background: rgba(29, 185, 84, 0.08);
+    color: #178c43;
+    border: 1px solid rgba(29, 185, 84, 0.25);
+}
+
+[data-theme="light"] .alert.info {
+    background: rgba(59, 130, 246, 0.08);
+    color: #2563eb;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* Admin Login Page Light Theme */
+[data-theme="light"] .admin-login-page {
+    background: var(--bg-primary);
+}
+
+[data-theme="light"] .admin-card {
+    background: var(--bg-secondary);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+    border-color: rgba(29, 185, 84, 0.15);
+}
+
+[data-theme="light"] .admin-title,
+[data-theme="light"] .admin-logo span {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .admin-subtitle {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .admin-form .form-field label {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .admin-form .form-field input {
+    background: var(--bg-elevated);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .admin-form .form-field input:focus {
+    border-color: #1db954;
+    background: var(--bg-elevated);
+}
+
+[data-theme="light"] .admin-form .form-field input::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .security-notice {
+    background: rgba(29, 185, 84, 0.08);
+    border-color: rgba(29, 185, 84, 0.2);
+}
+
+[data-theme="light"] .security-notice p {
+    color: var(--text-secondary);
+}
+
+/* Navigation and Header for Light Theme */
+[data-theme="light"] .header {
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* Playlist Header for Light Theme */
+[data-theme="light"] .playlist-header h1 {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .card-size-btn {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .card-size-btn:hover {
+    background-color: var(--bg-hover);
+}
+
+[data-theme="light"] .backup-btn {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .backup-btn:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Create Album Card for Light Theme */
+[data-theme="light"] .create-album-card {
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .create-card-inner {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .create-card-inner:hover {
+    background-color: var(--bg-hover);
+    border-color: #1db954;
+}
+
+[data-theme="light"] .create-card-inner h2 {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .create-card-inner p {
+    color: var(--text-secondary);
+}
+
+/* Song Context Menu for Light Theme */
+[data-theme="light"] .song-context-menu {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .context-menu-item {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .context-menu-item:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Card Menu Dropdown for Light Theme */
+[data-theme="light"] .card-menu-dropdown {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .card-menu-dropdown button {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .card-menu-dropdown button:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Volume and Controls for Light Theme */
+[data-theme="light"] .volume img,
+[data-theme="light"] .controls img,
+[data-theme="light"] #play img,
+[data-theme="light"] #next img,
+[data-theme="light"] #previous img {
+    filter: invert(0);
+}
+
+[data-theme="light"] .volumeRange {
+    background: var(--bg-tertiary);
+}
+
+[data-theme="light"] .volumeRange::-webkit-slider-thumb {
+    background: var(--text-primary);
+}
+
+/* Seekbar for Light Theme */
+[data-theme="light"] .seekbar {
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="light"] .circle {
+    background-color: var(--text-primary);
+}
+
+/* Songinfo for Light Theme */
+[data-theme="light"] .songinfo {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .songtime {
+    color: var(--text-secondary);
+}
+
+/* Album List and Add Songs Modal for Light Theme */
+[data-theme="light"] .album-list-item {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .album-list-item:hover {
+    background-color: var(--bg-hover);
+}
+
+[data-theme="light"] .add-songs-search-input,
+[data-theme="light"] .album-search-input,
+[data-theme="light"] .album-filter-select {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+/* User Menu for Light Theme */
+[data-theme="light"] .user-menu-btn {
+    background-color: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .user-menu-btn:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .user-avatar {
+    background-color: #e0e0e0;
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .user-dropdown {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 16px 24px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .dropdown-item {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .dropdown-item:hover {
+    background-color: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .dropdown-item.admin-link {
+    color: #1db954;
+}
+
+[data-theme="light"] .dropdown-item.admin-link:hover {
+    background-color: rgba(29, 185, 84, 0.08);
+    color: #178c43;
+}
+
+[data-theme="light"] .dropdown-divider {
+    background-color: var(--border-color);
+}
+
+[data-theme="light"] .logout-btn {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .logout-btn:hover {
+    color: var(--text-primary);
+}
+
+/* Liked Songs and Heart Icon for Light Theme */
+[data-theme="light"] .like-btn {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .like-btn:hover {
+    color: var(--text-primary);
+}
+
+/* Scrollbar for Light Theme */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.3);
+}
+
+/* Backup Modal for Light Theme */
+[data-theme="light"] .backup-modal {
+    background-color: var(--bg-elevated);
+}
+
+[data-theme="light"] .backup-section {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .backup-section h3 {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .stat-value {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .stat-label {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .import-area {
+    border-color: var(--border-color);
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="light"] .import-area p {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .import-area span {
+    color: var(--text-secondary);
+}
+
+/* Heading/Library Section for Light Theme */
+[data-theme="light"] .heading h2 {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .heading img {
+    filter: invert(0);
+}
+
+[data-theme="light"] .home ul li label {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .home ul li img {
+    filter: invert(0);
+}
+
+/* Play button overlay for Light Theme */
+[data-theme="light"] .play {
+    background-color: #1db954;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ==================== Modal Form Elements for Light Theme ==================== */
+/* Form inputs inside modals */
+[data-theme="light"] .form-group input[type="text"],
+[data-theme="light"] .form-group textarea,
+[data-theme="light"] .modal-content input,
+[data-theme="light"] .modal-content textarea,
+[data-theme="light"] .modal-content select {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .form-group input[type="text"]:focus,
+[data-theme="light"] .form-group textarea:focus,
+[data-theme="light"] .modal-content input:focus,
+[data-theme="light"] .modal-content textarea:focus {
+    background-color: var(--bg-elevated);
+    border-color: #1db954;
+}
+
+[data-theme="light"] .form-group input[type="text"]::placeholder,
+[data-theme="light"] .form-group textarea::placeholder,
+[data-theme="light"] .modal-content input::placeholder,
+[data-theme="light"] .modal-content textarea::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .form-group label {
+    color: var(--text-primary);
+}
+
+/* Image Upload Area for Light Theme */
+[data-theme="light"] .image-upload-area {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .image-upload-area:hover,
+[data-theme="light"] .image-upload-area.dragover {
+    background-color: var(--bg-hover);
+    border-color: #1db954;
+}
+
+[data-theme="light"] .upload-placeholder {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .upload-placeholder svg {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .upload-placeholder p {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .upload-placeholder span {
+    color: var(--text-secondary);
+}
+
+/* Secondary Button for Light Theme */
+[data-theme="light"] .btn-secondary {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+    background-color: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+/* Modal Close Button for Light Theme */
+[data-theme="light"] .modal-close {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .modal-close:hover {
+    color: var(--text-primary);
+}
+
+/* ==================== Add Songs Modal for Light Theme ==================== */
+/* Tab buttons */
+[data-theme="light"] .add-songs-tabs {
+    background-color: var(--bg-tertiary);
+}
+
+[data-theme="light"] .add-songs-tab {
+    color: var(--text-secondary);
+    background: transparent;
+}
+
+[data-theme="light"] .add-songs-tab:hover {
+    color: var(--text-primary);
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .add-songs-tab.active {
+    background-color: #1db954;
+    color: #000;
+}
+
+/* Song list items */
+[data-theme="light"] .add-songs-item {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="light"] .add-songs-item:hover {
+    background-color: var(--bg-hover);
+}
+
+[data-theme="light"] .add-songs-item.selected {
+    background-color: rgba(29, 185, 84, 0.1);
+    border-color: #1db954;
+}
+
+[data-theme="light"] .add-songs-item-name {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .add-songs-item-album {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .add-songs-item-checkbox {
+    border-color: var(--text-muted);
+    background-color: var(--bg-elevated);
+}
+
+[data-theme="light"] .add-songs-item.selected .add-songs-item-checkbox {
+    background-color: #1db954;
+    border-color: #1db954;
+}
+
+/* Song badge (Local tag) */
+[data-theme="light"] .song-badge,
+[data-theme="light"] .add-songs-item-badge {
+    background-color: rgba(29, 185, 84, 0.15);
+    color: #1db954;
+}
+
+/* Add songs actions footer */
+[data-theme="light"] .add-songs-actions {
+    background-color: var(--bg-elevated);
+    border-top-color: var(--border-color);
+}
+
+/* Add songs search and filter */
+[data-theme="light"] .add-songs-search-input {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .add-songs-search-input:focus {
+    border-color: #1db954;
+    background-color: var(--bg-elevated);
+}
+
+[data-theme="light"] .add-songs-search-input::placeholder {
+    color: var(--text-muted);
+}
+
+[data-theme="light"] .album-filter-select {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .add-songs-album-filter label {
+    color: var(--text-secondary);
+}
+
+/* Device upload area */
+[data-theme="light"] .device-upload-area {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+}
+
+[data-theme="light"] .device-upload-area:hover {
+    background-color: var(--bg-hover);
+    border-color: #1db954;
+}
+
+[data-theme="light"] .device-upload-area p {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .device-upload-area span {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .device-upload-area svg {
+    color: var(--text-muted);
+}
+
+/* ==================== Search Results for Light Theme ==================== */
+[data-theme="light"] .search-results {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .search-section-title {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .search-result-item {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .search-result-item:hover {
+    background-color: var(--bg-hover);
+}
+
+[data-theme="light"] .search-result-name {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .search-result-title {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .search-result-meta {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .search-result-album,
+[data-theme="light"] .search-result-artist {
+    color: var(--text-secondary);
+}
+
+[data-theme="light"] .search-result-badge {
+    background-color: rgba(29, 185, 84, 0.15);
+    color: #1db954;
+}
+
+/* ==================== Global Scrollbar for Light Theme ==================== */
+[data-theme="light"] *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+[data-theme="light"] *::-webkit-scrollbar-track {
+    background-color: var(--bg-tertiary);
+    border-radius: 4px;
+}
+
+[data-theme="light"] *::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+[data-theme="light"] *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+/* Specific scrollbar styling for modals */
+[data-theme="light"] .add-songs-list::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="light"] .modal-content::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .songslist::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .cardsarea::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* ==================== Additional Modal Elements for Light Theme ==================== */
+/* Modal backdrop */
+[data-theme="light"] .modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+/* Selected count badge */
+[data-theme="light"] .selected-count {
+    background-color: rgba(29, 185, 84, 0.15);
+    color: #0f7a37;
+}
+
+/* Max songs hint */
+[data-theme="light"] .max-songs-hint {
+    color: var(--text-secondary);
+}
+
+/* Add to album modal */
+[data-theme="light"] .add-to-album-body {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .add-to-album-song-name {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .albums-list {
+    background-color: transparent;
+}
+
+/* Card menu dropdown for light theme */
+[data-theme="light"] .card-menu-dropdown {
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .menu-option {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .menu-option:hover {
+    background-color: var(--bg-hover);
+}
+
+/* Info text in modals */
+[data-theme="light"] .add-songs-info {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] #addSongsTargetAlbum {
+    color: #1db954;
+}
+
+/* Checkbox styling for light theme */
+[data-theme="light"] .checkbox-container input[type="checkbox"],
+[data-theme="light"] input[type="checkbox"] {
+    accent-color: #1db954;
+}
+
+[data-theme="light"] .checkbox-label {
+    color: var(--text-primary);
+}
+
+/* Export/Import buttons in backup modal */
+[data-theme="light"] .export-btn,
+[data-theme="light"] .import-btn {
+    color: var(--text-primary);
+}
+
+/* File info display */
+[data-theme="light"] .import-file-info {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .import-file-info span {
+    color: var(--text-primary);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+}
+
+body {
+    background-color: var(--bg-primary, black);
+    color: var(--text-primary, white);
+}
+
+/* Reset button styles for accessibility buttons */
+button {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+}
+
+button:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+.container {
+    display: flex;
+}
+
+.left {
+    width: 22vw;
+    /* A column, so the library below the nav can be given the room that is
+       left and the links can sit at the bottom of it in the ordinary way. */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.home {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    /* The nav is as tall as its own links; the library below takes the rest. */
+    flex-shrink: 0;
+}
+
+.logo {
+    display: flex;
+    justify-content: space-between;
+}
+
+.logo-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.logo-text {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+/* Light theme logo text */
+[data-theme="light"] .logo-text {
+    color: var(--text-primary);
+}
+
+[data-theme="light"] .logo-img {
+    filter: none;
+}
+
+.close {
+    /* Comfortable to hit with a thumb, whatever the icon inside measures. */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-primary);
+    right: 0px;
+    cursor: pointer;
+}
+
+.close:focus-visible {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .close:hover {
+        background-color: var(--surface-hover);
+        color: var(--text-on-hover);
+    }
+}
+
+.close img {
+    width: 30px;
+}
+
+.close:active {
+    background-color: var(--surface-active);
+}
+
+.home ul li {
+    list-style: none;
+    display: flex;
+    padding-top: 25px;
+}
+
+.home ul li label:hover {
+    transform: scale(1.02);
+    transition: all ease-in-out 0.3s;
+    color: var(--text-primary);
+}
+
+.home ul li:nth-child(1) {
+    font-weight: 700;
+}
+
+.home ul li img:nth-child(1) {
+    transform: scale(1.1);
+}
+
+.library {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    /* Whatever height the sidebar has, less the nav above it. */
+    flex: 1;
+    min-height: 0;
+}
+
+.heading {
+    position: relative;
+    margin: 10px 0px;
+}
+
+.heading :nth-child(3):not(.add-songs-library-btn) {
+    transform: rotate(45deg);
+    position: absolute;
+    right: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .heading :nth-child(3):not(.add-songs-library-btn):hover {
+        transform: scale(1.1) rotate(45deg);
+        transition: all ease-in-out 0.3s;
+    }
+}
+
+.songslist {
+    display: block;
+    max-width: 100%;
+    box-sizing: border-box;
+    /* The only part of the sidebar that scrolls. It takes the room between
+       the heading and the links, and never more than that - min-height: 0 is
+       what lets a flex child shrink far enough to scroll at all. */
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* The library's own padding sets the inset, so a card lines up with the
+       heading above it rather than being indented again here. */
+    padding: 0 0 8px;
+}
+
+.songslist ul {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    /* The card is a row of its own; a list marker would only indent it. */
+    list-style: none;
+    box-sizing: border-box;
+}
+
+.songslist ul li {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    border: 2px solid gray;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* Compact, and the same height whatever a song is called. */
+    min-height: 52px;
+    /* The utility margin on these cards would push a full-width one past the
+       edge of the list; the space between them is kept, the space beside them
+       is not. */
+    margin: 0 0 6px;
+    padding: 6px 8px;
+}
+
+.musicinfo {
+    font-size: 10px;
+    color: gray;
+}
+
+.musicinfo div:first-child {
+    overflow: hidden;
+    font-size: 12px;
+    color: white;
+}
+
+.songslist span {
+    font-size: 10px;
+    color: gray;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    /* A song's picture and its play control lift a little; neither is
+       repainted, so a photograph stays a photograph and an icon keeps the
+       colour its theme gave it. */
+    .songslist span:hover,
+    .songslist img:first-child:hover,
+    .songslist img:last-child:hover {
+        transform: scale(1.04);
+    }
+}
+
+.libcard:hover {
+    background-color: rgba(128, 128, 128, 0.062);
+}
+
+.footer {
+    /* Last in the column and never given up: no cards can reach it, because
+       the list above stops where this begins. */
+    flex-shrink: 0;
+    padding-top: 12px;
+    /* The sidebar's own surface, so a card scrolling up to the edge of the
+       list disappears behind the panel rather than over these. */
+    background-color: inherit;
+}
+
+.footer div {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    font-size: 14px;
+    max-width: 100%;
+}
+
+.footer a {
+    text-decoration: none;
+    color: gray;
+}
+
+.footer a:hover {
+    color: rgb(235, 235, 235);
+}
+
+.right {
+    width: 79vw;
+    margin: 10px 10px 10px 0px;
+    position: relative;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header>* {
+    display: flex;
+    gap: 15px;
+}
+
+/* The way into the library while it is a drawer. It sits at the left of the
+   header, before the two history chevrons, and exists only at the widths
+   where the library is not a column of its own. */
+.hamburger {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.hamburger img {
+    width: 24px;
+    height: 24px;
+    display: block;
+}
+
+.hamburger:focus-visible {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .hamburger:hover {
+        background-color: var(--surface-hover);
+        color: var(--text-on-hover);
+    }
+}
+
+.hamburger:active {
+    background-color: var(--surface-active);
+}
+
+.nav {
+    align-items: center;
+    gap: 4px;
+}
+
+/* Back and forward through the app's own views. Both are always here, so the
+   header keeps its shape; what changes is whether there is anywhere to go. */
+.nav-history-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.nav-history-btn svg {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.nav-history-btn:not(:disabled):hover,
+.nav-history-btn:not(:disabled):focus-visible {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+.nav-history-btn:not(:disabled):active {
+    background-color: var(--surface-active);
+    color: var(--text-on-hover);
+}
+
+/* Nothing in that direction. Still plainly a control, and plainly one that
+   has nothing to do - drawn by this stylesheet rather than by the browser's
+   own idea of a disabled button. */
+.nav-history-btn:disabled {
+    color: var(--text-muted);
+    opacity: 0.45;
+    background: none;
+    cursor: default;
+}
+
+/* Search Container Styles */
+.search-container {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+    margin: 0 20px;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-elevated);
+    border-radius: 500px;
+    padding: 8px 16px;
+    border: 2px solid transparent;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Reached with the keyboard: a surface each theme answers, with the words
+   and the icon on it named beside it. */
+.search-box:focus-within {
+    background-color: var(--surface-hover);
+    border-color: var(--focus-ring);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .search-box:hover {
+        background-color: var(--surface-hover);
+    }
+}
+
+.search-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px;
+}
+
+.search-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 14px;
+    width: 100%;
+}
+
+.search-input::placeholder {
+    color: var(--placeholder);
+}
+
+.clear-search {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.clear-search:hover {
+    opacity: 1;
+}
+
+/* Search Results Dropdown */
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background-color: #282828;
+    border-radius: 8px;
+    margin-top: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+    z-index: 1000;
+    box-shadow: 0 16px 24px rgba(0, 0, 0, 0.3), 0 6px 8px rgba(0, 0, 0, 0.2);
+    display: none;
+}
+
+.search-results.active {
+    display: block;
+}
+
+.search-results-header {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #b3b3b3;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid #3e3e3e;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    gap: 12px;
+}
+
+.search-result-item:hover,
+.search-result-item.selected {
+    background-color: #3e3e3e;
+}
+
+.search-result-item img {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.search-result-item.album img {
+    border-radius: 4px;
+}
+
+.search-result-item.song img {
+    border-radius: 2px;
+}
+
+.search-result-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.search-result-title {
+    color: #fff;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-result-title .highlight {
+    color: #1db954;
+    font-weight: 600;
+}
+
+.search-result-badge {
+    font-size: 9px;
+    color: #1db954;
+    background-color: rgba(29, 185, 84, 0.2);
+    padding: 2px 6px;
+    border-radius: 8px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.search-result-badge.device {
+    color: #1e90ff;
+    background-color: rgba(30, 144, 255, 0.2);
+}
+
+.search-result-meta {
+    color: #b3b3b3;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+.search-result-type {
+    background-color: #1db954;
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.search-result-play {
+    opacity: 0;
+    background-color: #1db954;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.search-result-item:hover .search-result-play {
+    opacity: 1;
+}
+
+.search-result-play svg {
+    width: 16px;
+    height: 16px;
+    fill: #000;
+}
+
+.no-results {
+    padding: 20px;
+    text-align: center;
+    color: #b3b3b3;
+}
+
+.no-results-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.no-results-text {
+    font-size: 14px;
+}
+
+.search-loading {
+    padding: 20px;
+    text-align: center;
+    color: #b3b3b3;
+}
+
+.search-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #3e3e3e;
+    border-top-color: #1db954;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 10px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Playlist Header with Create Button */
+.playlist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.create-album-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #1db954;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 500px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.create-album-btn:hover {
+    background-color: #1ed760;
+    transform: scale(1.04);
+}
+
+.create-album-btn svg {
+    stroke: currentColor;
+}
+
+/* Modal Styles */
+/* What sits above what.
+ *
+ * Two names rather than two numbers picked by hand. A dialog opened from
+ * inside another dialog has to be in front of it, and both have to be in
+ * front of the page - and when that is written as a number at each use, the
+ * numbers drift, somebody raises one, and a question ends up behind the thing
+ * that asked it. Which is exactly what happened: the confirmation and the
+ * manager were both 2000, so the one later in the document won, and confirming
+ * anything from the manager meant pressing a button nobody could see.
+ *
+ * One step between them is enough. Nothing here needs a large number.
+ */
+:root {
+    --layer-modal: 2000;
+    --layer-modal-over-modal: 2010;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: var(--layer-modal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* The question a dialog asks stands in front of the dialog that asked it,
+   backdrop and all, whatever order the two happen to appear in the document. */
+.modal.modal-confirm {
+    z-index: var(--layer-modal-over-modal);
+}
+
+/* Whatever is underneath the question cannot be reached until it is answered:
+   not by a pointer, not by Tab, and not by a screen reader. */
+[inert] {
+    pointer-events: none;
+    user-select: none;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    position: relative;
+    background-color: #282828;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #3e3e3e;
+}
+
+.modal-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    cursor: pointer;
+    padding: 4px;
+    transition: color 0.2s;
+}
+
+.modal-close:hover {
+    color: #fff;
+}
+
+.modal-body {
+    padding: 24px;
+}
+
+/* ===== Profile Modal Styles ===== */
+.profile-modal-content {
+    max-width: 400px;
+}
+
+.profile-modal-body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.profile-avatar-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.profile-avatar-large {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 24px rgba(29, 185, 84, 0.3);
+}
+
+.profile-avatar-large svg {
+    color: #000;
+    width: 48px;
+    height: 48px;
+}
+
+.profile-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: rgba(29, 185, 84, 0.15);
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1db954;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1db954;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.profile-info {
+    width: 100%;
+    margin-bottom: 24px;
+}
+
+.profile-info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile-info-item:last-child {
+    border-bottom: none;
+}
+
+.profile-info-item label {
+    font-size: 13px;
+    color: #a7a7a7;
+    font-weight: 500;
+    /* The label is as wide as its word and no wider; the value takes what is
+       left, which is what an address needs. */
+    flex-shrink: 0;
+}
+
+.profile-info-item span {
+    font-size: 14px;
+    color: #fff;
+    font-weight: 600;
+    min-width: 0;
+    text-align: right;
+    /* An address has nowhere to break, so it is allowed to break anywhere
+       rather than reach past the card. */
+    overflow-wrap: anywhere;
+}
+
+.profile-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    width: 100%;
+    padding: 20px 12px;
+    margin-bottom: 24px;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+}
+
+.profile-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+}
+
+.profile-stat .stat-label {
+    /* Three short words across a narrow card: cut rather than wrapped, so the
+       three columns stay the same height. */
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-stat .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.profile-stat .stat-label {
+    font-size: 12px;
+    color: #a7a7a7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+}
+
+.profile-actions {
+    width: 100%;
+}
+
+.profile-actions .btn-secondary {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 24px;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 30px;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.profile-actions .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #fff;
+}
+
+.profile-actions .btn-secondary svg {
+    flex-shrink: 0;
+}
+
+/* Light theme profile modal */
+[data-theme="light"] .profile-modal-body {
+    background: #fff;
+}
+
+[data-theme="light"] .profile-status-badge {
+    background: rgba(29, 185, 84, 0.1);
+}
+
+[data-theme="light"] .profile-info-item {
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="light"] .profile-info-item label {
+    color: #666;
+}
+
+[data-theme="light"] .profile-info-item span {
+    color: #000;
+}
+
+[data-theme="light"] .profile-stats {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .profile-stat .stat-value {
+    color: #000;
+}
+
+[data-theme="light"] .profile-stat .stat-label {
+    color: #666;
+}
+
+[data-theme="light"] .profile-actions .btn-secondary {
+    border-color: rgba(0, 0, 0, 0.3);
+    color: #000;
+}
+
+[data-theme="light"] .profile-actions .btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.05);
+    border-color: #000;
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 8px;
+}
+
+.form-group input[type="text"],
+.form-group textarea {
+    width: 100%;
+    background-color: #3e3e3e;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 14px;
+    color: #fff;
+    outline: none;
+    transition: border-color 0.2s, background-color 0.2s;
+    box-sizing: border-box;
+}
+
+.form-group input[type="text"]:focus,
+.form-group textarea:focus {
+    border-color: #1db954;
+    background-color: #404040;
+}
+
+.form-group input[type="text"]::placeholder,
+.form-group textarea::placeholder {
+    color: #a7a7a7;
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.image-upload-area {
+    position: relative;
+    border: 2px dashed #3e3e3e;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background-color: #1a1a1a;
+}
+
+.image-upload-area:hover,
+.image-upload-area.dragover {
+    border-color: #1db954;
+    background-color: #1f1f1f;
+}
+
+.upload-placeholder {
+    color: #b3b3b3;
+}
+
+.upload-placeholder svg {
+    color: #535353;
+    margin-bottom: 12px;
+}
+
+.upload-placeholder p {
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.upload-placeholder span {
+    font-size: 12px;
+    color: #727272;
+}
+
+.image-preview {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.remove-image {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #fff;
+    transition: background-color 0.2s;
+}
+
+.remove-image:hover {
+    background-color: rgba(0, 0, 0, 0.9);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 12px 32px;
+    border-radius: 500px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.btn-primary {
+    background-color: #1db954;
+    color: #000;
+}
+
+.btn-primary:hover {
+    background-color: #1ed760;
+    transform: scale(1.04);
+}
+
+.btn-primary:disabled {
+    background-color: #535353;
+    color: #727272;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: #fff;
+    border: 1px solid #727272;
+}
+
+.btn-secondary:hover {
+    border-color: #fff;
+}
+
+/* User Album Card Delete Button */
+.card-menu {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+}
+
+.card-menu-btn {
+    background-color: rgba(0, 0, 0, 0.7);
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #fff;
+    /* Visible by default, so a device that cannot hover never loses the
+       button. Hover-capable pointers get the quieter behaviour below. */
+    opacity: 1;
+    transition: opacity 0.2s, transform 0.2s, background-color 0.2s;
+}
+
+/* A real mouse: the button stays out of the way until the card is hovered,
+   something inside it has focus, or its menu is open. */
+@media (hover: hover) and (pointer: fine) {
+    .card-menu-btn {
+        opacity: 0;
+    }
+
+    .cardcontainer:hover .card-menu-btn,
+    .cardcontainer:focus-within .card-menu-btn,
+    .card-menu.open .card-menu-btn {
+        opacity: 1;
+    }
+}
+
+/* Touch, or any coarse pointer including hybrids: always there, and large
+   enough to press without aiming.
+ *
+ * Asked of the pointer rather than of the window. A tablet held in two hands
+ * is a wide screen with no mouse on it, and a rule written against a width
+ * would have hidden this button behind a hover that device cannot perform -
+ * leaving the card with no way to reach its own options at all. */
+@media (hover: none), (pointer: coarse) {
+    .card-menu-btn {
+        opacity: 1;
+        width: 44px;
+        height: 44px;
+    }
+
+    .card-menu-btn:active {
+        transform: scale(1.1);
+    }
+}
+
+.card-menu-btn:hover {
+    background-color: rgba(0, 0, 0, 0.9);
+    transform: scale(1.1);
+}
+
+.card-menu-btn:focus,
+.card-menu-btn:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+.card-menu-dropdown {
+    position: fixed;
+    /* Where it goes is worked out when it opens, from the button it belongs
+       to and the room around it. */
+    top: 0;
+    left: 0;
+    background-color: #282828;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    min-width: 140px;
+    /* Never wider than the screen, so the menu cannot open off-canvas. */
+    max-width: min(220px, calc(100vw - 24px));
+    max-height: min(320px, calc(100vh - 24px));
+    overflow-y: auto;
+    z-index: 1300;
+}
+
+.menu-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-align: left;
+}
+
+.menu-option:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.menu-option.delete-option:hover {
+    background-color: rgba(233, 20, 41, 0.2);
+    color: #e91429;
+}
+
+.menu-option.delete-option:hover svg path {
+    stroke: #e91429;
+}
+
+.menu-option.pinned span {
+    color: #1db954;
+}
+
+.menu-option.pinned svg path {
+    stroke: #1db954;
+}
+
+/* Like Button in Playbar */
+.songinfo-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    min-width: 150px;
+}
+
+/* Tablet and Desktop - more spacing between song name and like button */
+@media screen and (min-width: 769px) {
+    .songinfo-container {
+        gap: 16px;
+        padding-right: 12px;
+        min-width: 200px;
+    }
+    
+    .songinfo {
+        width: auto;
+        min-width: 120px;
+        max-width: 200px;
+    }
+    
+    .like-btn {
+        margin-left: 12px;
+        flex-shrink: 0;
+    }
+}
+
+.like-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: #b3b3b3;
+}
+
+.like-btn:hover {
+    color: #fff;
+    transform: scale(1.1);
+}
+
+.like-btn.liked {
+    color: #1db954;
+}
+
+.like-btn.liked .heart-icon path {
+    fill: #1db954;
+    stroke: #1db954;
+}
+
+/* Song Context Menu */
+.song-context-menu {
+    position: fixed;
+    background-color: #282828;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    min-width: 200px;
+    padding: 4px 0;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    text-align: left;
+}
+
+.context-menu-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.context-menu-item.liked span {
+    color: #1db954;
+}
+
+.context-menu-item.liked svg path {
+    fill: #1db954;
+    stroke: #1db954;
+}
+
+.context-menu-item[data-action="removeFromAlbum"]:hover {
+    background-color: rgba(233, 20, 41, 0.2);
+    color: #e91429;
+}
+
+.context-menu-item[data-action="removeFromAlbum"]:hover svg path {
+    stroke: #e91429;
+}
+
+/* Add to Album Modal */
+.add-to-album-modal {
+    max-width: 400px;
+}
+
+/* This modal's body holds a list that runs to its own edges, so it takes no
+   padding of its own - said with enough specificity to win outright rather
+   than by force. */
+.add-to-album-modal .modal-body.add-to-album-body {
+    padding: 0;
+}
+
+.add-to-album-song-name {
+    padding: 16px;
+    font-size: 14px;
+    color: #b3b3b3;
+    border-bottom: 1px solid #333;
+    margin: 0;
+}
+
+.album-search-box {
+    padding: 12px 16px;
+    border-bottom: 1px solid #333;
+}
+
+.album-search-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #333;
+    border-radius: 4px;
+    background-color: #3e3e3e;
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.album-search-input:focus {
+    border-color: #1db954;
+}
+
+.albums-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.album-list-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    color: #fff;
+}
+
+.album-list-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.album-list-item img {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+}
+
+.album-list-item-info {
+    flex: 1;
+}
+
+.album-list-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0 0 2px 0;
+}
+
+.album-list-item-type {
+    font-size: 12px;
+    color: #b3b3b3;
+    margin: 0;
+}
+
+.album-list-item.added {
+    opacity: 0.5;
+}
+
+.album-list-item.added::after {
+    content: '✓';
+    color: #1db954;
+    font-size: 16px;
+}
+
+/* Song item menu button in library */
+.song-menu-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: #b3b3b3;
+    opacity: 0.7;
+    transition: all 0.2s;
+}
+
+.libcard:hover .song-menu-btn {
+    opacity: 1;
+}
+
+.song-menu-btn:hover {
+    color: #fff;
+}
+
+/* Light theme song menu button */
+[data-theme="light"] .song-menu-btn {
+    color: var(--text-secondary);
+    opacity: 0.7;
+}
+
+[data-theme="light"] .libcard:hover .song-menu-btn {
+    opacity: 1;
+}
+
+[data-theme="light"] .song-menu-btn:hover {
+    color: var(--text-primary);
+}
+
+/* Touch device support for song menu */
+@media (hover: none), (pointer: coarse) {
+    .song-menu-btn {
+        opacity: 0.7;
+    }
+}
+
+/* User added song indicator */
+.user-added-badge {
+    font-size: 10px;
+    color: #1db954;
+    background-color: rgba(29, 185, 84, 0.2);
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin-left: 8px;
+}
+
+.user-added-badge.device {
+    color: #1e90ff;
+    background-color: rgba(30, 144, 255, 0.2);
+}
+
+/* Delete Confirmation Modal */
+.modal-confirm .modal-content-small {
+    max-width: 400px;
+}
+
+.confirm-icon {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.confirm-message {
+    text-align: center;
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.confirm-submessage {
+    text-align: center;
+    font-size: 13px;
+    color: #a7a7a7;
+    margin-bottom: 24px;
+}
+
+.btn-danger {
+    background-color: #e91429;
+    color: #fff;
+    padding: 12px 32px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.btn-danger:hover {
+    background-color: #f0163a;
+    transform: scale(1.04);
+}
+
+/* Pin indicator badge */
+.pin-indicator {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background-color: #1db954;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+    z-index: 5;
+}
+
+/* Create Album Card */
+.cardsarea .create-album-card {
+    border: 2px dashed var(--border-strong);
+    background-color: transparent;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.cardsarea .create-album-card:hover,
+.cardsarea .create-album-card:focus-within {
+    border-color: var(--accent-primary);
+    background-color: rgba(29, 185, 84, 0.1);
+}
+
+.create-card-inner {
+    display: flex;
+    flex-direction: column;
+    /* The same stack as an album card: a square, then a name, then a line
+       beneath it - so the two share a footprint rather than only a width. */
+    align-items: stretch;
+    justify-content: flex-start;
+    min-height: 0;
+    min-width: 0;
+    gap: 8px;
+}
+
+.create-card-inner h2,
+.create-card-inner p {
+    text-align: center;
+}
+
+/* Where an album card has its picture, this one has the plus: the same
+   square, in the same place, at every card size. */
+.create-card-plus {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background-color: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.create-card-plus svg {
+    width: 45%;
+    height: 45%;
+}
+
+.create-album-card:hover .create-card-plus,
+.create-album-card:focus-within .create-card-plus {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    transform: scale(1.08);
+}
+
+.create-card-inner h2 {
+    color: var(--text-primary);
+    font-size: 15px;
+    text-align: center;
+}
+
+.create-card-inner p {
+    color: var(--text-secondary);
+    font-size: 12px;
+    text-align: center;
+    white-space: normal;
+}
+
+/* Sidebar nav item styles */
+.sidebar-nav-item {
+    cursor: pointer;
+    transition: all 0.2s;
+    border-radius: 4px;
+    padding: 8px;
+    margin: -8px;
+}
+
+.sidebar-nav-item:focus-visible,
+.sidebar-nav-item:focus-within {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+.sidebar-nav-item:active {
+    background-color: var(--surface-active);
+}
+
+/* Its label comes with it, in both themes. */
+.sidebar-nav-item:focus-visible label,
+.sidebar-nav-item:focus-within label {
+    color: var(--text-on-hover);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .sidebar-nav-item:hover {
+        background-color: var(--surface-hover);
+        color: var(--text-on-hover);
+    }
+
+    .sidebar-nav-item:hover label {
+        color: var(--text-on-hover);
+    }
+}
+
+.sidebar-nav-item.sidebar-active,
+.sidebar-nav-item.sidebar-active label {
+    color: var(--text-primary);
+}
+
+.btns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* Auth Button Links */
+.auth-btn-link {
+    text-decoration: none;
+}
+
+.auth-btn-link button {
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+/* Sign Up Button (transparent background) */
+.btns .auth-btn-link button.fw-1:not(.fc-black) {
+    background-color: transparent;
+    color: #b3b3b3;
+    border: 1px solid transparent;
+    padding: 12px 20px;
+    border-radius: 20px;
+}
+
+.btns .auth-btn-link button.fw-1:not(.fc-black):hover {
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.4);
+    transform: scale(1.04);
+}
+
+/* Log In Button (white background) */
+.btns .auth-btn-link button.fc-black {
+    background-color: white;
+    color: #000000;
+    border: none;
+    border-radius: 20px;
+    padding: 12px 32px;
+}
+
+.btns .auth-btn-link button.fc-black:hover {
+    background-color: rgb(198, 198, 198);
+    transform: scale(1.04);
+}
+
+/* ==================== User Menu Styles ==================== */
+.user-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.user-menu-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 23px;
+    cursor: pointer;
+    color: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.user-menu-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background-color: #535353;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+}
+
+.user-avatar svg {
+    width: 16px;
+    height: 16px;
+}
+
+.user-name {
+    font-size: 14px;
+    font-weight: 700;
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dropdown-arrow {
+    transition: transform 0.2s ease;
+}
+
+.user-menu.open .dropdown-arrow {
+    transform: rotate(180deg);
+}
+
+.user-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    background-color: #282828;
+    border-radius: 8px;
+    box-shadow: 0 16px 24px rgba(0, 0, 0, 0.5);
+    padding: 4px;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: all 0.2s ease;
+}
+
+.user-menu.open .user-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    color: #b3b3b3;
+    font-size: 14px;
+    font-weight: 400;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.dropdown-item svg {
+    flex-shrink: 0;
+    color: inherit;
+}
+
+.dropdown-item.admin-link {
+    color: #1db954;
+}
+
+.dropdown-item.admin-link:hover {
+    background-color: rgba(29, 185, 84, 0.1);
+    color: #1ed760;
+}
+
+.dropdown-divider {
+    border: none;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.1);
+    margin: 4px 0;
+}
+
+.logout-btn {
+    color: #b3b3b3;
+}
+
+.logout-btn:hover {
+    color: #ffffff;
+}
+
+.playlist {
+    background-color: var(--surface-wash);
+    padding: 10px 20px;
+}
+
+.playlist-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.playlist>h1 {
+    font-size: 28px;
+    margin: 5px;
+}
+
+.emoji-large {
+    font-size: 30px;
+}
+
+/* Card Size Toggle Button */
+.card-size-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background-color: transparent;
+    border: 1px solid #535353;
+    border-radius: 20px;
+    padding: 8px 16px;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.card-size-btn:hover {
+    background-color: #ffffff1a;
+    border-color: #fff;
+    transform: scale(1.02);
+}
+
+.card-size-btn svg {
+    flex-shrink: 0;
+}
+
+.size-label {
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* ==========================================================================
+   The album grid
+   --------------------------------------------------------------------------
+   One grid, one card. The number of columns comes from how much room there
+   is, not from a width written per breakpoint, and every card - Local Music,
+   a published album, one someone made, the Create card - fills exactly one
+   cell. Nothing here is positioned by hand, so nothing can leave the grid.
+   ========================================================================== */
+
+.cardsarea {
+    /* The narrowest a card may be before the grid drops a column. Changing
+       card size changes this one number and nothing else. */
+    --card-min: 168px;
+
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+    gap: 14px;
+    align-content: start;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* The grid scrolls inside the library; the room for the player is
+       reserved by the section around it. */
+    padding-bottom: 10px;
+    box-sizing: border-box;
+}
+
+.cardsarea.cards-small {
+    --card-min: 128px;
+}
+
+.cardsarea.cards-large {
+    --card-min: 232px;
+}
+
+.cardcontainer {
+    /* A cell wide, whatever that is. */
+    width: auto;
+    min-width: 0;
+    display: flex;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    padding: 12px 12px 14px;
+    margin: 0;
+    box-sizing: border-box;
+    transition: background-color 0.2s ease;
+}
+
+.card {
+    width: 100%;
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+}
+
+/* No picture in this application is ever laid out at its own size: whatever
+   box it is given, it fills that box and stops there. Album art arrives at
+   whatever size it was made at, and a rule that failed to bound it used to
+   mean a cover drawn across the window. */
+img {
+    max-width: 100%;
+}
+
+/* The artwork, and the things that sit on top of it. Anchoring the play
+   control here rather than to the card is what lets one rule serve every card
+   size: it is always in the corner of the picture. */
+.card-art {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: var(--bg-tertiary);
+}
+
+/* The card's own picture. Named for the square it lives in rather than for
+   "an image somewhere in a card", so nothing else placed in a card can pick
+   these sizes up by accident. */
+.card-art img {
+    object-fit: cover;
+    object-position: center;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    display: block;
+}
+
+.card h2 {
+    font-size: 15px;
+    margin: 0;
+    color: var(--text-primary);
+    /* A long album name is cut, never wrapped: a card that grows breaks the
+       row it is in. */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.card p {
+    font-size: 12px;
+    margin: 0;
+    color: var(--text-secondary);
+    /* One line for the artist, always: an album with no artist keeps the same
+       card height instead of collapsing. */
+    min-height: 1.2em;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.cardsarea.cards-small .card h2 {
+    font-size: 13px;
+}
+
+.cardsarea.cards-small .card p {
+    font-size: 11px;
+}
+
+.cardsarea.cards-large .card h2 {
+    font-size: 17px;
+}
+
+.cardsarea.cards-large .card p {
+    font-size: 13px;
+}
+
+.cardcontainer:hover,
+.cardcontainer:focus-within {
+    background-color: var(--card-hover);
+    --play-button-opacity: 1;
+    --play-button-offset: 0;
+}
+
+/* The play control sits in the corner of the artwork, at a size that follows
+   the card rather than a list of hard-coded offsets. */
+.play {
+    width: clamp(32px, 22%, 48px);
+    height: clamp(32px, 22%, 48px);
+    background-color: var(--accent-hover);
+    color: var(--text-on-accent);
+    border-radius: 50%;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    transform: translateY(var(--play-button-offset, 8px));
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+    opacity: var(--play-button-opacity, 0);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.play svg {
+    width: 45%;
+    height: 45%;
+}
+
+.play:hover,
+.play:focus-visible {
+    background-color: var(--accent-hover);
+    transform: translateY(var(--play-button-offset, 0)) scale(1.06);
+    opacity: 1;
+}
+
+/* A finger has no hover to reveal it with. */
+@media (hover: none), (pointer: coarse) {
+    .play {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ==========================================================================
+   The player
+   --------------------------------------------------------------------------
+   Three zones on a wide screen - what is playing, the controls, the volume -
+   collapsing to one line on a phone. Every control here drives the one audio
+   element; none of them keeps a state of its own.
+   ========================================================================== */
+
+/* How much room the player takes at the bottom of the window. The library and
+   the album list reserve exactly this much, so the last row is never left
+   underneath it. */
+body {
+    --player-height: 84px;
+    /* What sits between the player and the bottom of the window, plus whatever
+       the device keeps for itself down there. */
+    --player-inset: env(safe-area-inset-bottom, 0px);
+    --player-gap: calc(24px + var(--player-inset));
+}
+
+.playbar {
+    width: calc(78vw - 40px);
+    max-width: 100%;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    display: grid;
+    /* The sides are equal whatever is in them, so the controls sit in the
+       geometric middle of the bar and a long track name cannot push them
+       sideways. */
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    position: fixed;
+    left: 22vw;
+    right: auto;
+    bottom: calc(20px + var(--player-inset));
+    padding: 8px 18px;
+    height: var(--player-height);
+    margin: 0 auto;
+    box-sizing: border-box;
+    border-radius: 10px;
+    z-index: 100;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+}
+
+/* ---- left: what is playing ---- */
+
+.playbar-track {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.playbar-artwork {
+    width: 52px;
+    height: 52px;
+    border-radius: 6px;
+    object-fit: cover;
+    object-position: center;
+    flex-shrink: 0;
+    background-color: var(--bg-tertiary);
+}
+
+.playbar-meta {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.songinfo {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.playbar-artist {
+    font-size: 11px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+/* ---- centre: the controls and the progress ---- */
+
+.playbar-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: min(620px, 100%);
+    min-width: 0;
+}
+
+.controls {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+/* One shape for every control in the player, so the difference between them
+   is size and weight rather than a different button each time. */
+.player-btn {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    /* Comfortable to hit with a thumb, whatever the icon inside measures. */
+    min-width: 40px;
+    min-height: 40px;
+    transition: background-color 0.15s ease, transform 0.15s ease, color 0.15s ease;
+}
+
+.player-btn img {
+    width: 22px;
+    height: 22px;
+    display: block;
+}
+
+.player-btn:hover,
+.player-btn:focus-visible {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+.player-btn:active {
+    background-color: var(--surface-active);
+    color: var(--text-on-hover);
+}
+
+/* Quieter than the rest until it is pointed at or switched on. */
+.player-btn-quiet {
+    color: var(--text-secondary);
+    position: relative;
+}
+
+.player-btn-quiet:hover,
+.player-btn-quiet:focus-visible {
+    color: var(--text-on-hover);
+}
+
+/* Shuffle and repeat, while they are doing something. */
+.player-btn-quiet.is-active,
+.player-btn-quiet[aria-pressed="true"] {
+    color: var(--accent-text);
+}
+
+.player-btn-quiet.is-active:hover,
+.player-btn-quiet[aria-pressed="true"]:hover,
+.player-btn-quiet.is-active:focus-visible,
+.player-btn-quiet[aria-pressed="true"]:focus-visible {
+    color: var(--accent-text);
+    background-color: var(--surface-hover);
+}
+
+/* Play is the one control that is always found first. */
+.player-btn-primary {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.player-btn-primary img {
+    width: 20px;
+    height: 20px;
+    /* These icons are drawn dark, and dark is what reads on the green - so
+       they are left exactly as they are, in either theme. */
+    filter: none;
+}
+
+.player-btn-primary:hover,
+.player-btn-primary:focus-visible {
+    background-color: var(--accent-hover);
+    color: var(--text-on-accent);
+    transform: scale(1.06);
+}
+
+.player-btn-primary:active {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    transform: scale(0.98);
+}
+
+/* Nothing to play: still plainly the same control, and plainly one that
+   cannot be pressed. */
+.player-btn-primary:disabled,
+.player-btn-primary[aria-disabled='true'] {
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    transform: none;
+    cursor: default;
+}
+
+.player-btn-large {
+    min-width: 64px;
+    min-height: 64px;
+}
+
+.player-btn-large img {
+    width: 26px;
+    height: 26px;
+}
+
+/* Repeat-one says so with a number, not a different icon. */
+.repeat-one-badge {
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--accent-text);
+    display: none;
+}
+
+.player-btn[data-repeat="one"] .repeat-one-badge {
+    display: block;
+}
+
+/* ---- the seek bar ---- */
+
+.playbar-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+}
+
+.playbar-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    min-width: 38px;
+    text-align: center;
+}
+
+.seekbar {
+    position: relative;
+    flex: 1;
+    height: 4px;
+    min-width: 0;
+    border-radius: 2px;
+    background-color: var(--border-strong);
+    cursor: pointer;
+    /* The line is thin; the thing a finger has to hit is not. */
+    padding: 10px 0;
+    background-clip: content-box;
+    box-sizing: content-box;
+    margin: -10px 0;
+    touch-action: none;
+}
+
+.seekbar-fill {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 4px;
+    width: 0%;
+    border-radius: 2px;
+    background-color: var(--text-primary);
+    pointer-events: none;
+}
+
+.seekbar:hover .seekbar-fill,
+.seekbar:focus-visible .seekbar-fill {
+    background-color: var(--accent-primary);
+}
+
+.circle {
+    position: absolute;
+    top: 50%;
+    left: 0%;
+    width: 12px;
+    height: 12px;
+    margin-left: -6px;
+    border-radius: 50%;
+    background-color: var(--text-primary);
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+}
+
+.seekbar:hover .circle,
+.seekbar:focus-visible .circle,
+.seekbar.is-scrubbing .circle {
+    opacity: 1;
+}
+
+/* On a phone the bar has no room for a row of its own, so progress runs along
+   its top edge instead. */
+.playbar-mini-progress {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 10px 10px 0 0;
+    background-color: var(--border-color);
+    overflow: hidden;
+}
+
+.playbar-mini-fill {
+    height: 100%;
+    width: 0%;
+    background-color: var(--accent-primary);
+}
+
+/* ---- right: volume, and the way into Now Playing ---- */
+
+.playbar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
+}
+
+.volume {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    /* The popover is placed against this, so it opens over the player rather
+       than making room for itself in it. */
+    position: relative;
+}
+
+/* ---- the slider, where there is no room for it beside the button ----
+   On a wide screen the slider is simply there. Where it is not, it opens
+   above the button that asks for it: the same control, in the same theme
+   colours, over the player rather than pushing it about. */
+.volume-popover {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.volume-popover-range {
+    width: 120px;
+}
+
+.volume button img {
+    width: 20px;
+    height: 20px;
+}
+
+.volumeSeekbar {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+/* Said out loud, not shown: the same progress for a screen reader. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+.songtime {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+@media screen and (max-width: 1400px) {
+    /* Closer together and a little smaller in the drawer. */
+    .footer div {
+        gap: 5px;
+        font-size: 12px;
+    }
+
+    .right {
+        width: 100vw;
+    }
+
+    /* The library is a drawer here, so it needs a way in and a way out. */
+    .hamburger,
+    .close {
+        display: flex;
+    }
+
+    .search-container {
+        max-width: 300px;
+    }
+
+}
+
+@media screen and (max-width: 620px) {
+}
+
+@media screen and (max-width: 545px) {
+
+    .right {
+        margin: 0;
+    }
+
+    /* User menu responsive */
+    .user-name {
+        display: none;
+    }
+    
+    .user-menu-btn {
+        padding: 6px;
+    }
+    
+    .user-dropdown {
+        min-width: 180px;
+    }
+
+    /* Create Album responsive */
+    .playlist-header {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    
+    .playlist-header h1 {
+        font-size: 22px;
+    }
+    
+    .header-actions {
+        gap: 8px;
+    }
+    
+    .card-size-btn {
+        padding: 8px;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+    }
+    
+    .card-size-btn .size-label {
+        display: none;
+    }
+    
+    .card-size-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .create-album-btn {
+        padding: 8px;
+        font-size: 12px;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .create-album-btn span {
+        display: none;
+    }
+    
+    .create-album-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+    
+    /* A card on a phone takes the screen less a margin on each side, and as
+       much height as it needs up to what the window can show - so it scrolls
+       inside itself rather than being cut off. */
+    .modal-content {
+        width: calc(100% - 32px);
+        max-width: 420px;
+        max-height: calc(100dvh - 32px);
+    }
+
+    .modal-header {
+        padding: 14px 16px;
+    }
+
+    .modal-body {
+        padding: 16px;
+    }
+
+    /* ---- My Profile ---- */
+
+    .profile-modal-body {
+        padding: 16px 16px 20px;
+    }
+
+    .profile-avatar-section {
+        margin-bottom: 16px;
+    }
+
+    .profile-avatar-large {
+        width: 76px;
+        height: 76px;
+        margin-bottom: 10px;
+    }
+
+    .profile-avatar-large svg {
+        width: 36px;
+        height: 36px;
+    }
+
+    .profile-info {
+        margin-bottom: 16px;
+    }
+
+    .profile-info-item {
+        padding: 10px 0;
+    }
+
+    /* On the narrowest cards a long address gets the whole width rather than
+       what is left beside its label. */
+    .profile-info-item span {
+        font-size: 13px;
+    }
+
+    .profile-stats {
+        padding: 14px 8px;
+        margin-bottom: 16px;
+        gap: 4px;
+    }
+
+    .profile-stat .stat-value {
+        font-size: 22px;
+    }
+
+    .profile-stat .stat-label {
+        font-size: 10px;
+        letter-spacing: 0.3px;
+    }
+
+    .profile-actions .btn-secondary {
+        padding: 12px 16px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .btn-primary,
+    .btn-secondary {
+        width: 100%;
+        text-align: center;
+    }
+
+    .header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .header .nav {
+        order: 1;
+    }
+    
+    .header .btns {
+        order: 2;
+    }
+
+    .search-container {
+        order: 3;
+        flex: 1 1 100%;
+        max-width: 100%;
+        margin: 10px 0 0 0;
+        display: flex;
+        justify-content: center;
+    }
+    
+    .search-box {
+        width: 100%;
+        max-width: 400px;
+    }
+
+    .search-results {
+        max-height: 300px;
+    }
+
+    .search-result-item img {
+        width: 36px;
+        height: 36px;
+    }
+
+    .nav {
+        gap: 2px;
+    }
+
+    /* Compact, and still a comfortable target. */
+    .nav-history-btn {
+        width: 36px;
+        height: 36px;
+    }
+
+    .nav-history-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .btns button:first-child {
+        transform: scale(0.9);
+    }
+
+    .btns button:last-child {
+        border-radius: 15px;
+        padding: 8px 22px;
+    }
+
+}
+
+/* Toast Notification */
+.toast-notification {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #1db954;
+    color: #000;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 10000;
+    animation: slideUpFade 0.3s ease-out;
+    max-width: 90%;
+    text-align: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.toast-notification.error {
+    background-color: #e91429;
+    color: #fff;
+}
+
+.toast-notification.info {
+    background-color: #2e77d0;
+    color: #fff;
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+.toast-notification.fade-out {
+    animation: slideDownFade 0.3s ease-in forwards;
+}
+
+@keyframes slideDownFade {
+    from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+}
+
+/* Add Songs to Library Button */
+.add-songs-library-btn {
+    background: #1db954;
+    border: none;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: auto;
+    margin-right: 8px;
+    transition: all 0.2s;
+    color: #000;
+}
+
+.add-songs-library-btn svg {
+    transform: rotate(0deg);
+}
+
+.add-songs-library-btn:hover {
+    transform: scale(1.1);
+    background: #1ed760;
+}
+
+.add-songs-library-btn.hidden {
+    display: none;
+}
+
+/* Add Songs Modal Styles */
+.add-songs-modal {
+    max-width: 600px;
+    max-height: 80vh;
+}
+
+.add-songs-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.add-songs-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.add-songs-info #addSongsTargetAlbum {
+    font-weight: 600;
+    color: #1db954;
+}
+
+.selected-count {
+    background: #282828;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    color: #b3b3b3;
+}
+
+.selected-count.has-selection {
+    background: #1db954;
+    color: #000;
+}
+
+.max-songs-hint {
+    font-size: 11px;
+    /* A hint is quieter, not fainter than the eye can follow: it takes the
+       theme's second voice rather than a grey that disappears into either
+       background. */
+    color: var(--text-secondary);
+}
+
+.add-songs-search-box {
+    display: flex;
+    gap: 8px;
+}
+
+.add-songs-search-input {
+    flex: 1;
+    background: #3e3e3e;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 14px;
+    color: #fff;
+    font-size: 14px;
+}
+
+.add-songs-search-input:focus {
+    outline: 1px solid #1db954;
+}
+
+.add-songs-album-filter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.add-songs-album-filter label {
+    font-size: 13px;
+    color: #b3b3b3;
+}
+
+.album-filter-select {
+    flex: 1;
+    background: #3e3e3e;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.album-filter-select:focus {
+    outline: 1px solid #1db954;
+}
+
+.add-songs-list {
+    max-height: 350px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-right: 8px;
+}
+
+.add-songs-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.add-songs-list::-webkit-scrollbar-thumb {
+    background: #535353;
+    border-radius: 3px;
+}
+
+.add-songs-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #282828;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.add-songs-item:hover {
+    background: #3e3e3e;
+}
+
+.add-songs-item.selected {
+    background: rgba(29, 185, 84, 0.2);
+    border: 1px solid #1db954;
+}
+
+.add-songs-item.already-added {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.add-songs-item-checkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #727272;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.add-songs-item.selected .add-songs-item-checkbox {
+    background: #1db954;
+    border-color: #1db954;
+}
+
+.add-songs-item-checkbox svg {
+    display: none;
+}
+
+.add-songs-item.selected .add-songs-item-checkbox svg {
+    display: block;
+}
+
+.add-songs-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.add-songs-item-name {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.add-songs-item-album {
+    font-size: 12px;
+    color: #b3b3b3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.add-songs-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid #282828;
+    position: sticky;
+    bottom: 0;
+    background: #181818;
+    padding-bottom: 4px;
+}
+
+/* Add Songs Tabs */
+.add-songs-tabs {
+    display: flex;
+    gap: 4px;
+    background: #282828;
+    padding: 4px;
+    border-radius: 8px;
+}
+
+.add-songs-tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: #b3b3b3;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-songs-tab:hover {
+    color: #fff;
+}
+
+.add-songs-tab.active {
+    background: #1db954;
+    color: #000;
+}
+
+.add-songs-tab-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.add-songs-tab-content.hidden {
+    display: none;
+}
+
+/* Device Upload Area */
+.device-upload-area {
+    border: 2px dashed #535353;
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #b3b3b3;
+}
+
+.device-upload-area:hover {
+    border-color: #1db954;
+    background: rgba(29, 185, 84, 0.05);
+}
+
+.device-upload-area.drag-over {
+    border-color: #1db954;
+    background: rgba(29, 185, 84, 0.1);
+}
+
+.device-upload-area svg {
+    margin-bottom: 12px;
+    opacity: 0.7;
+}
+
+.device-upload-area p {
+    font-size: 14px;
+    margin: 0 0 4px 0;
+}
+
+.device-upload-area span {
+    font-size: 12px;
+    color: #727272;
+}
+
+.device-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.device-file-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #282828;
+    border-radius: 4px;
+}
+
+.device-file-item .file-icon {
+    width: 32px;
+    height: 32px;
+    background: #1db954;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #000;
+}
+
+.device-file-item .file-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.device-file-item .file-name {
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.device-file-item .file-size {
+    font-size: 12px;
+    color: #b3b3b3;
+}
+
+.device-file-item .remove-file-btn {
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.device-file-item .remove-file-btn:hover {
+    color: #e91429;
+}
+
+/* Liked Songs Album Card */
+.liked-songs-card .card {
+    position: relative;
+}
+
+.liked-songs-card .card-art img {
+    background: linear-gradient(135deg, #450af5 0%, #8e8ee5 50%, #b794f6 100%);
+    object-fit: cover;
+    object-position: center;
+}
+
+/* Heart icon overlay for Liked Songs */
+.liked-songs-card .card::before {
+    content: '';
+    position: absolute;
+    top: calc(50% - 20px);
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23fff"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>') center/contain no-repeat;
+    filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3));
+    z-index: 2;
+    pointer-events: none;
+}
+
+.liked-songs-card:hover .card::before {
+    transform: translate(-50%, -50%) scale(1.1);
+    transition: transform 0.3s ease;
+}
+
+/* Waveform Indicator for Playing Album */
+.cardcontainer.now-playing .waveform-indicator {
+    display: flex;
+}
+
+.waveform-indicator {
+    display: none;
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    gap: 2px;
+    align-items: flex-end;
+    height: 16px;
+    padding: 4px 6px;
+    background: rgba(0, 0, 0, 0.8);
+    border-radius: 4px;
+    z-index: 2;
+}
+
+.waveform-indicator .bar {
+    width: 3px;
+    background: #1db954;
+    border-radius: 2px;
+    animation: waveform 1s ease-in-out infinite;
+}
+
+.waveform-indicator .bar:nth-child(1) { animation-delay: 0s; height: 60%; }
+.waveform-indicator .bar:nth-child(2) { animation-delay: 0.2s; height: 100%; }
+.waveform-indicator .bar:nth-child(3) { animation-delay: 0.4s; height: 40%; }
+.waveform-indicator .bar:nth-child(4) { animation-delay: 0.6s; height: 80%; }
+
+@keyframes waveform {
+    0%, 100% { transform: scaleY(0.3); }
+    50% { transform: scaleY(1); }
+}
+
+/* Paused waveform */
+.cardcontainer.now-playing.paused .waveform-indicator .bar {
+    animation: none;
+    opacity: 0.6;
+}
+
+.cardcontainer.now-playing.paused .waveform-indicator .bar:nth-child(1) { height: 40%; }
+.cardcontainer.now-playing.paused .waveform-indicator .bar:nth-child(2) { height: 60%; }
+.cardcontainer.now-playing.paused .waveform-indicator .bar:nth-child(3) { height: 30%; }
+.cardcontainer.now-playing.paused .waveform-indicator .bar:nth-child(4) { height: 50%; }
+
+/* A quiet line saying a change is personal to this account. */
+.form-scope-note {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #b3b3b3;
+}
+
+/* Placeholder row for a list with nothing in it.
+   It inherits the track-card geometry from .songslist ul li, so it lines up
+   with real rows; only the interaction differs. */
+.empty-libcard {
+    list-style: none;
+    cursor: default;
+    opacity: 0.75;
+}
+
+.empty-libcard:hover {
+    background-color: transparent;
+}
+
+.empty-libcard img {
+    /* Sized exactly like a track row's icon, so the text starts in the same
+       place. */
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.empty-libcard .musicinfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.empty-libcard .musicinfo div {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* No songs message */
+.no-songs-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: #b3b3b3;
+}
+
+.no-songs-message svg {
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+/* Mobile view fixes for Add Songs Modal */
+@media screen and (max-width: 600px) {
+    .add-songs-modal {
+        max-height: 90vh;
+        margin: 5vh auto;
+        width: 95%;
+    }
+    
+    .add-songs-modal .modal-body {
+        max-height: calc(90vh - 60px);
+        overflow-y: auto;
+        padding-bottom: 70px;
+    }
+    
+    .add-songs-list {
+        max-height: 200px;
+    }
+    
+    .device-files-list {
+        max-height: 150px;
+    }
+    
+    .add-songs-actions {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #181818;
+        padding: 12px 16px;
+        margin: 0;
+        border-radius: 0;
+        z-index: 10;
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.5);
+    }
+    
+    .add-songs-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    
+    .device-upload-area {
+        padding: 30px 15px;
+    }
+}
+
+/* ===================== Backup & Restore Modal ===================== */
+.backup-btn {
+    background: transparent;
+    border: 1px solid #b3b3b3;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #b3b3b3;
+    transition: all 0.2s;
+}
+
+.backup-btn:hover {
+    color: #fff;
+    border-color: #fff;
+    transform: scale(1.05);
+}
+
+.backup-modal {
+    max-width: 500px;
+}
+
+.backup-body {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.backup-stats {
+    background: linear-gradient(135deg, #1db954 0%, #1ed760 100%);
+    border-radius: 12px;
+    padding: 20px;
+    color: #000;
+}
+
+.backup-stats h3 {
+    margin: 0 0 16px 0;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.stat-label {
+    font-size: 11px;
+    opacity: 0.8;
+}
+
+.backup-section {
+    background: #282828;
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.backup-section h3 {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.backup-description {
+    margin: 0 0 16px 0;
+    font-size: 13px;
+    color: #b3b3b3;
+    line-height: 1.5;
+}
+
+.backup-description.warning {
+    color: #e91429;
+}
+
+.export-options,
+.import-options {
+    margin-bottom: 16px;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #b3b3b3;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #1db954;
+    cursor: pointer;
+}
+
+.checkbox-label:hover {
+    color: var(--text-on-hover);
+}
+
+.export-btn,
+.import-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 20px;
+}
+
+.import-area {
+    border: 2px dashed #535353;
+    border-radius: 8px;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 12px;
+}
+
+.import-area:hover {
+    border-color: #1db954;
+    background: rgba(29, 185, 84, 0.05);
+}
+
+.import-area.dragover {
+    border-color: #1db954;
+    background: rgba(29, 185, 84, 0.1);
+}
+
+.import-area svg {
+    color: #b3b3b3;
+    margin-bottom: 12px;
+}
+
+.import-area p {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+    color: #fff;
+}
+
+.import-area span {
+    font-size: 12px;
+    color: #b3b3b3;
+}
+
+.import-file-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #3e3e3e;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.import-file-info span {
+    font-size: 13px;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.remove-file-btn {
+    background: none;
+    border: none;
+    color: #b3b3b3;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+}
+
+.remove-file-btn:hover {
+    color: #e91429;
+}
+
+.danger-section {
+    border: 1px solid #e91429;
+    background: rgba(233, 20, 41, 0.05);
+}
+
+.danger-section h3 {
+    color: #e91429;
+}
+
+/* Mobile responsive for backup modal */
+@media screen and (max-width: 545px) {
+    .backup-modal {
+        max-width: 100%;
+        max-height: 90vh;
+    }
+    
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    .backup-section {
+        padding: 16px;
+    }
+    
+    .import-area {
+        padding: 20px 15px;
+    }
+}
+
+
+/* ---- Music on this device ---- */
+/* The question is asked once, in the corner, and never blocks the app. The
+   progress panel sits in the same place and can be dismissed while the search
+   carries on. */
+.device-scan-prompt,
+.device-scan-progress {
+    position: fixed;
+    right: 20px;
+    bottom: 110px;
+    z-index: 1200;
+    width: min(340px, calc(100vw - 40px));
+    padding: 16px;
+    border-radius: 10px;
+    background: #181818;
+    border: 1px solid #2a2a2a;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    color: #fff;
+}
+
+.device-scan-prompt h3 {
+    margin: 0 0 8px 0;
+    font-size: 15px;
+}
+
+.device-scan-prompt p {
+    margin: 0 0 14px 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #b3b3b3;
+}
+
+.device-scan-prompt-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.device-scan-progress-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 14px;
+    margin-bottom: 10px;
+}
+
+.device-scan-dismiss,
+.device-scan-cancel {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+}
+
+.device-scan-dismiss:hover,
+.device-scan-cancel:hover {
+    color: var(--text-on-hover);
+}
+
+.device-scan-cancel {
+    margin-top: 10px;
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+.device-scan-bar {
+    height: 4px;
+    border-radius: 2px;
+    background: #2a2a2a;
+    overflow: hidden;
+}
+
+.device-scan-bar span {
+    display: block;
+    height: 100%;
+    width: 0;
+    border-radius: 2px;
+    background: #1db954;
+    transition: width 0.3s ease;
+}
+
+/* While the files are still being counted there is no honest percentage, so
+   the bar moves instead of pretending to measure something. */
+.device-scan-bar.indeterminate span {
+    width: 40% !important;
+    animation: device-scan-sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes device-scan-sweep {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+}
+
+.device-scan-detail {
+    margin: 10px 0 0 0;
+    font-size: 12px;
+    color: #b3b3b3;
+}
+
+[data-theme="light"] .device-scan-prompt,
+[data-theme="light"] .device-scan-progress {
+    background: #fff;
+    border-color: #e0e0e0;
+    color: #121212;
+}
+
+[data-theme="light"] .device-scan-prompt p,
+[data-theme="light"] .device-scan-detail {
+    color: var(--text-secondary);
+}
+
+
+
+/* ==================== What a control looks like when it is used ====================
+   A hover, a focus or a press that changes the ground under something says
+   here what goes on top of it. The values come from the theme, so the light
+   theme darkens its surfaces and keeps its text dark, and the dark theme does
+   the opposite - neither borrows the other's colours.
+
+   These rules come last on purpose: they are the answer to "and what colour is
+   the text now?", for every family of control that changes its background. */
+
+/* Rows, cards and list items: the surface darkens or lightens, the text
+   follows it. */
+.libcard:hover,
+.empty-libcard:hover,
+.songslist ul li:hover,
+.search-result-item:hover,
+.search-result-item.selected,
+.context-menu-item:hover,
+.context-menu-item:focus-visible,
+.menu-option:hover,
+.menu-option:focus-visible,
+.card-menu-dropdown button:hover,
+.card-menu-dropdown button:focus-visible,
+.dropdown-item:hover,
+.dropdown-item:focus-visible,
+.album-list-item:hover,
+.album-list-item:focus-visible,
+.add-songs-item:hover,
+.add-songs-item.selected,
+.add-songs-tab:hover:not(.active),
+.checkbox-label:hover {
+    color: var(--text-on-hover);
+}
+
+.add-songs-tab.active,
+.add-songs-tab.active:hover {
+    color: var(--text-on-accent);
+}
+
+.libcard:hover .musicinfo div,
+.songslist ul li:hover .musicinfo div,
+.search-result-item:hover .search-result-title,
+.search-result-item.selected .search-result-title,
+.add-songs-item:hover .add-songs-item-name,
+.add-songs-item.selected .add-songs-item-name,
+.album-list-item:hover .album-list-item-name,
+.context-menu-item:hover span,
+.menu-option:hover span,
+.dropdown-item:hover span {
+    color: var(--text-on-hover);
+}
+
+/* An icon inside one of those rows is drawn in the same colour as the words
+   beside it, so it can never match the surface it sits on. */
+.context-menu-item:hover svg,
+.menu-option:hover svg,
+.dropdown-item:hover svg,
+.card-menu-dropdown button:hover svg,
+.album-list-item:hover svg,
+.add-songs-item:hover svg {
+    color: var(--text-on-hover);
+}
+
+/* Buttons that keep their own surface. */
+.btn-secondary:hover,
+.btn-secondary:focus-visible,
+.card-size-btn:hover,
+.card-size-btn:focus-visible,
+.backup-btn:hover,
+.backup-btn:focus-visible,
+.add-songs-library-btn:hover,
+.add-songs-library-btn:focus-visible,
+.user-menu-btn:hover,
+.user-menu-btn:focus-visible,
+.create-card-inner:hover,
+.create-album-card:hover .create-card-inner,
+.device-upload-area:hover,
+.image-upload-area:hover,
+.image-upload-area.dragover,
+.import-area:hover {
+    color: var(--text-on-hover);
+}
+
+/* The accent is a strong colour: what sits on it is chosen for the accent,
+   not for the theme's page. */
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus-visible,
+.create-album-btn:hover,
+.auth-btn:hover {
+    color: var(--text-on-accent);
+}
+
+.btn-primary:hover svg,
+.create-album-btn:hover svg {
+    color: var(--text-on-accent);
+}
+
+/* Something that deletes reads as a warning in both themes: the light theme's
+   red is darker, because a bright one on white is not readable. */
+.menu-option.delete-option:hover,
+.context-menu-item[data-action="removeFromAlbum"]:hover,
+.context-menu-item.danger:hover {
+    background-color: var(--danger-surface);
+    color: var(--danger-text);
+}
+
+.menu-option.delete-option:hover svg path,
+.context-menu-item[data-action="removeFromAlbum"]:hover svg path {
+    stroke: var(--danger-text);
+}
+
+.btn-danger,
+.btn-danger:hover,
+.remove-image:hover {
+    color: var(--text-on-danger);
+}
+
+/* Where the keyboard is, said the same way everywhere and in both themes. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible,
+.libcard:focus-visible,
+.cardcontainer:focus-visible,
+.add-songs-item:focus-visible,
+.search-result-item:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+
+/* Except where a control's own edge is drawn by the thing around it. The
+   search field sits inside a pill that lights up on :focus-within, so a ring
+   on the field itself would be a second, square outline inside a round one -
+   which is what it was. The keyboard is still plainly shown; it is shown by
+   the pill. */
+.search-box .search-input:focus,
+.search-box .search-input:focus-visible {
+    outline: none;
+    box-shadow: none;
+    border: none;
+    background: transparent;
+}
+
+/* A control nobody can use says so, in both themes. */
+button:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* A hint is quieter than the answer, and still readable. */
+input::placeholder,
+textarea::placeholder {
+    color: var(--placeholder);
+    opacity: 1;
+}
+
+/* The player is read at a glance while something else has the attention, so
+   its words, its times and its controls all take the theme's own text colour
+   rather than a fixed white. */
+.playbar .songinfo,
+.playbar .songtime,
+.playbar .seekbar,
+.abovebar .songinfo,
+.abovebar .songtime {
+    color: var(--text-primary);
+}
+
+.playbar button:hover img,
+.playbar button:focus-visible img,
+.abovebar button:hover img,
+.abovebar button:focus-visible img {
+    opacity: 1;
+}
+
+
+/* Fields keep the theme's own text while they have the keyboard, so what is
+   being typed stays readable on the surface the focus gives them. */
+.search-box:focus-within .search-input,
+.search-box:hover .search-input,
+.form-group input[type="text"]:focus,
+.form-group textarea:focus,
+.auth-form .form-input:focus,
+.admin-form .form-field input:focus,
+.add-songs-search-input:focus,
+.modal-content input:focus,
+.modal-content textarea:focus {
+    color: var(--text-primary);
+}
+
+/* A card lifts under the pointer; its title and artist come with it. */
+.cardcontainer:hover h2,
+.cardcontainer:hover p,
+.songslist ul li:hover .musicinfo,
+.libcard:hover .musicinfo {
+    color: var(--text-on-hover);
+}
+
+/* The tick in a chosen row is drawn on the accent, so it takes the accent's
+   own foreground rather than a fixed black. */
+.add-songs-item.selected .add-songs-item-checkbox svg path {
+    stroke: var(--text-on-accent);
+}
+
+/* The sign-in pill inverts the page: dark on light, light on dark. Its hover
+   only shifts that surface, so the label is stated here for both. */
+.btns .auth-btn-link button.fc-black,
+.btns .auth-btn-link button.fc-black:hover,
+.btns .auth-btn-link button.fc-black:focus-visible {
+    color: var(--bg-primary);
+}
+
+.profile-actions .btn-secondary:hover,
+.profile-actions .btn-secondary:focus-visible {
+    color: var(--text-on-hover);
+}
+
+/* A link wrapped around a button is not a link to read: it takes the colour
+   of what it holds rather than the browser's own blue. */
+.auth-btn-link,
+.auth-btn-link:visited {
+    color: inherit;
+}
+
+
+/* A link that is a word rather than a button takes the accent that reads on
+   this theme's ground, in every state. */
+.auth-footer a,
+.auth-links a,
+.forgot-link a:hover,
+.forgot-link a:focus-visible,
+.footer a:hover,
+.footer a:focus-visible,
+.terms-text a,
+.auth-terms a {
+    color: var(--accent-text);
+}
+
+.auth-footer a:hover,
+.auth-footer a:focus-visible,
+.auth-links a:hover,
+.auth-links a:focus-visible,
+.terms-text a:hover,
+.auth-terms a:hover {
+    color: var(--accent-text);
+    text-decoration: underline;
+}
+
+/* ==========================================================================
+   Now Playing
+   --------------------------------------------------------------------------
+   The same audio element, given the whole screen. Opening and closing this
+   changes nothing about playback: it is a surface over the page, not a page
+   of its own.
+   ========================================================================== */
+
+/* Addressed by its own id, and deliberately.
+ *
+ * "now-playing" names two different things in this application: this
+ * full-screen surface, and the marker put on the album card whose music is
+ * currently sounding. Written as a bare class, the rule below closed both -
+ * so the card of whatever was playing was removed from the library grid, and
+ * the collection that was playing appeared to have vanished. The id belongs to
+ * this surface alone and cannot reach a card. */
+#nowPlayingOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    /* Closed until the app says otherwise. Nothing inside it - least of all a
+       picture sized against the viewport - can be drawn before then. */
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+#nowPlayingOverlay.is-open {
+    display: flex;
+}
+
+/* Hidden is the document's own word for it, so a view that should not be on
+   screen is not on screen before any script runs. */
+[hidden] {
+    display: none !important;
+}
+
+.now-playing-backdrop {
+    position: absolute;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(14px);
+}
+
+.now-playing-panel {
+    position: relative;
+    z-index: 1;
+    width: min(560px, 92vw);
+    max-height: 92vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 24px;
+    box-sizing: border-box;
+    border-radius: 16px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.now-playing-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+}
+
+.now-playing-close svg {
+    display: block;
+}
+
+.now-playing-context {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    text-align: center;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The large picture belongs to Now Playing and appears nowhere else. It is
+   measured against the panel around it as well as the viewport, so it cannot
+   outgrow the space it was given. */
+.now-playing-artwork {
+    width: min(340px, 70vw);
+    height: min(340px, 70vw);
+    max-width: 100%;
+    max-height: 45vh;
+    flex-shrink: 0;
+    border-radius: 12px;
+    object-fit: cover;
+    object-position: center;
+    background-color: var(--bg-tertiary);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
+}
+
+.now-playing-meta {
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+}
+
+.now-playing-title {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.25;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.now-playing-artist {
+    margin: 6px 0 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.now-playing-progress {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+}
+
+.now-playing-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    width: 100%;
+    flex-wrap: nowrap;
+}
+
+.now-playing-volume {
+    width: min(240px, 80%);
+}
+
+.now-playing-volume .volumeRange {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ==========================================================================
+   Album detail
+   --------------------------------------------------------------------------
+   One album: its cover, what it is, and every song in it. It replaces the
+   library grid in place rather than navigating anywhere, so the player under
+   it never notices.
+   ========================================================================== */
+
+.album-detail {
+    /* Closed by default, for the same reason Now Playing is: the large hero
+       artwork belongs to this view and must not exist anywhere else. */
+    display: none;
+    background-color: var(--surface-wash);
+    padding: 10px 20px calc(var(--player-height) + var(--player-gap));
+    color: var(--text-primary);
+}
+
+.album-detail.is-open {
+    display: block;
+}
+
+.album-detail-hero {
+    /* The picture takes what it needs; the words take the rest. Two columns,
+       so there is never an empty stretch between them. */
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+    gap: 24px;
+    min-width: 0;
+    padding: 8px 0 4px;
+}
+
+/* The album view's own large picture, and only that view's. */
+.album-detail-cover {
+    width: clamp(160px, 17vw, 240px);
+    aspect-ratio: 1;
+    height: auto;
+    max-width: 100%;
+    border-radius: 8px;
+    object-fit: cover;
+    object-position: center;
+    background-color: var(--bg-tertiary);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+.album-detail-heading {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
+.album-detail-kind {
+    margin: 0;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.album-detail-title {
+    margin: 4px 0;
+    font-size: clamp(24px, 3.4vw, 44px);
+    line-height: 1.1;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+    /* However long the name is, the hero stays a hero. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.album-detail-artist {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.album-detail-facts {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.album-detail-description {
+    margin: 8px 0 0;
+    font-size: 13px;
+    color: var(--text-muted);
+    max-width: 70ch;
+}
+
+.album-detail-description:empty,
+.album-detail-artist:empty {
+    display: none;
+}
+
+.album-detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 22px 0 10px;
+    flex-wrap: wrap;
+}
+
+.album-detail-play {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--accent-primary);
+    color: var(--text-on-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.album-detail-play:hover,
+.album-detail-play:focus-visible {
+    background-color: var(--accent-hover);
+    color: var(--text-on-accent);
+    transform: scale(1.05);
+}
+
+.album-detail-play:active {
+    transform: scale(0.98);
+}
+
+.album-detail-options {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    min-height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+}
+
+.album-detail-options:hover,
+.album-detail-options:focus-visible {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+/* ---- the track list ---- */
+
+.album-detail-tracks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.album-track {
+    display: grid;
+    grid-template-columns: 32px 48px minmax(0, 1fr) minmax(0, 0.55fr) 56px 40px;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 10px;
+    /* Every row the same height, whether its song has two lines of name or
+       one, a picture or the default. */
+    min-height: 60px;
+    border-radius: 6px;
+    min-width: 0;
+    cursor: pointer;
+}
+
+.album-track:hover,
+.album-track:focus-within {
+    background-color: var(--surface-hover);
+    color: var(--text-on-hover);
+}
+
+/* The song the player is on, whether or not anything is being pointed at. */
+.album-track.is-current {
+    background-color: var(--surface-active);
+}
+
+.album-track.is-current .album-track-title {
+    color: var(--accent-text);
+}
+
+.album-track-index {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.album-track-art {
+    width: 48px;
+    height: 48px;
+    border-radius: 4px;
+    object-fit: cover;
+    object-position: center;
+    background-color: var(--bg-tertiary);
+    display: block;
+}
+
+.album-track-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 2px;
+}
+
+.album-track-title {
+    font-size: 14px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.album-track-artist {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.album-track-source {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.album-track-duration {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* The play control and the options are always there to be tapped: a finger
+   has no hover to reveal them with. */
+.album-track-play,
+.album-track-menu {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    padding: 0;
+}
+
+.album-track-play {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 4px;
+    background-color: rgba(0, 0, 0, 0.55);
+    color: #ffffff;
+    opacity: 0;
+}
+
+/* The picture and the control over it are one square, so the control can
+   never sit outside the row it belongs to. */
+.album-track-artwork {
+    position: relative;
+    display: block;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+}
+
+.album-track:hover .album-track-play,
+.album-track.is-current .album-track-play,
+.album-track-play:focus-visible {
+    opacity: 1;
+}
+
+/* The icon sits on its own dark wash, so it stays white in both themes -
+   ahead of the general rule that stops inverting icons in the light one. */
+.album-track-play img.libPlayButton {
+    width: 18px;
+    height: 18px;
+    filter: invert(1);
+}
+
+.album-track-menu:hover,
+.album-track-menu:focus-visible {
+    background-color: var(--surface-active);
+    color: var(--text-on-hover);
+}
+
+/* A song that would not play. It stays in the list - a file that is
+   unreachable for a moment is not a file anyone asked to lose - and says so
+   quietly until it is tried again. */
+.album-track.is-unavailable .album-track-title,
+.songslist ul li.is-unavailable .musicinfo {
+    color: var(--danger-text);
+}
+
+.album-track.is-unavailable .album-track-artist {
+    color: var(--text-muted);
+}
+
+.album-track-empty {
+    padding: 24px 10px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    list-style: none;
+}
+
+/* A pointer can reveal things; a finger cannot, so on touch the controls that
+   matter stay where they are. */
+@media (hover: none), (pointer: coarse) {
+    .album-track-play {
+        opacity: 1;
+    }
+}
+
+/* ==========================================================================
+   Room for the player, and a library that fits every screen
+   ========================================================================== */
+
+/* The last card and the last song must never sit under the player. */
+.playlist {
+    padding-bottom: calc(var(--player-height) + var(--player-gap));
+}
+
+/* ---- tablet: 769px to 1024px ----------------------------------------------
+   Between the phone's single line and the desktop's three zones. It keeps the
+   picture, the name, the transport and the progress; the volume slider is the
+   first thing to go, because a tablet has its own volume keys and the bar does
+   not have room for everything. */
+
+@media screen and (max-width: 1024px) {
+    body {
+        --player-height: 76px;
+    }
+
+    .playbar {
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 0.6fr);
+        gap: 12px;
+        padding: 8px 14px;
+    }
+
+    .playbar-artwork {
+        width: 46px;
+        height: 46px;
+    }
+
+    .playbar-center {
+        width: min(460px, 100%);
+    }
+
+    .controls {
+        gap: 8px;
+    }
+
+    /* The slider beside the button goes; the button stays, and opens the same
+       slider above itself instead. */
+    .playbar-right .volumeSeekbar {
+        display: none;
+    }
+
+    .album-detail-hero {
+        gap: 18px;
+    }
+
+    .album-detail-tracks {
+        --track-source: 0;
+    }
+
+    /* The album a song came from is the column a narrower screen can spare. */
+    .album-track {
+        grid-template-columns: 28px 48px minmax(0, 1fr) 52px 40px;
+    }
+
+    .album-track-source {
+        display: none;
+    }
+}
+
+/* ---- narrower tablets: the shuffle and repeat pair goes last -------------- */
+
+@media screen and (max-width: 860px) {
+    .playbar {
+        grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+
+    #shuffle,
+    #repeat {
+        display: none;
+    }
+}
+
+/* ---- phone: 768px and under ------------------------------------------------
+   Three rows rather than one line, so a phone has every control a tablet has
+   without any of them being cramped into a single strip:
+
+       what is playing            the heart    the way to Now Playing
+       shuffle  previous  play  next  repeat
+       elapsed  the seek bar  remaining        the volume
+
+   The containers that group these on a wider screen step out of the way here
+   (display: contents), so each control is placed in the grid on its own and
+   the two halves of the right-hand group can sit in different rows. */
+
+@media screen and (max-width: 768px) {
+    body {
+        /* Three rows: the picture, the controls, the seek bar - plus the
+           padding around them. The library reserves exactly this, so the last
+           card is still reachable above the player. */
+        --player-height: 124px;
+        --player-gap: calc(12px + var(--player-inset));
+    }
+
+    .playbar {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "track    expand"
+            "controls controls"
+            "progress volume";
+        column-gap: 8px;
+        row-gap: 4px;
+        padding: 6px 10px;
+        /* As tall as its three rows, with the reserved height as the floor. */
+        height: auto;
+        min-height: var(--player-height);
+        bottom: calc(10px + var(--player-inset));
+        width: calc(100vw - 16px);
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: 10px;
+    }
+
+    /* The groups stand aside so their contents are placed one by one: the
+       volume and the way into Now Playing belong to different rows here. */
+    .playbar-center,
+    .playbar-right {
+        display: contents;
+    }
+
+    .playbar-track {
+        grid-area: track;
+        min-width: 0;
+    }
+
+    #expandPlayer {
+        grid-area: expand;
+    }
+
+    .controls {
+        grid-area: controls;
+        justify-self: center;
+        gap: 4px;
+    }
+
+    .playbar-progress {
+        grid-area: progress;
+        min-width: 0;
+        gap: 8px;
+    }
+
+    .volume {
+        grid-area: volume;
+        justify-self: end;
+    }
+
+    /* There is a real seek bar on this screen now, so the hair line along the
+       bottom edge would only say the same thing twice. */
+    .playbar-mini-progress {
+        display: none;
+    }
+
+    /* Two cards across a phone, down to the narrowest one: the grid works out
+       how many fit, so this only says how small a card is allowed to get. */
+    .playlist {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    /* Two across the narrowest phones, three once there is room for them -
+       and a tighter card either way, so the picture is the card rather than
+       the padding around it. */
+    .cardsarea {
+        --card-min: 112px;
+        gap: 8px;
+    }
+
+    .cardsarea.cards-small {
+        --card-min: 88px;
+    }
+
+    .cardsarea.cards-large {
+        --card-min: 168px;
+    }
+
+    .cardcontainer {
+        padding: 8px 8px 10px;
+    }
+
+    .card {
+        gap: 6px;
+    }
+
+    .card h2 {
+        font-size: 13px;
+    }
+
+    .card p {
+        font-size: 11px;
+    }
+
+    /* A narrower tablet drops these two; a phone has a row for them. */
+    #shuffle,
+    #repeat,
+    #previous,
+    #next {
+        display: flex;
+    }
+
+    .playbar-time {
+        font-size: 10px;
+        min-width: 32px;
+    }
+
+    .playbar-artwork {
+        width: 44px;
+        height: 44px;
+        border-radius: 5px;
+    }
+
+    .songinfo {
+        font-size: 13px;
+    }
+
+    .playbar-artist {
+        font-size: 11px;
+    }
+
+    /* Five across the middle row, each still a comfortable target. */
+    .player-btn {
+        min-width: 42px;
+        min-height: 42px;
+        padding: 6px;
+    }
+
+    /* Play stays the strongest of them. */
+    .player-btn-primary {
+        min-width: 46px;
+        min-height: 46px;
+    }
+
+    .like-btn {
+        padding: 8px;
+    }
+
+    /* The note stood in for a missing cover is an icon on the tile, not a
+       drawing stretched across the whole of it. */
+    .card-art img[src$="img/music.svg"] {
+        object-fit: contain;
+        padding: 22%;
+        box-sizing: border-box;
+    }
+
+    /* Now Playing takes the whole screen rather than sitting in a card. */
+    .now-playing-panel {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100dvh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border: none;
+        justify-content: center;
+        gap: 16px;
+        padding: 16px 18px calc(20px + var(--player-inset));
+    }
+
+    .now-playing-artwork {
+        width: min(320px, 74vw);
+        height: min(320px, 74vw);
+    }
+
+    .now-playing-title {
+        font-size: 20px;
+    }
+
+    .now-playing-controls {
+        gap: 6px;
+    }
+
+    /* The device's own volume keys are the primary control on a phone; this
+       one is here, quietly, rather than taking a row of its own. */
+    .now-playing-volume {
+        width: min(220px, 72%);
+    }
+
+    .album-detail {
+        padding: 8px 14px calc(var(--player-height) + var(--player-gap));
+    }
+
+    /* The picture beside what it is, as on every wider screen - only smaller,
+       and with a smaller gap between them. */
+    .album-detail-hero {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: center;
+        justify-items: stretch;
+        text-align: left;
+        gap: 12px;
+        padding: 6px 0 2px;
+    }
+
+    /* Small enough to leave the words a column worth reading: about a third
+       of the screen, and never past the sizes a hero picture should be. */
+    .album-detail-cover {
+        width: clamp(110px, 34vw, 140px);
+    }
+
+    .album-detail-heading {
+        align-items: stretch;
+        justify-content: center;
+        width: auto;
+        gap: 1px;
+    }
+
+    .album-detail-kind {
+        font-size: 10px;
+    }
+
+    /* Two lines at most, whatever the album is called. */
+    .album-detail-title {
+        font-size: clamp(18px, 5.2vw, 24px);
+        margin: 2px 0;
+    }
+
+    /* One line for who it is by. */
+    .album-detail-artist {
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .album-detail-facts {
+        margin: 4px 0 0;
+        font-size: 12px;
+    }
+
+    /* Kept, rather than dropped: two lines of it fit beside the picture. */
+    .album-detail-description {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        margin: 4px 0 0;
+        font-size: 12px;
+    }
+
+    .album-detail-actions {
+        justify-content: flex-start;
+        margin: 14px 0 8px;
+        gap: 10px;
+    }
+
+    .album-detail-play {
+        width: 48px;
+        height: 48px;
+    }
+
+    /* No table on a phone: a thumbnail, a name, and the way into the rest. */
+    .album-track {
+        grid-template-columns: 48px minmax(0, 1fr) 40px;
+        gap: 10px;
+        padding: 6px 4px;
+        min-height: 60px;
+    }
+
+    .album-track-index,
+    .album-track-source,
+    .album-track-duration {
+        display: none;
+    }
+
+    /* Two lines for a long file name, then an ellipsis: enough to tell two
+       recordings apart without a row growing without limit. */
+    .album-track-title {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+}
+
+/* ---- the narrowest phones: 400px and under -------------------------------- */
+
+@media screen and (max-width: 400px) {
+    body {
+        --player-height: 118px;
+    }
+
+    .playbar {
+        width: calc(100vw - 12px);
+        padding: 6px 8px;
+        column-gap: 6px;
+    }
+
+    .playbar-artwork {
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Every control stays; they are simply drawn a little smaller. */
+    .player-btn {
+        min-width: 38px;
+        min-height: 38px;
+        padding: 5px;
+    }
+
+    .player-btn-primary {
+        min-width: 42px;
+        min-height: 42px;
+    }
+
+    .controls {
+        gap: 2px;
+    }
+
+    .playbar-time {
+        font-size: 9px;
+        min-width: 28px;
+    }
+
+    /* The picture gives up the room rather than the words giving up their
+       column: at 320px this leaves about 170px to read in. */
+    .album-detail-cover {
+        width: 110px;
+    }
+
+    .album-detail-hero {
+        gap: 10px;
+    }
+}
+
+
+/* The song list in the sidebar is a column, not a fixed width in viewport
+   units: at 320px those widths clipped the name and the controls both. */
+.songslist ul li .musicinfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.musicinfo div {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.song-menu-btn {
+    flex-shrink: 0;
+}
+
+/* Nothing in the page scrolls sideways: a name that is too long is cut with
+   an ellipsis instead of pushing the layout wider. */
+body {
+    overflow-x: hidden;
+}
+
+.cardcontainer,
+.card {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* The album card's play control is a real button now, so it answers the
+   keyboard as well as the pointer. It keeps the shape it had: the green disc
+   is the control itself rather than something drawn behind it. */
+.card button.play {
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--text-on-accent);
+}
+
+/* ==========================================================================
+   The player in the light theme
+   --------------------------------------------------------------------------
+   Every surface here already takes its colour from a variable; these are the
+   few places where a fixed value would have been white on white.
+   ========================================================================== */
+
+[data-theme="light"] .playbar {
+    background-color: var(--bg-elevated);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .now-playing-backdrop {
+    background-color: rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="light"] .now-playing-panel,
+[data-theme="light"] .now-playing-artwork,
+[data-theme="light"] .album-detail-cover {
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+}
+
+/* The playbar icons are drawn dark and inverted to white for the dark theme;
+   in the light theme they are left as they are, so they stay visible. */
+[data-theme="light"] .playbar .invert img,
+[data-theme="light"] #nowPlayingOverlay .invert img {
+    filter: none;
+}
+
+.like-btn {
+    color: var(--text-secondary);
+}
+
+.like-btn:hover,
+.like-btn:focus-visible {
+    color: var(--text-on-hover);
+}
+
+.like-btn.liked,
+.like-btn.liked .heart-icon path {
+    color: var(--accent-text);
+}
+
+.like-btn.liked .heart-icon path {
+    fill: var(--accent-text);
+    stroke: var(--accent-text);
+}
+
+/* ==========================================================================
+   The shell: sidebar, main column, and the drawer the sidebar becomes
+   --------------------------------------------------------------------------
+   On a wide screen the sidebar is a column of the page. Below that it becomes
+   a drawer that slides over the page: one class on the page says which, so
+   opening it moves nothing underneath and closing it restores the layout
+   exactly, because the layout never changed.
+   ========================================================================== */
+
+.container {
+    min-width: 0;
+}
+
+.right {
+    /* Without this the main column refuses to be narrower than its widest
+       row, and the whole page scrolls sideways instead of the row wrapping. */
+    min-width: 0;
+}
+
+.playlist,
+.album-detail,
+.playlist-header,
+.header {
+    min-width: 0;
+}
+
+.playlist-header h1 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+body.sidebar-open .sidebar-backdrop {
+    opacity: 1;
+}
+
+/* At full width the sidebar is a column, so it has no drawer and no shade
+   behind it. */
+@media screen and (min-width: 1401px) {
+    .sidebar-backdrop {
+        display: none;
+    }
+}
+
+@media screen and (max-width: 1400px) {
+    /* Fixed rather than absolute, so the drawer is the full height of the
+       window and does not scroll away with the page behind it. */
+    .left {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: -100%;
+        width: min(86vw, 380px);
+        max-width: 100vw;
+        z-index: 1000;
+        overflow: hidden;
+        overscroll-behavior: contain;
+        transition: left 0.3s ease;
+    }
+
+    body.sidebar-open .left {
+        left: 0;
+    }
+
+    /* While the drawer is open the page behind it stays where it is. */
+    body.sidebar-open {
+        overflow: hidden;
+    }
+
+    /* The library fills the drawer, so its own song list is what scrolls. */
+    .left .library {
+        max-width: 100%;
+    }
+}
+
+/* Below 1400px the sidebar is a drawer rather than a column, so the player
+   spans the window instead of the space that used to be beside the sidebar.
+   Phones set their own width, further down. */
+@media screen and (max-width: 1400px) and (min-width: 769px) {
+    .playbar {
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100vw - 32px);
+    }
+}
+
+/* ==========================================================================
+   The song list beside the library
+   --------------------------------------------------------------------------
+   The same row grammar as the album view: a picture, a name that is cut when
+   it is too long, and the controls always in the same place.
+   ========================================================================== */
+
+.songslist ul li .song-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+    object-fit: cover;
+    object-position: center;
+    background-color: var(--bg-tertiary);
+    flex-shrink: 0;
+    /* A photograph is not an icon: it keeps its own colours in both themes. */
+    filter: none;
+}
+
+.songslist ul li .libPlayButton {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.songslist ul li .musicinfo div {
+    max-width: 100%;
+}
+
+/* ==========================================================================
+   Motion
+   --------------------------------------------------------------------------
+   Enough to say that something moved, and no more. Anyone who has asked their
+   system for less gets none of it.
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .device-scan-bar.indeterminate span {
+        animation: none;
+        width: 100% !important;
+    }
+}
+
+/* ==========================================================================
+   The note shown in place of a picture
+   --------------------------------------------------------------------------
+   An album with no artwork of its own is shown a music note. It is one file,
+   drawn once in a single near-black ink, so on a dark page it used to sit
+   invisibly against the tile behind it.
+
+   The file is matched by its own address, which is what makes this one rule
+   enough: every place a fallback is shown reaches the same picture, whether
+   the painter chose it or an image that failed to load fell back to it. A
+   real cover never has this address, so nothing anybody uploaded is touched.
+   ========================================================================== */
+
+img[src$="img/music.svg"],
+.card-art img[src$="img/music.svg"],
+.songslist ul li .song-icon[src$="img/music.svg"],
+.album-track-art[src$="img/music.svg"],
+.playbar-artwork[src$="img/music.svg"],
+.now-playing-artwork[src$="img/music.svg"],
+.album-detail-cover[src$="img/music.svg"],
+.search-result-item img[src$="img/music.svg"],
+.album-list-item img[src$="img/music.svg"] {
+    /* The note arrives green, so this says only what each theme does to it -
+       nothing at all on a dark page, and a darkening on a pale one.
+
+       Saying it at all matters for a second reason: several of these notes
+       carry the class that turns an icon about for the dark theme. That was
+       written for a drawing in one fixed near-black ink; this drawing is
+       already the colour it should be, and inverting green gives magenta. */
+    filter: var(--music-fallback-tint);
+}
+
+/* ============================================
+   Managing the music on this machine
+
+   Built from the tokens and shapes the rest of the application already uses -
+   the same surfaces, the same accent, the same rounded controls - so this
+   reads as a part of Spotifie rather than a panel bolted onto it. Nothing here
+   introduces a colour or a corner radius of its own.
+
+   It is a list rather than a table at every width. A table of songs is
+   unreadable on a phone and has to be redesigned into rows anyway, so it is
+   rows from the start and the columns simply have more room as the screen
+   grows.
+   ============================================ */
+
+/* Wider than an ordinary dialog, because there are lists in it, and nothing
+   else. How wide a dialog is at a given screen size is the modal's own rule -
+   setting a width here as well overrode it, and the manager kept the full
+   width of a phone while every other dialog left a margin down each side. */
+.local-manager {
+    max-width: 720px;
+}
+
+.local-health {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.local-health-item {
+    /* A wash and an edge rather than a colour of its own. In the light theme
+       an elevated surface is the same white as the dialog behind it, so a tile
+       relying on fill alone had no visible shape at all. */
+    background-color: var(--surface-wash);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 12px 14px;
+    min-width: 0;
+}
+
+.local-health-value {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.local-health-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    /* A long label wraps inside its own tile rather than widening the row. */
+    overflow-wrap: anywhere;
+}
+
+.local-actions,
+.local-toolbar,
+.local-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.local-actions {
+    margin-bottom: 14px;
+}
+
+.local-section {
+    margin-top: 22px;
+    min-width: 0;
+}
+
+.local-section h3 {
+    font-size: 15px;
+    margin: 0 0 10px;
+}
+
+.local-note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 8px 0 0;
+    line-height: 1.5;
+}
+
+.local-scan-state {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+}
+
+/* The buttons in here are the application's own secondary button, named so
+   this section does not depend on where else it happens to be used. */
+.secondary-btn {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 500px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    /* Comfortable to hit with a finger, whatever the label measures. */
+    min-height: 40px;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .secondary-btn:hover {
+        background-color: var(--bg-elevated);
+        border-color: var(--text-secondary);
+    }
+}
+
+.secondary-btn:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+.secondary-btn:active:not([disabled]) {
+    background-color: var(--surface-active);
+    border-color: var(--text-secondary);
+    color: var(--text-on-hover);
+}
+
+.secondary-btn[disabled] {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.local-search {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.local-search input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 40px;
+    padding: 8px 14px;
+    border-radius: 500px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.local-sort select {
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 500px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.local-locations,
+.local-tracks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    /* A long library scrolls inside its own section rather than making the
+       dialog taller than the screen. */
+    max-height: 320px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.local-locations li,
+.local-tracks li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    min-width: 0;
+}
+
+.local-locations li + li,
+.local-tracks li + li {
+    margin-top: 4px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .local-tracks li:hover,
+    .local-locations li:hover {
+        background-color: var(--bg-elevated);
+    }
+}
+
+.local-track-main {
+    min-width: 0;
+}
+
+.local-track-title,
+.local-location-label {
+    font-size: 14px;
+    /* One line, cut with an ellipsis: a long title must not widen the row. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.local-track-meta,
+.local-location-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.local-track-duration {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+    /* A length is short and fixed. It is never the part that wraps, and never
+       the part a long title is allowed to squeeze out of the row. */
+    white-space: nowrap;
+    justify-self: end;
+}
+
+/* A button at the end of a row keeps its label on one line and its place at
+   the end of the row, however long the name beside it is. */
+.local-locations li .secondary-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.local-track-select {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+}
+
+.local-track.is-unavailable .local-track-title {
+    color: var(--text-secondary);
+}
+
+.local-empty {
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 12px;
+}
+
+/* ---- tablets ----
+   The dialog stops being a panel with room around it and becomes most of the
+   screen. The rows are the same rows; the columns simply have less to spend,
+   so the tiles come down to a pair and the buttons are given room to wrap
+   rather than being squeezed onto one line. */
+@media screen and (max-width: 900px) {
+    .local-manager {
+        max-width: 640px;
+    }
+
+    .local-health {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .local-locations,
+    .local-tracks {
+        max-height: 50vh;
+    }
+}
+
+/* ---- phones ----
+   The dialog takes the screen, the tiles halve, and every control is given
+   the full width rather than a share of a line too narrow to read. Nothing is
+   redesigned; it has less room. */
+@media screen and (max-width: 600px) {
+    .local-manager {
+        max-width: 100%;
+    }
+
+    .local-health {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .local-actions,
+    .local-bulk,
+    .local-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .local-actions .secondary-btn,
+    .local-bulk .secondary-btn,
+    .local-search,
+    .local-sort,
+    .local-sort select,
+    .local-toolbar .secondary-btn {
+        width: 100%;
+    }
+
+    /* How many are chosen reads as a line of its own above the actions, not
+       as a label crushed against the first button. */
+    .local-bulk > span {
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .local-locations,
+    .local-tracks {
+        max-height: 45vh;
+    }
+
+    /* A row keeps its three parts on a phone: what the song is, and how long
+       it runs. Neither is dropped, and nothing scrolls sideways to fit. */
+    .local-locations li,
+    .local-tracks li {
+        padding: 10px 8px;
+        gap: 8px;
+    }
+}
+
+/* ---- the narrowest phones ----
+   At 320px every pixel is spent on the title. The three columns stay three
+   columns - the first one holds a checkbox while songs are being chosen, and
+   a row that rearranged itself when that appeared would be a row that moved
+   under the finger about to press it. It costs one empty cell and a gap. */
+@media screen and (max-width: 400px) {
+    .local-locations li,
+    .local-tracks li {
+        padding: 10px 6px;
+        gap: 6px;
+    }
+
+    .local-track-title,
+    .local-location-label {
+        font-size: 13px;
+    }
+
+    .local-track-meta,
+    .local-location-meta {
+        font-size: 11px;
+    }
+
+    .local-health-value {
+        font-size: 18px;
+    }
+}
+
+/* Every control in here is comfortable to press with a finger, whatever the
+   window measures - a tablet is not a small desktop. */
+@media (pointer: coarse) {
+    .local-manager .secondary-btn,
+    .local-search input,
+    .local-sort select {
+        min-height: 44px;
+    }
+
+    .local-locations li,
+    .local-tracks li {
+        min-height: 44px;
+    }
+
+    .local-track-select {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+/* One option in a "which one?" dialog. A button that reads as a row: the
+   colour comes from the theme like everything else, so nothing has to be
+   repainted when the theme changes. */
+.local-choice {
+    width: 100%;
+    min-width: 0;
+    text-align: left;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
+}
+
+.local-choice:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* The bar that appears when several rows are chosen in the admin tables, and
+   the maintenance report beneath them. Same surfaces and spacing as the rest
+   of the dashboard; nothing here is a new look. */
+.bulk-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background-color: var(--bg-elevated);
+    font-size: 13px;
+}
+
+.bulk-bar select {
+    min-height: 36px;
+    padding: 6px 10px;
+    border-radius: 500px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-base, #121212);
+    color: var(--text-primary);
+    font-size: 13px;
+    max-width: 220px;
+}
+
+.select-column {
+    width: 36px;
+}
+
+.select-column input,
+.row-select {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+}
+
+.maintenance-note {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    margin: 0 0 16px;
+}
+
+.maintenance-group {
+    margin-top: 22px;
+    min-width: 0;
+}
+
+.maintenance-group h3 {
+    font-size: 15px;
+    margin: 0 0 6px;
+}
+
+.maintenance-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.maintenance-list li {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background-color: var(--bg-elevated);
+    font-size: 13px;
+    /* A stored file's name can be long; it wraps rather than widening the page. */
+    overflow-wrap: anywhere;
+}
+
+.maintenance-list li + li {
+    margin-top: 4px;
+}
+
+@media screen and (max-width: 600px) {
+    .bulk-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .bulk-bar select,
+    .bulk-bar .secondary-btn,
+    .bulk-bar .action-btn {
+        max-width: 100%;
+        width: 100%;
+    }
+}
+
+
+/* ==========================================================================
+   The page without the player
+   --------------------------------------------------------------------------
+   What a reader with scripting turned off is given: the same words, readable,
+   in the theme they would have had. Plain and short, because it is a
+   description of the application and a way to the pages that explain it -
+   not a second interface.
+   ========================================================================== */
+
+.no-script {
+    max-width: 62ch;
+    margin: 0 auto;
+    padding: 40px 20px 60px;
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+.no-script h1 {
+    font-size: clamp(24px, 5vw, 34px);
+    line-height: 1.2;
+    margin: 0 0 16px;
+}
+
+.no-script h2 {
+    font-size: 18px;
+    margin: 28px 0 10px;
+}
+
+.no-script p {
+    margin: 0 0 12px;
+    color: var(--text-secondary);
+}
+
+.no-script ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+}
+
+.no-script li + li {
+    margin-top: 6px;
+}
+
+.no-script a {
+    color: var(--accent-text);
+}
+
+/* ==========================================================================
+   Waiting for something to arrive
+   --------------------------------------------------------------------------
+   One skeleton, used everywhere something is genuinely still loading and
+   there is nothing yet to show. Not a spinner: a spinner says "something is
+   happening" and nothing else, while a shape the size of what is coming says
+   what is coming, and keeps the page from jumping when it does.
+
+   Two rules hold this together.
+
+   A skeleton is the geometry of the real thing, borrowed. The card
+   placeholder is built from the same grid cell, the same square of artwork
+   and the same two lines of text as a real card, so nothing moves when one
+   replaces the other. Where a size would have to be repeated here it is taken
+   from the same variable the real component uses instead.
+
+   And a skeleton means "there is nothing yet", never "this is being checked".
+   Content already on screen is never replaced by one: a catalogue being
+   revalidated, an index being reconciled or a library being re-read all leave
+   what is drawn exactly where it is. That distinction is the whole reason the
+   library stopped blinking on every refresh, and it is not given back here.
+   ========================================================================== */
+
+:root {
+    /* The ground a placeholder sits on, and the light that passes over it. */
+    --skeleton-base: rgba(255, 255, 255, 0.07);
+    --skeleton-sheen: rgba(255, 255, 255, 0.13);
+}
+
+[data-theme="light"] {
+    --skeleton-base: rgba(0, 0, 0, 0.07);
+    --skeleton-sheen: rgba(0, 0, 0, 0.12);
+}
+
+.skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--skeleton-base);
+    border-radius: 6px;
+    /* Nothing inside a placeholder is text, so nothing in it can be selected
+       or read out. */
+    user-select: none;
+}
+
+.skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(
+        90deg,
+        transparent 0%,
+        var(--skeleton-sheen) 50%,
+        transparent 100%
+    );
+    animation: skeleton-sheen 1.4s ease-in-out infinite;
+}
+
+@keyframes skeleton-sheen {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Asked not to be moved: the shape stays, the light over it stops. A
+   placeholder still says what it says without travelling across the screen. */
+@media (prefers-reduced-motion: reduce) {
+    .skeleton::after {
+        animation: none;
+        background-image: none;
+    }
+}
+
+/* ---- a card in the library grid ----
+   The same cell, the same square, the same two lines. It inherits
+   .cardcontainer, so every size, padding and breakpoint the real card follows
+   this one follows too - including the ones that have not been written yet. */
+.skeleton-card {
+    cursor: default;
+}
+
+.skeleton-card .card {
+    gap: 8px;
+}
+
+.skeleton-art {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 8px;
+}
+
+.skeleton-line {
+    height: 0.9em;
+    border-radius: 4px;
+}
+
+/* The two lines under a card's artwork stand for a title and a line of
+   metadata, and are given those elements' own sizes rather than a guess: a
+   placeholder three pixels short of what replaces it is a card that twitches
+   as the library arrives. The multipliers below are the line boxes the real
+   h2 and p produce at the same font sizes. */
+.skeleton-card .skeleton-line.is-title {
+    font-size: 15px;
+    height: 1.2em;
+    width: 75%;
+}
+
+.skeleton-card .skeleton-line.is-meta {
+    font-size: 12px;
+    height: 1.2em;
+    width: 50%;
+}
+
+.cardsarea.cards-small .skeleton-card .skeleton-line.is-title {
+    font-size: 13px;
+}
+
+.cardsarea.cards-small .skeleton-card .skeleton-line.is-meta {
+    font-size: 11px;
+}
+
+.cardsarea.cards-large .skeleton-card .skeleton-line.is-title {
+    font-size: 17px;
+}
+
+.cardsarea.cards-large .skeleton-card .skeleton-line.is-meta {
+    font-size: 13px;
+}
+
+.skeleton-line.is-title {
+    width: 75%;
+}
+
+.skeleton-line.is-meta {
+    width: 50%;
+}
+
+/* ---- a row in an album ----
+   Built from the same grid as .album-track, so the numbers, the artwork and
+   the length line up with the rows that replace them. */
+.skeleton-track {
+    display: grid;
+    grid-template-columns: 28px 48px minmax(0, 1fr) 56px;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.skeleton-track .skeleton-index {
+    height: 0.9em;
+    width: 14px;
+    justify-self: center;
+    border-radius: 4px;
+}
+
+.skeleton-track .skeleton-thumb {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+}
+
+.skeleton-track .skeleton-lines {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.skeleton-track .skeleton-duration {
+    height: 0.8em;
+    width: 36px;
+    justify-self: end;
+    border-radius: 4px;
+}
+
+/* ---- the manager: how the library is doing, and where it looks ----
+   The same tiles and the same three-column rows, so the numbers arrive in
+   the boxes that were already holding their places. */
+.skeleton-tile {
+    height: 62px;
+    border-radius: 10px;
+}
+
+.skeleton-location {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 84px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+.skeleton-location .skeleton-lines {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.skeleton-location .skeleton-action {
+    height: 36px;
+    border-radius: 500px;
+}
+
+/* A song in the manager's own list. The rows there are not the rows of an
+   album: they are the three columns the manager uses everywhere - a place for
+   a checkbox, the song, and how long it runs - so the placeholder is built
+   from those and not from the album's four. */
+.skeleton-local-track {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 36px;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+}
+
+.skeleton-local-track .skeleton-lines {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.skeleton-local-track .skeleton-box {
+    height: 14px;
+    border-radius: 4px;
+}
+
+@media screen and (max-width: 600px) {
+    .skeleton-local-track {
+        padding: 10px 8px;
+        gap: 8px;
+    }
+}
+
+@media screen and (max-width: 400px) {
+    .skeleton-local-track {
+        padding: 10px 6px;
+        gap: 6px;
+    }
+}
+
+/* ---- the album being opened ----
+   The hero, at the size the hero will be. */
+.skeleton-hero-art {
+    width: clamp(160px, 17vw, 240px);
+    aspect-ratio: 1;
+    max-width: 100%;
+    border-radius: 8px;
+}
+
+/* A list of placeholders is one thing waiting, not a list of things. */
+.skeleton-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 4px;
+}
+
+@media screen and (max-width: 620px) {
+    .skeleton-track {
+        grid-template-columns: 22px 40px minmax(0, 1fr) 44px;
+        gap: 8px;
+        padding: 8px;
+    }
+
+    .skeleton-track .skeleton-thumb {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+@media screen and (max-width: 400px) {
+    .skeleton-location {
+        grid-template-columns: minmax(0, 1fr) 74px;
+        padding: 10px 6px;
+        gap: 6px;
+    }
+}
+
+
+/* ==========================================================================
+   Reachable, and visibly so
+   --------------------------------------------------------------------------
+   Two things every control in this application owes whoever is using it: a
+   target big enough to hit with a finger, and a mark saying where the
+   keyboard is. Collected here rather than repeated per component, because
+   they are the same two rules everywhere and a control added later should get
+   them without anyone remembering to.
+
+   The finger half is done without moving anything. A control drawn at 30
+   pixels is drawn at 30 pixels either way; what changes on a touch screen is
+   an invisible area centred on it, large enough to press without aiming. That
+   is deliberate - growing the buttons themselves would rearrange a header
+   that already fits at 320 pixels, and a layout that shifts because of the
+   pointer is a worse problem than the one being solved.
+   ========================================================================== */
+
+@media (hover: none), (pointer: coarse) {
+    .nav-history-btn,
+    .card-size-btn,
+    .backup-btn,
+    .create-album-btn,
+    .theme-toggle,
+    .song-menu-btn,
+    .modal-close,
+    .card-art .play,
+    .player-btn {
+        position: relative;
+    }
+
+    /* The area a finger may land in: centred on the control, invisible, and
+       taking up no room of its own. */
+    .nav-history-btn::after,
+    .card-size-btn::after,
+    .backup-btn::after,
+    .create-album-btn::after,
+    .theme-toggle::after,
+    .song-menu-btn::after,
+    .modal-close::after,
+    .card-art .play::after,
+    .player-btn::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 44px;
+        height: 44px;
+        transform: translate(-50%, -50%);
+        /* Behind the control's own contents, so nothing it draws is covered. */
+        z-index: 0;
+    }
+
+    /* The playbar's main control is a real 44, because there is room for it. */
+    .player-btn-primary {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* A row's options button is not something to hunt for on a screen that
+       cannot hover: it is simply there. */
+    .song-menu-btn {
+        opacity: 1;
+    }
+
+    /* Signing in is one of the first things anybody does on a phone, so the
+       two buttons that start it are a comfortable height. */
+    .auth-content .fw-1 {
+        min-height: 44px;
+    }
+}
+
+/* ---- where the keyboard is ----
+   Three controls had no focus mark of their own and inherited none: a row's
+   options button, a dialog's close, and the volume slider. Each gets the same
+   ring the rest of the application uses. */
+.song-menu-btn:focus-visible,
+.modal-close:focus-visible,
+.volumeRange:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* A slider is followed while it is being used, so its handle is marked too. */
+.volumeRange:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px var(--focus-ring);
+}

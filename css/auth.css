@@ -1,0 +1,139 @@
+/*
+ * Shared layout for the account pages: sign in, sign up, forgot password and
+ * reset password.
+ *
+ * One system for all four, so a card sits the same way on every page. It is a
+ * layout sheet only - colours, type and the rest of the Spotifie identity stay
+ * in each page's own styles. Loaded after them, so these rules win.
+ */
+
+.auth-page {
+    /* dvh keeps the card centred when a mobile browser's toolbars slide away */
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+}
+
+.auth-page *,
+.auth-page *::before,
+.auth-page *::after {
+    box-sizing: border-box;
+}
+
+.auth-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Leaves room for the floating theme toggle on narrow screens */
+    padding: clamp(20px, 4vh, 32px) 72px clamp(8px, 2vh, 16px);
+}
+
+.auth-container {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    /* Centred when there is room; "safe" keeps the top reachable instead of
+       clipping it when the viewport is shorter than the card. */
+    align-items: center;
+    align-items: safe center;
+    padding: clamp(16px, 3vh, 40px) max(16px, env(safe-area-inset-left, 0px)) clamp(24px, 4vh, 48px)
+        max(16px, env(safe-area-inset-right, 0px));
+}
+
+.auth-card {
+    width: min(100%, 420px);
+    max-width: 420px;
+    /* Keeps the card off the edges while the container scrolls on short screens */
+    margin-block: auto;
+    padding: clamp(24px, 5vw, 40px);
+    border-radius: 16px;
+}
+
+.auth-title {
+    font-size: clamp(24px, 5vw, 32px);
+    line-height: 1.2;
+}
+
+.auth-subtitle {
+    margin-bottom: clamp(20px, 4vh, 32px);
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+/* Field spacing is handled by the form gap, so groups do not add their own. */
+.auth-form .form-group {
+    margin-bottom: 0;
+}
+
+.auth-form .form-input,
+.auth-form input[type='text'],
+.auth-form input[type='email'],
+.auth-form input[type='password'] {
+    width: 100%;
+    min-height: 48px;
+}
+
+.auth-btn,
+.auth-form button[type='submit'] {
+    width: 100%;
+    min-height: 48px;
+}
+
+/* The show/hide control stays centred on the field whatever its height. */
+.password-toggle {
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.auth-footer,
+.auth-terms,
+.terms-text {
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+
+.theme-toggle-container {
+    position: fixed;
+    top: max(16px, env(safe-area-inset-top, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    z-index: 200;
+}
+
+@media screen and (max-width: 600px) {
+    .auth-header {
+        padding: clamp(16px, 3vh, 24px) 64px clamp(8px, 2vh, 12px);
+    }
+
+    .auth-card {
+        width: min(100% - 8px, 420px);
+        border-radius: 14px;
+    }
+}
+
+/* Short windows - a laptop at 768px tall, or a phone in landscape - scroll
+   from the top rather than centring a card that would not fit. */
+@media screen and (max-height: 720px) {
+    .auth-container {
+        align-items: flex-start;
+        padding-top: clamp(12px, 2vh, 24px);
+    }
+
+    .auth-card {
+        margin-block: 0 clamp(16px, 3vh, 32px);
+    }
+
+    .auth-header {
+        padding-top: clamp(12px, 2vh, 20px);
+        padding-bottom: 4px;
+    }
+}

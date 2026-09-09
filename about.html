@@ -1,0 +1,1742 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="What Spotifie does, how it handles your music and your data, the terms it is offered under, and how it works with a keyboard, a screen reader and reduced motion.">
+    <title>About Spotifie - Features, Privacy, Terms and Accessibility</title>
+
+    <!-- What this page is, for a browser, a search engine and a shared link. The
+         canonical address, the social image and the structured record are added by
+         the server at the marker below, because only it knows where this
+         installation has been published. -->
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <!-- Spotifie is dark unless this browser has been told otherwise, so the
+         browser chrome around it is too. One colour, not one per system
+         setting: what the operating system prefers does not decide what this
+         page looks like, and a bar disagreeing with the page under it would
+         only look like a mistake. -->
+    <meta name="theme-color" content="#121212">
+    <meta name="color-scheme" content="dark light">
+    <meta name="application-name" content="Spotifie">
+
+    <meta property="og:site_name" content="Spotifie">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="en">
+    <meta property="og:title" content="About Spotifie">
+    <meta property="og:description" content="What Spotifie does, how it handles your music and your data, the terms it is offered under, and how it works with a keyboard, a screen reader and reduced motion.">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="The Spotifie app icon">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="About Spotifie">
+    <meta name="twitter:description" content="What Spotifie does, how it handles your music and your data, the terms it is offered under, and how it works with a keyboard, a screen reader and reduced motion.">
+    <meta name="twitter:image:alt" content="The Spotifie app icon">
+    <!--site-meta-->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/utlity.css">
+    <link rel="icon" type="image/x-icon" href="favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="favicons/favicon-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="Spotifie">
+    <link rel="manifest" href="manifest.webmanifest">
+    <script>
+        (function() {
+            // Dark unless this browser has been told otherwise. Set here, before
+            // any stylesheet or script, so nothing is ever painted light first.
+            const savedTheme = localStorage.getItem('spotify_theme');
+            document.documentElement.setAttribute('data-theme', savedTheme === 'light' ? 'light' : 'dark');
+        })();
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        .about-page {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .about-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 40px;
+            background: rgba(18, 18, 18, 0.95);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        [data-theme="light"] .about-header {
+            background: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        .about-header.scrolled {
+            padding: 12px 40px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 22px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+
+        .logo:hover {
+            transform: scale(1.02);
+        }
+
+        .back-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .logo .logo-img {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+        }
+
+        .logo span {
+            color: var(--text-primary);
+        }
+
+        /* Navigation Pills */
+        .nav-pills {
+            display: flex;
+            gap: 8px;
+            background: var(--bg-tertiary);
+            padding: 6px;
+            border-radius: 500px;
+        }
+
+        .nav-pill {
+            padding: 8px 16px;
+            border-radius: 500px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .nav-pill:hover,
+        .nav-pill.active {
+            background: #1db954;
+            color: #000;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        /* Hero Section */
+        .about-hero {
+            padding: 160px 40px 100px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(180deg, rgba(29, 185, 84, 0.15) 0%, transparent 60%);
+            z-index: 0;
+        }
+
+        .hero-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #1db954;
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: particleFloat 15s infinite;
+        }
+
+        .particle:nth-child(1) { left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { left: 20%; animation-delay: 2s; }
+        .particle:nth-child(3) { left: 30%; animation-delay: 4s; }
+        .particle:nth-child(4) { left: 40%; animation-delay: 1s; }
+        .particle:nth-child(5) { left: 50%; animation-delay: 3s; }
+        .particle:nth-child(6) { left: 60%; animation-delay: 5s; }
+        .particle:nth-child(7) { left: 70%; animation-delay: 2.5s; }
+        .particle:nth-child(8) { left: 80%; animation-delay: 4.5s; }
+        .particle:nth-child(9) { left: 90%; animation-delay: 1.5s; }
+
+        @keyframes particleFloat {
+            0%, 100% {
+                transform: translateY(100vh) scale(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.5;
+            }
+            50% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(-100px) scale(1);
+            }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(29, 185, 84, 0.15);
+            border: 1px solid rgba(29, 185, 84, 0.3);
+            color: var(--accent-text);
+            padding: 10px 20px;
+            border-radius: 500px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            animation: fadeInDown 0.6s ease;
+        }
+
+        .hero-title {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            animation: fadeInUp 0.6s ease 0.1s both;
+        }
+
+        .hero-title span {
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 20px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 32px;
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+
+        .hero-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: #1db954;
+            color: #000;
+            padding: 16px 32px;
+            border-radius: 500px;
+            font-size: 16px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all 0.2s;
+            animation: fadeInUp 0.6s ease 0.3s both;
+        }
+
+        .hero-cta:hover {
+            background: #1ed760;
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(29, 185, 84, 0.4);
+        }
+
+        /* Main Content */
+        .about-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 40px 80px;
+        }
+
+        /* Section Styles */
+        .about-section {
+            padding: 80px 0;
+            border-bottom: 1px solid var(--border-color);
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.6s ease;
+        }
+
+        .about-section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .about-section:last-child {
+            border-bottom: none;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .section-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .section-icon svg {
+            width: 28px;
+            height: 28px;
+            stroke: #000;
+        }
+
+        .section-title-group {
+            flex: 1;
+        }
+
+        .section-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-text);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            font-size: 36px;
+            font-weight: 800;
+            line-height: 1.2;
+        }
+
+        .section-content {
+            font-size: 16px;
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        .section-content p {
+            margin-bottom: 20px;
+        }
+
+        .section-content strong {
+            color: var(--text-primary);
+        }
+
+        /* Feature Grid */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            background: var(--bg-tertiary);
+            border-radius: 16px;
+            padding: 28px;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #1db954, #1ed760);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(29, 185, 84, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .feature-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: rgba(29, 185, 84, 0.15);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .feature-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: #1db954;
+        }
+
+        .feature-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .feature-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Info Cards */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-top: 40px;
+        }
+
+        .info-card {
+            background: var(--bg-tertiary);
+            border-radius: 16px;
+            padding: 32px;
+            transition: all 0.3s ease;
+        }
+
+        .info-card:hover {
+            background: var(--bg-secondary);
+        }
+
+        .info-card h4 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-card h4 svg {
+            width: 20px;
+            height: 20px;
+            stroke: #1db954;
+        }
+
+        .info-card p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Accordion */
+        .accordion {
+            margin-top: 40px;
+        }
+
+        .accordion-item {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .accordion-item:hover {
+            background: var(--bg-secondary);
+        }
+
+        .accordion-header {
+            padding: 20px 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 16px;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .accordion-header svg {
+            width: 20px;
+            height: 20px;
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-item.active .accordion-header svg {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .accordion-item.active .accordion-content {
+            max-height: 500px;
+        }
+
+        .accordion-body {
+            padding: 0 24px 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* Stats Section */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            margin-top: 40px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 32px 20px;
+            background: var(--bg-tertiary);
+            border-radius: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: scale(1.05);
+            background: rgba(29, 185, 84, 0.1);
+        }
+
+        .stat-number {
+            font-size: 40px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Timeline */
+        .timeline {
+            position: relative;
+            margin-top: 40px;
+            padding-left: 40px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(180deg, #1db954, transparent);
+        }
+
+        .timeline-item {
+            position: relative;
+            padding-bottom: 32px;
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: all 0.5s ease;
+        }
+
+        .timeline-item.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -33px;
+            top: 4px;
+            width: 14px;
+            height: 14px;
+            background: #1db954;
+            border-radius: 50%;
+            border: 3px solid var(--bg-primary);
+        }
+
+        .timeline-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .timeline-desc {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        .about-footer {
+            background: var(--bg-secondary);
+            padding: 60px 40px 30px;
+            margin-top: 40px;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 40px;
+        }
+
+        .footer-brand {
+            max-width: 300px;
+        }
+
+        .footer-logo {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .footer-logo .logo-img {
+            width: 42px;
+            height: 42px;
+            object-fit: contain;
+        }
+
+        .footer-logo span {
+            color: var(--text-primary);
+        }
+
+        .footer-brand p {
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .footer-nav {
+            display: flex;
+            gap: 60px;
+        }
+
+        .footer-nav-group h4 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+
+        .footer-nav-group ul {
+            list-style: none;
+        }
+
+        .footer-nav-group li {
+            margin-bottom: 10px;
+        }
+
+        .footer-nav-group a {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-nav-group a:hover {
+            color: var(--accent-text);
+        }
+
+        .footer-bottom {
+            max-width: 1200px;
+            margin: 40px auto 0;
+            padding-top: 30px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .footer-copyright {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 24px;
+        }
+
+        .footer-links a {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent-text);
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Mobile Menu Button */
+        .mobile-menu-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mobile-menu-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        [data-theme="light"] .mobile-menu-btn:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Mobile Menu Overlay */
+        .mobile-menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1001;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .mobile-menu-overlay.active {
+            display: block;
+            opacity: 1;
+        }
+
+        /* Mobile Menu */
+        .mobile-menu {
+            position: fixed;
+            top: 0;
+            right: -300px;
+            width: 280px;
+            height: 100vh;
+            background: var(--bg-primary);
+            z-index: 1002;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            transition: right 0.3s ease;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .mobile-menu.active {
+            right: 0;
+        }
+
+        .mobile-menu-close {
+            align-self: flex-end;
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            transition: all 0.2s;
+        }
+
+        .mobile-menu-close:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        [data-theme="light"] .mobile-menu-close:hover {
+            background: rgba(0, 0, 0, 0.1);
+        }
+
+        .mobile-menu-item {
+            padding: 14px 20px;
+            color: var(--text-primary);
+            text-decoration: none;
+            font-size: 16px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .mobile-menu-item:hover {
+            background: rgba(29, 185, 84, 0.1);
+            color: var(--accent-text);
+        }
+
+        .mobile-back-home {
+            margin-top: auto;
+            background: linear-gradient(135deg, #1db954, #1ed760);
+            color: #000 !important;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .mobile-back-home:hover {
+            background: linear-gradient(135deg, #1ed760, #1db954);
+            transform: scale(1.02);
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 1024px) {
+            .nav-pills {
+                display: none;
+            }
+
+            .mobile-menu-btn {
+                display: flex;
+            }
+
+            .header-right {
+                margin-left: auto;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .about-header {
+                gap: 12px;
+            }
+        }
+
+        @media screen and (max-width: 768px) {
+            .about-header {
+                padding: 12px 16px;
+            }
+
+            .header-left {
+                gap: 12px;
+            }
+
+            .back-btn {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .back-btn svg {
+                width: 16px;
+                height: 16px;
+            }
+
+            .logo {
+                font-size: 18px;
+                gap: 8px;
+            }
+
+            .logo .logo-img {
+                width: 32px;
+                height: 32px;
+            }
+
+            .about-hero {
+                padding: 120px 20px 60px;
+            }
+
+            .hero-title {
+                font-size: 36px;
+            }
+
+            .hero-subtitle {
+                font-size: 16px;
+            }
+
+            .about-content {
+                padding: 0 20px 40px;
+            }
+
+            .about-section {
+                padding: 50px 0;
+            }
+
+            .section-header {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .section-title {
+                font-size: 28px;
+            }
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .footer-content {
+                flex-direction: column;
+            }
+
+            .footer-nav {
+                flex-wrap: wrap;
+                gap: 30px;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+
+        @media screen and (max-width: 480px) {
+            .about-header {
+                padding: 10px 12px;
+            }
+
+            .header-left {
+                gap: 8px;
+            }
+
+            .back-btn {
+                padding: 6px 10px;
+                font-size: 12px;
+                gap: 4px;
+            }
+
+            .back-btn svg {
+                width: 14px;
+                height: 14px;
+            }
+
+            .logo {
+                font-size: 16px;
+                gap: 6px;
+            }
+
+            .logo .logo-img {
+                width: 28px;
+                height: 28px;
+            }
+
+            .mobile-menu-btn {
+                width: 38px;
+                height: 38px;
+            }
+
+            .hero-title {
+                font-size: 28px;
+            }
+
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+
+            .stat-number {
+                font-size: 32px;
+            }
+        }
+    </style>
+</head>
+
+<body class="about-page">
+    <!-- Header -->
+    <header class="about-header" id="header">
+        <div class="header-left">
+            <a href="index.html" class="logo">
+                <img src="img/logo.webp" alt="Spotifie logo" class="logo-img">
+                <span>Spotifie</span>
+            </a>
+        </div>
+
+        <nav class="nav-pills">
+            <a href="#features" class="nav-pill">Features</a>
+            <a href="#how-it-works" class="nav-pill">How It Works</a>
+            <a href="#privacy" class="nav-pill">Privacy</a>
+            <a href="#terms" class="nav-pill">Terms</a>
+            <a href="#accessibility" class="nav-pill">Accessibility</a>
+            <a href="developer.html" class="nav-pill">Developer</a>
+        </nav>
+
+        <!-- Mobile Menu Overlay -->
+        <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
+        
+        <!-- Mobile Menu -->
+        <nav class="mobile-menu" id="mobileMenu">
+            <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+            <a href="#features" class="mobile-menu-item">Features</a>
+            <a href="#how-it-works" class="mobile-menu-item">How It Works</a>
+            <a href="#privacy" class="mobile-menu-item">Privacy</a>
+            <a href="#terms" class="mobile-menu-item">Terms</a>
+            <a href="#accessibility" class="mobile-menu-item">Accessibility</a>
+            <a href="developer.html" class="mobile-menu-item">Developer</a>
+            <a href="index.html" class="mobile-menu-item mobile-back-home">← Back to Player</a>
+        </nav>
+
+        <div class="header-right">
+            <div class="theme-toggle" id="themeToggle" role="button" tabindex="0" aria-label="Toggle theme">
+                <div class="theme-toggle-track">
+                    <div class="theme-toggle-thumb">
+                        <svg class="theme-icon moon-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <svg class="theme-icon sun-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="theme-toggle-inactive-icon">
+                        <svg class="theme-icon inactive-sun" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                        <svg class="theme-icon inactive-moon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <!-- Mobile Menu Button -->
+            <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 12h18M3 6h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="about-hero">
+        <div class="hero-bg"></div>
+        <div class="hero-particles">
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+            <div class="particle"></div>
+        </div>
+        <div class="hero-content">
+            <div class="hero-badge">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                Spotifie Web Player
+            </div>
+            <h1 class="hero-title">Your Music, <span>Your Way</span></h1>
+            <p class="hero-subtitle">
+                A hybrid music player that brings a published catalogue and the music already on your
+                machine into one library. Your own audio is indexed and played locally — it is never
+                uploaded — while a shared catalogue streams to anyone who opens the app.
+            </p>
+            <a href="index.html" class="hero-cta">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+                Start Listening
+            </a>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="about-content">
+        
+        <!-- Features Section -->
+        <section class="about-section" id="features">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                    </svg>
+                </div>
+                <div class="section-title-group">
+                    <div class="section-label">Explore</div>
+                    <h2 class="section-title">Powerful Features</h2>
+                </div>
+            </div>
+
+            <div class="section-content">
+                <p>
+                    Spotifie runs on a single local Node server that serves the interface, indexes the music on
+                    this machine and speaks to the shared catalogue. Two sources of music sit side by side in one
+                    library: albums an administrator has published for everyone, and the audio found on this
+                    device. Both play through the same player, with the same controls, under stable identifiers
+                    that never expose a filesystem path to the browser.
+                </p>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M9 18V5l12-2v13"/>
+                            <circle cx="6" cy="18" r="3"/>
+                            <circle cx="18" cy="16" r="3"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Published Catalogue</h3>
+                    <p class="feature-desc">Albums an administrator publishes are available to everyone who opens Spotifie, including guests who have not signed in. Artwork and audio resolve through short-lived signed links that are requested when needed and never stored.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Local Music Discovery</h3>
+                    <p class="feature-desc">Spotifie searches the folders music normally lives in — Music, Downloads, Desktop and Documents — reading tags and artwork into a local index. Everything it finds appears as one Local Music collection. After the first pass it only looks at what has changed, recognising unchanged files by path, size and modified time.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Your Own Collections</h3>
+                    <p class="feature-desc">Build albums of your own from anything in the library, import audio straight from your device, and keep a Liked Songs collection. A published album can be renamed, re-covered or re-described for you alone — the shared record is never touched, and your version stays on this device.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">A Complete Player</h3>
+                    <p class="feature-desc">Play and pause, previous and next, a seek bar you can drag or reach with the keyboard, volume, shuffle that walks a collection once through, and repeat off, all or one. An expanded Now Playing view opens over the page without interrupting the sound, and where the browser supports it the system's own media controls work too.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Dark &amp; Light, Every Screen</h3>
+                    <p class="feature-desc">A full light theme alongside the dark one, with contrast checked across both, and a layout built for a phone, a tablet and a desktop rather than scaled down from one of them. Your choice of theme is remembered on this device.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Search, Resume and Backup</h3>
+                    <p class="feature-desc">Search across everything in the library by album or song. Spotifie remembers where you stopped in each track and starts you there next time. Your collections and preferences can be exported and restored — the file carries what you organised, never the audio itself.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="about-section" id="how-it-works">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    </svg>
+                </div>
+                <div class="section-title-group">
+                    <div class="section-label">Learn</div>
+                    <h2 class="section-title">How It Works</h2>
+                </div>
+            </div>
+
+            <div class="section-content">
+                <p>
+                    <strong>Two libraries, one player.</strong> Spotifie runs from a single Node server on your own
+                    machine. That one process serves the interface, indexes the music already on the device, and reads
+                    the catalogue an administrator has published for everyone. Anyone can listen as a guest; signing in
+                    adds a profile and keeps your collections and listening positions with your account.
+                </p>
+            </div>
+
+            <div class="timeline">
+                <div class="timeline-item">
+                    <h4 class="timeline-title">1. Start Spotifie</h4>
+                    <p class="timeline-desc">Start the local server and open it in any modern browser. One process serves the pages, the library API and the audio — on a desktop, a tablet or a phone.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4 class="timeline-title">2. Browse the Published Catalogue</h4>
+                    <p class="timeline-desc">Albums an administrator has published are there the moment the page loads, for signed-in listeners and guests alike. Search reaches any album or song across the whole library.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4 class="timeline-title">3. Let Spotifie Find Your Music</h4>
+                    <p class="timeline-desc">The first run walks the folders music usually lives in and builds a local index of what it finds. Everything on the device appears as one Local Music collection, listed first. Later runs only look at what changed.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4 class="timeline-title">4. Make the Library Yours</h4>
+                    <p class="timeline-desc">Group tracks into albums of your own, import audio straight from the device, keep a Liked Songs collection, and rename or re-cover a published album for yourself without touching the shared copy.</p>
+                </div>
+                <div class="timeline-item">
+                    <h4 class="timeline-title">5. Play It, and Pick Up Where You Stopped</h4>
+                    <p class="timeline-desc">One player throughout: shuffle, repeat, seek, volume and an expanded Now Playing view. Spotifie remembers your position in each track, and your collections can be exported and restored at any time.</p>
+                </div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="stat-number">2</div>
+                    <div class="stat-label">Music Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">0</div>
+                    <div class="stat-label">Audio Files Uploaded</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">Local</div>
+                    <div class="stat-label">Index and Playback</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">Guest</div>
+                    <div class="stat-label">Listening Supported</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Privacy Section -->
+        <section class="about-section" id="privacy">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <div class="section-title-group">
+                    <div class="section-label">Your Data</div>
+                    <h2 class="section-title">Privacy & Data</h2>
+                </div>
+            </div>
+
+            <div class="section-content">
+                <p>
+                    <strong>Your music stays where it already is.</strong> Audio found on this device, and audio you
+                    import from it, is indexed and played by the Spotifie server running on your own machine. It is
+                    never uploaded to Supabase or anywhere else. Supabase holds your account and profile, and serves
+                    the catalogue an administrator has published for everyone — the two stay separate.
+                </p>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Local Audio Stays Local
+                    </h4>
+                    <p>Files found by the device search, and files you import, are read from disk and streamed by the local server. Only the identifier, tag data and artwork needed to draw the library ever reach the page — the filesystem path never does, and the audio itself is never sent to Supabase.</p>
+                </div>
+                <div class="info-card">
+                    <h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Where the Search Looks
+                    </h4>
+                    <p>The search covers the profile folders music normally lives in, the configured music root, and any extra locations the person running the server has configured. System, program and dependency folders are skipped. Folder names are logged on the server only and are never sent to the browser.</p>
+                </div>
+                <div class="info-card">
+                    <h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                        Account and Session
+                    </h4>
+                    <p>Signing in is optional — guests can listen to the published catalogue and to this device's music. If you do sign in, Supabase handles authentication and your profile: your email, display name and the details that come with an account. The session is kept by the Supabase client in your browser's storage. Spotifie sets no cookies of its own and loads no analytics, advertising or tracking scripts.</p>
+                </div>
+                <div class="info-card">
+                    <h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        What Is Kept, and Clearing It
+                    </h4>
+                    <p>Your theme, player preferences and collections live in this browser's local storage and IndexedDB. The music index, artwork cache and the position you reached in each track live in Spotifie's own working folder beside the server, never in Supabase. Both are rebuildable: clear the site data, or delete that folder, and Spotifie starts over.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Terms Section -->
+        <section class="about-section" id="terms">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                </div>
+                <div class="section-title-group">
+                    <div class="section-label">Legal</div>
+                    <h2 class="section-title">Terms of Use</h2>
+                </div>
+            </div>
+
+            <div class="section-content">
+                <p>
+                    <strong>Plain terms for a player you run yourself.</strong> Spotifie brings together a catalogue
+                    published by an administrator and the music already on your own device. By installing or using the
+                    application, you agree to the terms below.
+                </p>
+            </div>
+
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>Acceptable Use</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            Use Spotifie to listen to music you are entitled to listen to. Do not attempt to bypass sign-in or the administrator checks, interfere with the local server or the catalogue service, extract or redistribute catalogue media, or use the application to store or distribute unlawful material.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>Your Account</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            Signing in is optional, but if you create an account you are responsible for it and for keeping its credentials to yourself. Administrative access is limited to accounts that have been granted it; do not attempt to obtain it by other means. Tell whoever operates your installation if you believe an account has been misused.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>Your Own Music</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            Spotifie indexes and plays files that are already on your device. Those files remain yours and remain your responsibility: you must hold the rights or permission needed to store and play them. Spotifie does not upload them, does not verify where they came from, and grants you no rights over them.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>The Published Catalogue</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            Albums published by an administrator are provided for listening inside the application. Rights in that content stay with whoever holds them. Downloading, re-hosting or redistributing it, or building a separate service on top of it, is not permitted. An administrator is responsible for having the right to publish whatever they add.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>Availability and Local Limits</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            Spotifie runs on the machine you start it on. It is available while that server is running, and the device library reflects only what that machine can reach. Sign-in and the published catalogue depend on Supabase and on your network connection, neither of which this project controls. Features may change or be withdrawn as the application develops, and no particular level of availability is promised.
+                        </div>
+                    </div>
+                </div>
+                <div class="accordion-item">
+                    <div class="accordion-header">
+                        <span>Intellectual Property and Warranty</span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+                    </div>
+                    <div class="accordion-content">
+                        <div class="accordion-body">
+                            Spotifie is an independent project. It is not affiliated with, endorsed by or connected to Spotify AB, and the Spotify name and logo are trademarks of Spotify AB. The application is provided as is, without warranty of any kind, and is used at your own discretion and risk.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Accessibility Section -->
+        <section class="about-section" id="accessibility">
+            <div class="section-header">
+                <div class="section-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="8" r="2"/>
+                        <path d="M12 10v8"/>
+                        <path d="M8 14l4 4 4-4"/>
+                    </svg>
+                </div>
+                <div class="section-title-group">
+                    <div class="section-label">Inclusive</div>
+                    <h2 class="section-title">Accessibility</h2>
+                </div>
+            </div>
+
+            <div class="section-content">
+                <p>
+                    <strong>Music is for everyone.</strong> Accessibility is part of how the interface is built rather
+                    than something added at the end, and it is checked again as the application changes. What follows
+                    describes what is in place today. It is a statement of practice, not a claim of formal WCAG
+                    conformance, and the work continues.
+                </p>
+            </div>
+
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Keyboard Navigation</h3>
+                    <p class="feature-desc">Every control can be reached and used from the keyboard. Buttons and links are real buttons and links, volume is a native range input, the seek bar is a focusable slider that answers the arrow keys along with Home and End, and menus, dialogs and the library drawer close with Escape.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Labels and Semantics</h3>
+                    <p class="feature-desc">Icon-only controls carry accessible names, menus and dialogs carry the roles that describe them, and live regions announce scan results and status messages. Each page keeps a sensible heading order and landmark structure for screen readers to follow.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6M12 17v6"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Visible Focus and Contrast</h3>
+                    <p class="feature-desc">Focus is never invisible: a distinct focus indicator is drawn on controls across the player, header, library and album pages. Both themes are built from semantic colour tokens, with text, icons and control states checked for contrast in light and dark alike.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2">
+                            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                            <polyline points="22,6 12,13 2,6"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Scale, Touch and Motion</h3>
+                    <p class="feature-desc">Layouts and text scale from a large monitor down to a phone, with touch targets sized for a finger rather than a cursor, and hover effects kept to devices that actually hover. When the system asks for reduced motion, animations and transitions are turned off.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="about-footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <div class="footer-logo">
+                    <img src="img/logo.webp" alt="Spotifie logo" class="logo-img">
+                    <span>Spotifie</span>
+                </div>
+                <p>A hybrid music player: a published catalogue and the music on your own device, in one library.</p>
+            </div>
+
+            <div class="footer-nav">
+                <div class="footer-nav-group">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="index.html">Web Player</a></li>
+                        <li><a href="developer.html">Developer</a></li>
+                        <li><a href="#features">Features</a></li>
+                        <li><a href="#how-it-works">How It Works</a></li>
+                    </ul>
+                </div>
+                <div class="footer-nav-group">
+                    <h4>Legal</h4>
+                    <ul>
+                        <li><a href="#privacy">Privacy</a></li>
+                        <li><a href="#terms">Terms of Use</a></li>
+                        <li><a href="#accessibility">Accessibility</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <div class="footer-copyright">
+                © 2024-2026 Spotifie Web Player. Made with ❤️ by Adil ur Rehman Kakar
+            </div>
+            <div class="footer-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#privacy">Privacy</a>
+                <a href="#terms">Terms</a>
+                <a href="#accessibility">Accessibility</a>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Theme Toggle
+        function initializeTheme() {
+            const themeToggle = document.getElementById('themeToggle');
+            if (!themeToggle) return;
+            
+            themeToggle.addEventListener('click', toggleTheme);
+            themeToggle.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleTheme();
+                }
+            });
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('spotify_theme', newTheme);
+        }
+
+        // Header scroll effect
+        const header = document.getElementById('header');
+        window.addEventListener('scroll', () => {
+            if (window.scrollY > 50) {
+                header.classList.add('scrolled');
+            } else {
+                header.classList.remove('scrolled');
+            }
+        });
+
+        // Active nav pill
+        const navPills = document.querySelectorAll('.nav-pill');
+        const sections = document.querySelectorAll('.about-section');
+
+        function updateActiveNav() {
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 150;
+                if (window.scrollY >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navPills.forEach(pill => {
+                pill.classList.remove('active');
+                if (pill.getAttribute('href') === '#' + current) {
+                    pill.classList.add('active');
+                }
+            });
+        }
+
+        window.addEventListener('scroll', updateActiveNav);
+
+        // Scroll reveal for sections
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, observerOptions);
+
+        sections.forEach(section => observer.observe(section));
+
+        // Timeline items reveal
+        const timelineItems = document.querySelectorAll('.timeline-item');
+        const timelineObserver = new IntersectionObserver((entries) => {
+            entries.forEach((entry, index) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.classList.add('visible');
+                    }, index * 150);
+                }
+            });
+        }, { threshold: 0.2 });
+
+        timelineItems.forEach(item => timelineObserver.observe(item));
+
+        // Accordion
+        const accordionItems = document.querySelectorAll('.accordion-item');
+        accordionItems.forEach(item => {
+            const header = item.querySelector('.accordion-header');
+            header.addEventListener('click', () => {
+                const isActive = item.classList.contains('active');
+                
+                // Close all
+                accordionItems.forEach(i => i.classList.remove('active'));
+                
+                // Open clicked if wasn't active
+                if (!isActive) {
+                    item.classList.add('active');
+                }
+            });
+        });
+
+        // Mobile Menu
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const mobileMenuClose = document.getElementById('mobileMenuClose');
+        const mobileMenu = document.getElementById('mobileMenu');
+        const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+        const mobileMenuItems = document.querySelectorAll('.mobile-menu-item');
+
+        function openMobileMenu() {
+            mobileMenu.classList.add('active');
+            mobileMenuOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeMobileMenu() {
+            mobileMenu.classList.remove('active');
+            mobileMenuOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        if (mobileMenuBtn) {
+            mobileMenuBtn.addEventListener('click', openMobileMenu);
+        }
+
+        if (mobileMenuClose) {
+            mobileMenuClose.addEventListener('click', closeMobileMenu);
+        }
+
+        if (mobileMenuOverlay) {
+            mobileMenuOverlay.addEventListener('click', closeMobileMenu);
+        }
+
+        // Close mobile menu when clicking a menu item
+        mobileMenuItems.forEach(item => {
+            item.addEventListener('click', () => {
+                closeMobileMenu();
+            });
+        });
+
+        // Initialize
+        initializeTheme();
+    </script>
+</body>
+
+</html>

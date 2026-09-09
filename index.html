@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Spotifie brings the music already on your device together with a published global catalogue in one library - playlists, liked songs, offline playback of local files, and a responsive player for desktop, tablet and phone.">
+    <title>Spotifie - Hybrid Local & Global Music Player</title>
+
+    <!-- What this page is, for a browser, a search engine and a shared link. The
+         canonical address, the social image and the structured record are added by
+         the server at the marker below, because only it knows where this
+         installation has been published. -->
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <!-- Spotifie is dark unless this browser has been told otherwise, so the
+         browser chrome around it is too. One colour, not one per system
+         setting: what the operating system prefers does not decide what this
+         page looks like, and a bar disagreeing with the page under it would
+         only look like a mistake. -->
+    <meta name="theme-color" content="#121212">
+    <meta name="color-scheme" content="dark light">
+    <meta name="application-name" content="Spotifie">
+
+    <meta property="og:site_name" content="Spotifie">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="en">
+    <meta property="og:title" content="Spotifie - Hybrid Local &amp; Global Music Player">
+    <meta property="og:description" content="Spotifie brings the music already on your device together with a published global catalogue in one library - playlists, liked songs, offline playback of local files, and a responsive player for desktop, tablet and phone.">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+    <meta property="og:image:alt" content="The Spotifie app icon">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Spotifie - Hybrid Local &amp; Global Music Player">
+    <meta name="twitter:description" content="Spotifie brings the music already on your device together with a published global catalogue in one library - playlists, liked songs, offline playback of local files, and a responsive player for desktop, tablet and phone.">
+    <meta name="twitter:image:alt" content="The Spotifie app icon">
+    <!--site-meta-->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/utlity.css">
+    <link rel="icon" type="image/x-icon" href="favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="favicons/favicon-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="Spotifie">
+    <link rel="manifest" href="manifest.webmanifest">
+    <script>
+        // Apply theme immediately to prevent flash
+        (function() {
+            // Dark unless this browser has been told otherwise. Set here, before
+            // any stylesheet or script, so nothing is ever painted light first.
+            var savedTheme = null;
+            try {
+                savedTheme = localStorage.getItem('spotify_theme');
+            } catch (e) {
+                /* a browser that keeps nothing still gets the dark default */
+            }
+            document.documentElement.setAttribute('data-theme', savedTheme === 'light' ? 'light' : 'dark');
+
+            // ----------------------------------------------------------
+            // Has Spotifie been opened on this browser before?
+            //
+            // Decided here, synchronously, before the first paint - because a
+            // splash that appears for one frame and then vanishes is worse
+            // than no splash at all. The opening screen is hidden by default
+            // and only shown when this says nothing has been set up yet, so a
+            // returning visitor never sees it flicker.
+            //
+            // The evidence is what Spotifie leaves behind when it runs: the
+            // marker written after a first successful load, and the ordinary
+            // traces of having been used. Any one of them means this is not a
+            // first run. Clearing the browser's data for this site removes all
+            // of them, and the opening screen comes back - which is right,
+            // because at that point there is genuinely nothing here.
+            //
+            // Deliberately not a session flag: a refresh must stay
+            // splash-free, and a session flag would bring it back every time.
+            // ----------------------------------------------------------
+            var TRACES = [
+                // Written once the first load has finished successfully.
+                'spotifie_ready',
+                // And the ordinary signs of use, so somebody who has been
+                // using Spotifie since before that marker existed is
+                // recognised as the returning visitor they are.
+                'spotify_theme',
+                'lastFolder',
+                'spotify_user_albums',
+                'spotifie_player_prefs',
+                'spotify_pinned_albums'
+            ];
+
+            var used = false;
+            try {
+                for (var i = 0; i < TRACES.length; i += 1) {
+                    if (localStorage.getItem(TRACES[i]) !== null) {
+                        used = true;
+                        break;
+                    }
+                }
+            } catch (e) {
+                // Storage unreadable: treat it as a first run. Showing the
+                // opening screen once too often is a smaller fault than
+                // showing a half-built page.
+                used = false;
+            }
+
+            if (!used) document.documentElement.setAttribute('data-first-run', 'yes');
+        })();
+    </script>
+    <style>
+        /* ----------------------------------------------------------
+           The opening screen, styled here rather than in a stylesheet.
+
+           A stylesheet is a file the browser has to fetch, and until it
+           arrives the page is drawn without it. These rules come with the
+           document, so the first paint is already the splash and there is no
+           moment where a half-built player shows through.
+           ---------------------------------------------------------- */
+        /* Not shown at all, unless the script in the head decided this
+           browser has never set Spotifie up. A returning visitor's page has no
+           opening screen to paint, so there is no frame in which one could
+           appear - not a black flash, not a moving bar, nothing. */
+        .splash { display: none; }
+
+        :root[data-first-run="yes"] .splash {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* The dark that Spotifie is, whatever theme is set: an opening
+               screen is a moment, and a bright flash at the start of it is
+               the thing this exists to prevent. */
+            background: radial-gradient(120% 90% at 50% 0%, #17301f 0%, #0b0b0b 55%, #000 100%);
+            color: #fff;
+            padding: calc(24px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px))
+                calc(24px + env(safe-area-inset-bottom, 0px)) calc(20px + env(safe-area-inset-left, 0px));
+            box-sizing: border-box;
+            overflow: hidden;
+            opacity: 1;
+            transition: opacity 420ms ease;
+        }
+
+        /* Going: faded rather than cut, and out of the way of clicks at once. */
+        .splash.is-leaving { opacity: 0; pointer-events: none; }
+        .splash[hidden] { display: none !important; }
+
+        .splash-inner {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(18px, 5vw, 28px);
+            width: 100%;
+            /* Never wider than the screen, at any width, so nothing can push
+               the page sideways behind it. */
+            max-width: min(420px, 100%);
+            min-width: 0;
+            text-align: center;
+        }
+
+        .splash-brand {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .splash-logo {
+            width: clamp(56px, 16vw, 76px);
+            height: auto;
+            border-radius: 50%;
+        }
+
+        .splash-title {
+            margin: 0;
+            font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: clamp(28px, 8vw, 42px);
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            line-height: 1.1;
+        }
+
+        .splash-tagline {
+            margin: 0;
+            font-family: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-size: clamp(12px, 3.4vw, 15px);
+            font-weight: 400;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.62);
+        }
+
+        /* ---- the one loading bar ----
+           A single dark track that fills from the left as the application
+           actually comes up. Not a loop pretending to be progress: the width
+           is set from real milestones, so what somebody watches is the work
+           finishing rather than an animation running.
+
+           No percentage, no number, no dots, and nothing else on this screen
+           that runs horizontally - anything else would read as a second bar. */
+        .splash-progress {
+            /* Comfortable on a desktop, narrower on a phone, never wider than
+               the screen it is on. */
+            width: clamp(140px, 52vw, 200px);
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.1);
+            overflow: hidden;
+        }
+
+        .splash-progress-bar {
+            display: block;
+            /* Starts at nothing and is widened as milestones are reached. The
+               transition is what makes a step that completes instantly still
+               look like movement rather than a jump. */
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, rgba(29, 185, 84, 0.75), #1db954);
+            transition: width 420ms cubic-bezier(0.4, 0, 0.2, 1);
+            will-change: width;
+        }
+
+        /* Reaching the end is a moment of its own: the bar completes, and only
+           then does the screen go. */
+        .splash.is-leaving .splash-progress-bar {
+            width: 100%;
+        }
+
+        /* Asked for less motion: the bar still shows how far along things are,
+           it simply arrives at each width rather than sliding to it. */
+        @media (prefers-reduced-motion: reduce) {
+            .splash { transition: none; }
+            .splash-progress-bar { transition: none; }
+        }
+    </style>
+</head>
+ 
+<body>
+    <!-- ==========================================================
+         What Spotifie is, for anything that cannot run the player.
+         ==========================================================
+         A crawler, a reader with scripting turned off, or a text browser gets
+         a real description of the application and the way to the pages that
+         explain it, rather than an empty shell.
+
+         Deliberately inside <noscript>: a browser that can run the player is
+         shown the player, and this is not a second copy of the same words
+         hidden underneath it. Nothing here describes anybody's library - what
+         is on a person's device is theirs, and is not something to publish in
+         order to be found.
+    -->
+    <noscript>
+        <main class="no-script">
+            <h1>Spotifie - Hybrid Local &amp; Global Music Player</h1>
+            <p>
+                Spotifie brings the music already on your device together with a published global
+                catalogue in one library. Both halves are browsed, searched and played as one, with
+                playlists, liked songs and a player that follows you from a desktop to a phone.
+            </p>
+
+            <h2>What it does</h2>
+            <ul>
+                <li>Plays the music found on this device, indexed locally and never uploaded.</li>
+                <li>Browses a published global catalogue alongside that local music.</li>
+                <li>Keeps audio you import private to your own account.</li>
+                <li>Playlists, liked songs, recently played and your own edits to published albums.</li>
+                <li>Local music keeps playing without a connection.</li>
+                <li>One responsive player for desktop, tablet and phone, in a light or dark theme.</li>
+            </ul>
+
+            <h2>Read more</h2>
+            <ul>
+                <li><a href="about.html#features">Spotifie's features, in detail</a></li>
+                <li><a href="about.html#privacy">How Spotifie handles your music and your data</a></li>
+                <li><a href="about.html#terms">The terms Spotifie is offered under</a></li>
+                <li><a href="about.html#accessibility">Accessibility: keyboard, screen readers and motion</a></li>
+                <li><a href="developer.html">The developer behind Spotifie</a></li>
+            </ul>
+
+            <p>Spotifie needs JavaScript to play music. Turn it on to open the player.</p>
+        </main>
+    </noscript>
+
+    <!-- ==========================================================
+         The first thing Spotifie shows.
+         =========================================================
+         Written into the page rather than built by a script, and styled by
+         rules that come with the page rather than by a stylesheet that has to
+         arrive: whatever else is still loading, this is already on screen, so
+         nothing half-drawn is ever seen behind it.
+
+         It covers the startup that has to happen anyway - reading what this
+         device already knows and getting the player ready - and it goes as
+         soon as that is done and it has been visible long enough to read. It
+         never waits on the network: a slow catalogue is checked quietly
+         afterwards, behind a library that is already usable.
+    -->
+    <div class="splash" id="appSplash" role="status" aria-live="polite" aria-label="Starting Spotifie">
+        <div class="splash-inner">
+            <div class="splash-brand">
+                <img class="splash-logo" src="img/logo.webp" alt="" width="72" height="72">
+                <!-- The opening screen names the application, and is not the
+                     page's heading: the heading is the library underneath,
+                     which is what this page is. Both are styled by class, so
+                     nothing about how it looks depends on which element it
+                     happens to be. -->
+                <p class="splash-title">Spotifie</p>
+                <p class="splash-tagline">Music for everyone</p>
+            </div>
+
+            <!-- One bar, and the only line on the screen: anything else
+                 running horizontally here would read as a second loader. -->
+            <div class="splash-progress" aria-hidden="true"><span class="splash-progress-bar"></span></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- What the drawer sits on top of while it is open. Tapping it puts
+             the drawer away, and nothing underneath has moved. -->
+        <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+        <aside class="left bg-black" id="librarySidebar" role="complementary" aria-label="Your library">
+            <nav class="home bg-gray m-1 p-2 rounded" aria-label="Main navigation">
+                <div class="logo"><div class="logo-brand"><img class="logo-img" src="img/logo.webp" alt="Spotifie logo" width="40" height="40" decoding="async"><span class="logo-text">Spotifie</span></div><button type="button" class="close pointer invert" aria-label="Close library">
+                        <img src="img/close.svg" alt=""></button></div>
+                <ul>
+                    <li id="sidebarHome" class="gap sidebar-nav-item"><img class="invert icon pointer" src="img/home.svg" alt=""><label
+                            class="pointer">Home</label></li>
+                    <li id="sidebarSearch" class="gap color-2 sidebar-nav-item"><img class="invert icon pointer" src="img/search.svg" alt=""><label
+                            class="pointer">Search</label></li>
+                </ul>
+            </nav>
+            <section class="library bg-gray p-2 m-1 rounded p-1" aria-label="Your music library">
+                <div class="heading gap display">
+                    <img class="invert icon " src="img/playlist.svg" alt="">
+                    <h2 class="fs-2 color-2">
+                        Your Library
+                    </h2>
+                    <button id="addSongsToLibraryBtn" class="add-songs-library-btn" aria-label="Add songs to this album" title="Add songs">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                            <line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="songslist" role="group" aria-label="Songs in library">
+                    <ul>
+                    </ul>
+                </div>
+                <footer class="footer">
+                    <div>
+                        <div><a href="about.html#features"><span>Features</span></a></div>
+                        <div><a href="about.html#privacy"><span>Privacy</span></a></div>
+                        <div><a href="about.html#terms"><span>Terms</span></a></div>
+                        <div><a href="about.html#accessibility"><span>Accessibility</span></a></div>
+                        <div><a href="developer.html"><span>Developer</span></a></div>
+                    </div>
+                </footer>
+            </section>
+        </aside>
+        <main class="right bg-gray rounded" role="main">
+            <header class="header p-2">
+                <nav class="nav" aria-label="Playback navigation">
+                    <button type="button" class="hamburger pointer invert" aria-label="Open library" aria-expanded="false" aria-controls="librarySidebar"><img src="img/hamburger.svg" alt=""></button>
+                    <button type="button" id="navBack" class="nav-history-btn pointer" aria-label="Go back" disabled>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path
+                                d="M15 6L9.70711 11.2929C9.37377 11.6262 9.20711 11.7929 9.20711 12C9.20711 12.2071 9.37377 12.3738 9.70711 12.7071L15 18"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                    <button type="button" id="navForward" class="nav-history-btn pointer" aria-label="Go forward" disabled>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path
+                                d="M9 18L14.2929 12.7071C14.6262 12.3738 14.7929 12.2071 14.7929 12C14.7929 11.7929 14.6262 11.6262 14.2929 11.2929L9 6"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </nav>
+                <div class="search-container">
+                    <div class="search-box">
+                        <img class="search-icon invert" src="img/search.svg" alt="">
+                        <input type="text" id="searchInput" class="search-input" placeholder="What you want to play?" autocomplete="off" aria-label="Search for songs or albums">
+                        <button id="clearSearch" class="clear-search hidden" aria-label="Clear search">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M18 6L6 18M6 6L18 18" stroke="gray" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div id="searchResults" class="search-results" aria-live="polite" aria-label="Search results"></div>
+                </div>
+                <div class="btns">
+                    <!-- Theme Toggle Button -->
+                    <div class="theme-toggle" id="themeToggle" role="button" tabindex="0" aria-label="Toggle theme">
+                        <div class="theme-toggle-track">
+                            <div class="theme-toggle-thumb">
+                                <!-- Moon Icon (Dark) -->
+                                <svg class="theme-icon moon-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <!-- Sun Icon (Light) -->
+                                <svg class="theme-icon sun-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/>
+                                    <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="theme-toggle-inactive-icon">
+                                <!-- Inactive Sun (when dark) -->
+                                <svg class="theme-icon inactive-sun" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/>
+                                    <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                                </svg>
+                                <!-- Inactive Moon (when light) -->
+                                <svg class="theme-icon inactive-moon" width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Skeleton Loading (shown while checking auth) -->
+                    <div class="auth-skeleton" id="authSkeleton">
+                        <div class="skeleton-btn skeleton-signup"></div>
+                        <div class="skeleton-btn skeleton-login"></div>
+                    </div>
+                    
+                    <!-- Auth Buttons (shown when logged out) -->
+                    <a href="signup.html" class="auth-btn-link auth-content" id="signUpBtn" data-auth="signup" style="display: none;">
+                        <button class="fw-1 pointer" aria-label="Sign up for Spotifie">Sign up</button>
+                    </a>
+                    <a href="signin.html" class="auth-btn-link auth-content" id="signInBtn" data-auth="signin" style="display: none;">
+                        <button class="fw-1 pointer fc-black" aria-label="Log in to Spotifie">Log in</button>
+                    </a>
+                    <!-- User Menu (shown when logged in) -->
+                    <div class="user-menu auth-content" id="userMenu" data-auth="user-menu" style="display: none;">
+                        <button class="user-menu-btn" id="userMenuBtn" aria-label="User menu" aria-expanded="false">
+                            <div class="user-avatar">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M20 21V19C20 16.7909 18.2091 15 16 15H8C5.79086 15 4 16.7909 4 19V21M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <span class="user-name" id="userName" data-auth="username">User</span>
+                            <svg class="dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                        <div class="user-dropdown" id="userDropdown">
+                            <a href="#" class="dropdown-item" id="profileLink">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21V19C20 16.7909 18.2091 15 16 15H8C5.79086 15 4 16.7909 4 19V21M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z"/>
+                                </svg>
+                                Profile
+                            </a>
+                            <!-- Dashboard link - only shown for admin -->
+                            <a href="admin-dashboard.html" class="dropdown-item admin-link" id="dashboardLink" style="display: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                </svg>
+                                Dashboard
+                            </a>
+                            <button class="dropdown-item" id="manageLocalLink">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 6h18M3 12h18M3 18h12"/>
+                                </svg>
+                                <span>Manage Local Music</span>
+                            </button>
+                            <button class="dropdown-item" id="scanDeviceLink">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="7"/>
+                                    <path d="M21 21L16.5 16.5"/>
+                                    <path d="M9 13V9L13 8V12"/>
+                                </svg>
+                                <span id="scanDeviceLabel">Scan device for music</span>
+                            </button>
+                            <hr class="dropdown-divider">
+                            <button class="dropdown-item logout-btn" id="logoutBtn">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H9M16 17L21 12M21 12L16 7M21 12H9"/>
+                                </svg>
+                                Log out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <section class="playlist" aria-label="Playlist content">
+                <div class="playlist-header">
+                    <h1 id="libraryTitle" data-auth="library-title">Spotifie Library <span class="emoji-large">&#10084;</span></h1>
+                    <div class="header-actions">
+                        <div class="card-size-toggle" aria-label="Change card size">
+                            <button id="cardSizeBtn" class="card-size-btn" title="Change card size">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                                    <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                                    <rect x="3" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                                    <rect x="14" y="14" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                                <span class="size-label">Medium</span>
+                            </button>
+                        </div>
+                        <button id="backupBtn" class="backup-btn" aria-label="Backup & Restore" title="Backup & Restore">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 3V16M12 16L16 12M12 16L8 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M3 15V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                        <button id="createAlbumBtn" class="create-album-btn" aria-label="Create new album">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            </svg>
+                            <span>Create Album</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="cardsarea" role="list" aria-label="Available albums">
+                </div>
+
+            </section>
+
+            <!-- One album, opened from a card: its cover, what it is, and
+                 every song in it. The same player runs underneath. -->
+            <section class="album-detail" id="albumDetail" aria-label="Album" aria-hidden="true" hidden>
+                <header class="album-detail-hero">
+                    <img class="album-detail-cover" id="albumDetailCover" alt="">
+                    <div class="album-detail-heading">
+                        <p class="album-detail-kind" id="albumDetailKind">Album</p>
+                        <!-- The album showing is a section of the library, not a
+                             second page: one heading for the page, and this
+                             below it. -->
+                        <h2 class="album-detail-title" id="albumDetailTitle"></h2>
+                        <p class="album-detail-artist" id="albumDetailArtist"></p>
+                        <p class="album-detail-facts" id="albumDetailFacts"></p>
+                        <p class="album-detail-description" id="albumDetailDescription"></p>
+                    </div>
+                </header>
+
+                <div class="album-detail-actions">
+                    <button id="albumDetailPlay" type="button" class="album-detail-play" aria-label="Play">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M5 20V4L19 12L5 20Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <button id="albumDetailShuffle" type="button" class="album-detail-shuffle player-btn player-btn-quiet" aria-label="Shuffle" aria-pressed="false">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M16 3H21V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M4 20L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M21 16V21H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M15 15L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M4 4L9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button id="albumDetailLike" type="button" class="album-detail-like like-btn" aria-label="Save this album" aria-pressed="false">
+                        <svg class="heart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="2" fill="none"/>
+                        </svg>
+                    </button>
+                    <button id="albumDetailOptions" type="button" class="album-detail-options" aria-label="Album options" aria-haspopup="true" aria-expanded="false">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <circle cx="5" cy="12" r="2" fill="currentColor"/>
+                            <circle cx="12" cy="12" r="2" fill="currentColor"/>
+                            <circle cx="19" cy="12" r="2" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <ol class="album-detail-tracks" id="albumDetailTracks"></ol>
+            </section>
+        </main>
+        
+        <!-- Create Album Modal -->
+        <div id="createAlbumModal" class="modal hidden" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Create New Album</h2>
+                    <button id="closeModal" class="modal-close" aria-label="Close modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <form id="createAlbumForm" class="modal-body">
+                    <div class="form-group">
+                        <label for="albumName">Album Name *</label>
+                        <input type="text" id="albumName" name="albumName" required placeholder="Enter album name" maxlength="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="albumDescription">Description</label>
+                        <textarea id="albumDescription" name="albumDescription" placeholder="Describe your album" maxlength="150" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="albumCover">Cover Image</label>
+                        <div class="image-upload-area" id="imageUploadArea">
+                            <input type="file" id="albumCover" name="albumCover" accept="image/*" class="hidden">
+                            <div class="upload-placeholder" id="uploadPlaceholder">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <p>Click or drag to upload cover image</p>
+                                <span>PNG, JPG up to 2MB</span>
+                            </div>
+                            <img id="imagePreview" class="image-preview hidden" alt="Album cover preview">
+                            <button type="button" id="removeImage" class="remove-image hidden" aria-label="Remove image">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelCreate" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Create Album</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Delete Confirmation Modal -->
+        <!-- Asking something, and getting an answer.
+             The application's own dialog rather than the browser's: alert()
+             and confirm() stop the page, look like nothing else here, and on a
+             phone are somebody else's design. -->
+        <div id="askModal" class="modal modal-confirm hidden" role="dialog" aria-labelledby="askTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content modal-content-small">
+                <div class="modal-header">
+                    <h2 id="askTitle">Are you sure?</h2>
+                    <button type="button" id="askClose" class="modal-close" aria-label="Close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p class="confirm-message" id="askMessage"></p>
+                    <ul class="local-tracks hidden" id="askOptions"></ul>
+                    <div class="form-actions">
+                        <button type="button" id="askCancel" class="btn-secondary">Cancel</button>
+                        <button type="button" id="askConfirm" class="btn-danger">Confirm</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="deleteConfirmModal" class="modal modal-confirm hidden" role="dialog" aria-labelledby="deleteModalTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content modal-content-small">
+                <div class="modal-header">
+                    <h2 id="deleteModalTitle">Delete Album</h2>
+                    <button id="closeDeleteModal" class="modal-close" aria-label="Close modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="confirm-icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#e91429" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <p class="confirm-message">Are you sure you want to delete <strong id="deleteAlbumName"></strong>?</p>
+                    <p class="confirm-submessage">This action cannot be undone.</p>
+                    <div class="form-actions">
+                        <button type="button" id="cancelDelete" class="btn-secondary">Cancel</button>
+                        <button type="button" id="confirmDeleteBtn" class="btn-danger">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Edit Album Modal -->
+        <div id="editAlbumModal" class="modal hidden" role="dialog" aria-labelledby="editModalTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="editModalTitle">Edit Album</h2>
+                    <button id="closeEditModal" class="modal-close" aria-label="Close modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <form id="editAlbumForm" class="modal-body">
+                    <!-- Says who a change applies to when the album is one everybody sees -->
+                    <p id="editAlbumScopeNote" class="form-scope-note hidden"></p>
+                    <div class="form-group">
+                        <label for="editAlbumName">Album Name *</label>
+                        <input type="text" id="editAlbumName" name="editAlbumName" required placeholder="Enter album name" maxlength="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="editAlbumDescription">Description</label>
+                        <textarea id="editAlbumDescription" name="editAlbumDescription" placeholder="Describe your album" maxlength="150" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editAlbumCover">Cover Image</label>
+                        <div class="image-upload-area" id="editImageUploadArea">
+                            <input type="file" id="editAlbumCover" name="editAlbumCover" accept="image/*" class="hidden">
+                            <div class="upload-placeholder" id="editUploadPlaceholder">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 16L8.586 11.414C9.367 10.633 10.633 10.633 11.414 11.414L16 16M14 14L15.586 12.414C16.367 11.633 17.633 11.633 18.414 12.414L20 14M14 8H14.01M6 20H18C19.105 20 20 19.105 20 18V6C20 4.895 19.105 4 18 4H6C4.895 4 4 4.895 4 6V18C4 19.105 4.895 20 6 20Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                                <p>Click or drag to upload cover image</p>
+                                <span>PNG, JPG up to 2MB</span>
+                            </div>
+                            <img id="editImagePreview" class="image-preview hidden" alt="Album cover preview">
+                            <button type="button" id="editRemoveImage" class="remove-image hidden" aria-label="Remove image">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelEdit" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- The player. One audio element sits behind every control here, in
+             the Now Playing view and in the album detail below. -->
+        <div class="playbar rounded" role="region" aria-label="Music player controls">
+            <!-- On a phone the bar is one line, so progress is shown as a hair
+                 line along its top edge rather than a row of its own. -->
+            <div class="playbar-mini-progress" aria-hidden="true"><div class="playbar-mini-fill"></div></div>
+
+            <div class="playbar-track songinfo-container">
+                <img class="playbar-artwork" id="playbarArtwork" alt="">
+                <div class="playbar-meta">
+                    <div class="songinfo" aria-live="polite" aria-label="Now playing"></div>
+                    <div class="playbar-artist" id="playbarArtist"></div>
+                </div>
+                <button id="likeCurrentSong" class="like-btn" aria-label="Like this song" title="Add to Liked Songs">
+                    <svg class="heart-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="2" fill="none"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="playbar-center">
+                <div class="controls" role="group" aria-label="Playback controls">
+                    <button id="shuffle" type="button" class="player-btn player-btn-quiet pointer" aria-label="Shuffle" aria-pressed="false" title="Shuffle">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M16 3H21V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M4 20L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M21 16V21H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M15 15L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M4 4L9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button id="previous" class="player-btn pointer invert" aria-label="Previous track"><img src="img/prevsong.svg" alt=""></button>
+                    <button id="play" class="player-btn player-btn-primary pointer invert" aria-label="Play"><img src="img/play.svg" alt=""></button>
+                    <button id="next" class="player-btn pointer invert" aria-label="Next track"><img src="img/nextsong.svg" alt=""></button>
+                    <button id="repeat" type="button" class="player-btn player-btn-quiet pointer" aria-label="Repeat off" aria-pressed="false" data-repeat="off" title="Repeat">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M17 2L21 6L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M3 12V10C3 7.79086 4.79086 6 7 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M7 22L3 18L7 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M21 12V14C21 16.2091 19.2091 18 17 18H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="repeat-one-badge" aria-hidden="true">1</span>
+                    </button>
+                </div>
+                <div class="playbar-progress">
+                    <span class="playbar-time" id="playbarCurrentTime">00:00</span>
+                    <div class="seekbar pointer" role="slider" aria-label="Seek position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="00:00 of 00:00" tabindex="0">
+                        <div class="seekbar-fill"></div>
+                        <div class="circle pointer" aria-hidden="true"></div>
+                    </div>
+                    <span class="playbar-time" id="playbarDuration">00:00</span>
+                </div>
+            </div>
+
+            <div class="playbar-right">
+                <div class="volume" role="group" aria-label="Volume controls">
+                    <button class="player-btn player-btn-quiet invert pointer" id="volume" aria-label="Volume" aria-expanded="false" aria-controls="volumePopover"><img src="img/volume.svg" alt=""></button>
+                    <div class="volumeSeekbar">
+                        <input class="volumeRange pointer" type="range" name="volume" min="0" max="100" value="50" aria-label="Volume level">
+                    </div>
+
+                    <!-- Where there is no room for the slider beside the
+                         button, it opens above it instead. -->
+                    <div class="volume-popover" id="volumePopover" role="group" aria-label="Volume" hidden>
+                        <button type="button" class="player-btn player-btn-quiet invert pointer" id="volumeMute" aria-label="Mute or unmute"><img src="img/volume.svg" alt=""></button>
+                        <input class="volumeRange volume-popover-range pointer" type="range" min="0" max="100" value="50" aria-label="Volume level">
+                    </div>
+                </div>
+                <button id="expandPlayer" type="button" class="player-btn player-btn-quiet expand-btn pointer" aria-label="Expand player" aria-expanded="false" title="Now Playing">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <path d="M4 14V20H10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M20 10V4H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M4 20L10.5 13.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        <path d="M20 4L13.5 10.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- The same progress in words, for anyone listening to the page
+                 rather than looking at it. -->
+            <div class="songtime visually-hidden" aria-live="polite" aria-label="Song progress"></div>
+        </div>
+
+        <!-- Now Playing: the same audio, given the whole screen. -->
+        <div id="nowPlayingOverlay" class="now-playing" role="dialog" aria-modal="true" aria-label="Now Playing" aria-hidden="true" hidden>
+            <div class="now-playing-backdrop"></div>
+            <div class="now-playing-panel">
+                <div class="now-playing-top">
+                    <button id="closeNowPlaying" type="button" class="now-playing-close player-btn player-btn-quiet" aria-label="Close Now Playing">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                    <p class="now-playing-context" id="nowPlayingContext"></p>
+                    <button id="nowPlayingLike" type="button" class="like-btn now-playing-like" aria-label="Like this song">
+                        <svg class="heart-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="2" fill="none"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <img class="now-playing-artwork" id="nowPlayingArtwork" alt="">
+
+                <div class="now-playing-meta">
+                    <h2 class="now-playing-title" id="nowPlayingTitle">Nothing playing</h2>
+                    <p class="now-playing-artist" id="nowPlayingArtist"></p>
+                </div>
+
+                <div class="now-playing-progress">
+                    <span class="playbar-time" id="nowPlayingCurrentTime">00:00</span>
+                    <div class="seekbar now-playing-seekbar pointer" role="slider" aria-label="Seek position" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="00:00 of 00:00" tabindex="0">
+                        <div class="seekbar-fill"></div>
+                        <div class="circle pointer" aria-hidden="true"></div>
+                    </div>
+                    <span class="playbar-time" id="nowPlayingDuration">00:00</span>
+                </div>
+
+                <div class="now-playing-controls" role="group" aria-label="Playback controls">
+                    <button id="npShuffle" type="button" class="player-btn player-btn-quiet" aria-label="Shuffle" aria-pressed="false">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M16 3H21V8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M4 20L21 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M21 16V21H16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M15 15L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M4 4L9 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button id="npPrevious" type="button" class="player-btn invert" aria-label="Previous track"><img src="img/prevsong.svg" alt=""></button>
+                    <button id="npPlay" type="button" class="player-btn player-btn-primary player-btn-large invert" data-player-play aria-label="Play"><img src="img/play.svg" alt=""></button>
+                    <button id="npNext" type="button" class="player-btn invert" aria-label="Next track"><img src="img/nextsong.svg" alt=""></button>
+                    <button id="npRepeat" type="button" class="player-btn player-btn-quiet" aria-label="Repeat off" aria-pressed="false" data-repeat="off">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M17 2L21 6L17 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M3 12V10C3 7.79086 4.79086 6 7 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M7 22L3 18L7 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M21 12V14C21 16.2091 19.2091 18 17 18H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="repeat-one-badge" aria-hidden="true">1</span>
+                    </button>
+                </div>
+
+                <div class="now-playing-volume volume" role="group" aria-label="Volume controls">
+                    <button id="npVolume" type="button" class="player-btn player-btn-quiet invert" aria-label="Mute or unmute"><img src="img/volume.svg" alt=""></button>
+                    <input class="volumeRange npVolumeRange pointer" id="npVolumeRange" type="range" min="0" max="100" value="50" aria-label="Volume level">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add to Album Modal -->
+        <div id="addToAlbumModal" class="modal hidden" role="dialog" aria-labelledby="addToAlbumTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content add-to-album-modal">
+                <div class="modal-header">
+                    <h2 id="addToAlbumTitle">Add to Album</h2>
+                    <button id="closeAddToAlbum" class="modal-close" aria-label="Close modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body add-to-album-body">
+                    <p class="add-to-album-song-name"></p>
+                    <div class="album-search-box">
+                        <label class="visually-hidden" for="albumSearchInput">Search your albums</label>
+                        <input type="text" id="albumSearchInput" placeholder="Search albums..." class="album-search-input">
+                    </div>
+                    <div class="albums-list" id="albumsList">
+                        <!-- Albums will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Song Context Menu -->
+        <div id="songContextMenu" class="song-context-menu hidden" role="menu">
+            <button class="context-menu-item" data-action="like" role="menuitem">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" stroke="currentColor" stroke-width="2" fill="none"/>
+                </svg>
+                <span>Add to Liked Songs</span>
+            </button>
+            <button class="context-menu-item" data-action="addToAlbum" role="menuitem">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Add to Album</span>
+            </button>
+            <button class="context-menu-item" data-action="removeFromAlbum" role="menuitem">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Remove from Album</span>
+            </button>
+        </div>
+        
+        <!-- Add Songs to Album Modal (Browse & Select Multiple) -->
+        <div id="addSongsModal" class="modal hidden" role="dialog" aria-labelledby="addSongsTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content add-songs-modal">
+                <div class="modal-header">
+                    <h2 id="addSongsTitle">Add Songs to Album</h2>
+                    <button id="closeAddSongs" class="modal-close" aria-label="Close modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body add-songs-body">
+                    <div class="add-songs-info">
+                        <span id="addSongsTargetAlbum"></span>
+                        <span id="selectedSongsCount" class="selected-count">0 selected</span>
+                        <span class="max-songs-hint">(Max 50 at a time)</span>
+                    </div>
+                    
+                    <!-- Tab Navigation -->
+                    <div class="add-songs-tabs">
+                        <button class="add-songs-tab active" data-tab="library">From Library</button>
+                        <button class="add-songs-tab" data-tab="device">From Device</button>
+                    </div>
+                    
+                    <!-- Library Tab Content -->
+                    <div class="add-songs-tab-content" id="libraryTabContent">
+                        <div class="add-songs-search-box">
+                            <label class="visually-hidden" for="addSongsSearchInput">Search songs to add</label>
+                            <input type="text" id="addSongsSearchInput" placeholder="Search songs..." class="add-songs-search-input">
+                        </div>
+                        <div class="add-songs-album-filter">
+                            <label for="addSongsAlbumFilter">From album:</label>
+                            <select id="addSongsAlbumFilter" class="album-filter-select">
+                                <option value="all">All Albums</option>
+                            </select>
+                        </div>
+                        <div class="add-songs-list" id="addSongsList">
+                            <!-- Songs will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Device Tab Content -->
+                    <div class="add-songs-tab-content hidden" id="deviceTabContent">
+                        <div class="device-upload-area" id="deviceUploadArea">
+                            <input type="file" id="deviceFileInput" accept=".mp3,.flac,.wav,.m4a,.aac,.ogg,.opus,audio/*" multiple class="hidden" aria-label="Select audio files from device">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M17 8L12 3L7 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M12 3V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <p>Click or drag audio files here</p>
+                            <span>MP3, FLAC, WAV, M4A, AAC, OGG, Opus (max 100MB each). Kept on this device.</span>
+                        </div>
+                        <div class="device-files-list" id="deviceFilesList">
+                            <!-- Selected files will appear here -->
+                        </div>
+                    </div>
+                    
+                    <div class="add-songs-actions">
+                        <button type="button" id="cancelAddSongs" class="btn-secondary">Cancel</button>
+                        <button type="button" id="confirmAddSongs" class="btn-primary" disabled>Add Selected Songs</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Find music on this device: asked once per account on this device -->
+        <div id="deviceScanPrompt" class="device-scan-prompt hidden" role="dialog" aria-labelledby="deviceScanPromptTitle" aria-modal="false">
+            <h3 id="deviceScanPromptTitle">Find music on this device?</h3>
+            <p>
+                Spotifie can scan permitted local music locations and add the songs it finds to Local Music.
+                Your audio stays on this device and is never uploaded.
+            </p>
+            <div class="device-scan-prompt-actions">
+                <button type="button" class="btn-secondary" id="deviceScanLater">Not Now</button>
+                <button type="button" class="btn-primary" id="deviceScanStart">Scan Device</button>
+            </div>
+        </div>
+
+        <!-- Progress of a search, in the corner and never in the way -->
+        <div id="deviceScanProgress" class="device-scan-progress hidden" role="status" aria-live="polite">
+            <div class="device-scan-progress-head">
+                <span id="deviceScanTitle">Scanning for music…</span>
+                <button type="button" class="device-scan-dismiss" id="deviceScanDismiss" aria-label="Hide scan progress">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="device-scan-bar" id="deviceScanBar"><span id="deviceScanFill"></span></div>
+            <p class="device-scan-detail" id="deviceScanDetail">Discovering audio files</p>
+            <button type="button" class="device-scan-cancel" id="deviceScanCancel">Stop scanning</button>
+        </div>
+
+        <!-- Backup & Restore Modal -->
+        <!-- ==========================================================
+             The music on this machine, and what Spotifie does with it.
+             =========================================================
+             Built from the same modal, rows and buttons as everything else -
+             a place to look at what was found, not a second design. Nothing
+             in here can delete a file: forgetting a folder stops Spotifie
+             looking at it, and the music stays exactly where it is.
+        -->
+        <div id="localManagerModal" class="modal hidden" role="dialog" aria-labelledby="localManagerTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content local-manager">
+                <div class="modal-header">
+                    <h2 id="localManagerTitle">Local Music</h2>
+                    <button id="closeLocalManager" class="modal-close" aria-label="Close">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <!-- How the library is doing, in the few numbers worth
+                         knowing. No paths: where a folder is on a disk is this
+                         machine's business. -->
+                    <div class="local-health" id="localHealth" aria-live="polite"></div>
+
+                    <div class="local-actions">
+                        <button type="button" class="secondary-btn" id="localReconcileBtn">Check for changes</button>
+                        <button type="button" class="secondary-btn" id="localRescanBtn">Rescan Local Music</button>
+                        <button type="button" class="secondary-btn hidden" id="localCancelScanBtn">Stop scanning</button>
+                    </div>
+
+                    <div class="local-scan-state hidden" id="localScanState" aria-live="polite"></div>
+
+                    <!-- The folders Spotifie looks in. Named the way somebody
+                         would recognise them. -->
+                    <section class="local-section">
+                        <h3>Where Spotifie looks</h3>
+                        <ul class="local-locations" id="localLocations"></ul>
+                        <p class="local-note">Forgetting a folder stops Spotifie looking there. Nothing on your device is deleted, and anything you put in a playlist stays in it.</p>
+                    </section>
+
+                    <!-- Everything currently on this machine. -->
+                    <section class="local-section">
+                        <h3>Songs on this device</h3>
+
+                        <div class="local-toolbar">
+                            <label class="local-search">
+                                <span class="visually-hidden">Search local music</span>
+                                <input type="search" id="localSearch" placeholder="Search songs, artists or files" autocomplete="off">
+                            </label>
+
+                            <label class="local-sort">
+                                <span class="visually-hidden">Sort local music</span>
+                                <select id="localSort">
+                                    <option value="title">Title</option>
+                                    <option value="artist">Artist</option>
+                                    <option value="duration">Length</option>
+                                    <option value="added">Recently added</option>
+                                    <option value="fileName">File name</option>
+                                </select>
+                            </label>
+
+                            <button type="button" class="secondary-btn" id="localSelectToggle" aria-pressed="false">Select</button>
+                        </div>
+
+                        <div class="local-bulk hidden" id="localBulk">
+                            <span id="localSelectionCount">0 selected</span>
+                            <button type="button" class="secondary-btn" id="localSelectAll">Select all</button>
+                            <button type="button" class="secondary-btn" id="localBulkLike">Like</button>
+                            <button type="button" class="secondary-btn" id="localBulkUnlike">Unlike</button>
+                            <button type="button" class="secondary-btn" id="localBulkPlaylist">Add to playlist</button>
+                            <button type="button" class="secondary-btn" id="localBulkAlbum">Add to album</button>
+                        </div>
+
+                        <ul class="local-tracks" id="localTracks"></ul>
+                    </section>
+
+                    <!-- References to songs this machine cannot currently see.
+                         Kept, because they are somebody's arrangement and not
+                         the disk's to change. -->
+                    <section class="local-section hidden" id="localUnavailableSection">
+                        <h3>Not on this device</h3>
+                        <p class="local-note">These are in your playlists or liked songs but their files are not here. They reconnect by themselves if the music turns up.</p>
+                        <ul class="local-tracks" id="localUnavailable"></ul>
+                    </section>
+
+                    <!-- Songs that look like copies. Shown for a person to
+                         judge; nothing is merged or removed. -->
+                    <section class="local-section hidden" id="localDuplicatesSection">
+                        <h3>Possible duplicates</h3>
+                        <p class="local-note">Shown for you to look at. Nothing is merged or removed.</p>
+                        <ul class="local-tracks" id="localDuplicates"></ul>
+                    </section>
+                </div>
+            </div>
+        </div>
+
+        <div id="backupModal" class="modal hidden" role="dialog" aria-labelledby="backupModalTitle" aria-modal="true">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content backup-modal">
+                <div class="modal-header">
+                    <h2 id="backupModalTitle">Backup & Restore</h2>
+                    <button id="closeBackupModal" class="modal-close" aria-label="Close modal">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="modal-body backup-body">
+                    <!-- Library Stats -->
+                    <div class="backup-stats" id="backupStats">
+                        <h3>Your Library</h3>
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-value" id="statLikedSongs">0</span>
+                                <span class="stat-label">Liked Songs</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="statUserSongs">0</span>
+                                <span class="stat-label">Added Songs</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="statUserAlbums">0</span>
+                                <span class="stat-label">User Albums</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-value" id="statPlaylists">0</span>
+                                <span class="stat-label">Playlists</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Export Section -->
+                    <div class="backup-section">
+                        <h3>Export Backup</h3>
+                        <p class="backup-description">Download your library data as a JSON file. This includes liked songs, playlists and album references. Audio files are never included.</p>
+                        <button id="exportBackupBtn" class="btn-primary export-btn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 3V16M12 16L16 12M12 16L8 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M3 15V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Export Backup
+                        </button>
+                    </div>
+                    
+                    <!-- Import Section -->
+                    <div class="backup-section">
+                        <h3>Import Backup</h3>
+                        <p class="backup-description">Restore your library from a previously exported backup file.</p>
+                        <div class="import-options">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="mergeImport" checked>
+                                <span>Merge with existing data (uncheck to replace all)</span>
+                            </label>
+                        </div>
+                        <div class="import-area" id="importArea">
+                            <input type="file" id="importFileInput" accept=".json,.spotifiebackup" class="hidden" aria-label="Import backup file" title="Select backup file to import">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 16V3M12 3L8 7M12 3L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M3 15V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <p>Click or drag a backup file here</p>
+                            <span>.json or .spotifiebackup</span>
+                        </div>
+                        <div id="importFileInfo" class="import-file-info hidden">
+                            <span id="importFileName"></span>
+                            <button id="removeImportFile" class="remove-file-btn" aria-label="Remove file">×</button>
+                        </div>
+                        <button id="importBackupBtn" class="btn-primary import-btn" disabled>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 16V3M12 3L8 7M12 3L16 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M3 15V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V15" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Import Backup
+                        </button>
+                    </div>
+                    
+                    <!-- Danger Zone -->
+                    <div class="backup-section danger-section">
+                        <h3>Danger Zone</h3>
+                        <p class="backup-description warning">This will permanently delete all your library data.</p>
+                        <button id="clearAllDataBtn" class="btn-danger">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 6H5H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M19 6V20C19 21.1046 18.1046 22 17 22H7C5.89543 22 5 21.1046 5 20V6M8 6V4C8 2.89543 8.89543 2 10 2H14C15.1046 2 16 2.89543 16 4V6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            Clear All Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="modal hidden" id="profileModal">
+        <div class="modal-backdrop" data-close-modal></div>
+        <div class="modal-content profile-modal-content">
+            <div class="modal-header">
+                <h2>My Profile</h2>
+                <button class="modal-close" id="profileModalClose" aria-label="Close modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body profile-modal-body">
+                <div class="profile-avatar-section">
+                    <div class="profile-avatar-large">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M20 21V19C20 16.7909 18.2091 15 16 15H8C5.79086 15 4 16.7909 4 19V21M16 7C16 9.20914 14.2091 11 12 11C9.79086 11 8 9.20914 8 7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div class="profile-status-badge">
+                        <span class="status-dot"></span>
+                        Active
+                    </div>
+                </div>
+                <div class="profile-info">
+                    <div class="profile-info-item">
+                        <label>Username</label>
+                        <span id="profileUsername">-</span>
+                    </div>
+                    <div class="profile-info-item">
+                        <label>Email</label>
+                        <span id="profileEmail">-</span>
+                    </div>
+                    <div class="profile-info-item">
+                        <label>Member Since</label>
+                        <span id="profileMemberSince">-</span>
+                    </div>
+                </div>
+                <div class="profile-stats">
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profileSongsCount">0</span>
+                        <span class="stat-label">Songs</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profileAlbumsCount">0</span>
+                        <span class="stat-label">Playlists</span>
+                    </div>
+                    <div class="profile-stat">
+                        <span class="stat-value" id="profileLikedCount">0</span>
+                        <span class="stat-label">Liked</span>
+                    </div>
+                </div>
+                <div class="profile-actions">
+                    <button class="btn-secondary" id="profileLogoutBtn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H9M16 17L21 12M21 12L16 7M21 12H9"/>
+                        </svg>
+                        Log Out
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/libraryClient.js"></script>
+    <script src="js/catalogCache.js"></script>
+    <script src="js/catalogClient.js"></script>
+    <script src="js/personalClient.js"></script>
+    <script src="js/libraryDB.js"></script>
+    <script src="js/script.js"></script>
+    <script>
+        // Session UI and profile modal.
+        // All authentication decisions live in js/auth.js; this file only
+        // renders what the current Supabase session reports.
+        document.addEventListener('DOMContentLoaded', async () => {
+            await window.spotifieAuth.ready();
+            window.spotifieAuth.initAuthUI();
+
+            const profileLink = document.getElementById('profileLink');
+            const profileModal = document.getElementById('profileModal');
+            const profileModalClose = document.getElementById('profileModalClose');
+            const userDropdown = document.getElementById('userDropdown');
+
+            async function openProfileModal() {
+                const session = await window.spotifieAuth.getSession();
+                if (!session) return;
+
+                const profile = await window.spotifieAuth.getProfile({ session });
+                document.getElementById('profileUsername').textContent = (profile && profile.username) || '-';
+                document.getElementById('profileEmail').textContent = (profile && profile.email) || '-';
+
+                const createdAt = session.user && session.user.created_at;
+                if (createdAt) {
+                    document.getElementById('profileMemberSince').textContent =
+                        new Date(createdAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                }
+
+                // Library counters come from the local library, not the session.
+                try {
+                    const stats = await LibraryDB.getLibraryStats();
+                    const tracks = await window.spotifieLibrary.getTracks();
+                    const albums = await window.spotifieLibrary.getAlbums();
+                    document.getElementById('profileSongsCount').textContent = tracks.total || 0;
+                    document.getElementById('profileAlbumsCount').textContent = albums.total || 0;
+                    document.getElementById('profileLikedCount').textContent = stats.likedsongs || 0;
+                } catch (e) {
+                    console.error('Error loading library stats:', e);
+                }
+
+                profileModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeProfileModal() {
+                profileModal.classList.add('hidden');
+                document.body.style.overflow = '';
+            }
+
+            if (profileLink) {
+                profileLink.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (userDropdown) userDropdown.classList.remove('active');
+                    openProfileModal();
+                });
+            }
+
+            if (profileModalClose) {
+                profileModalClose.addEventListener('click', closeProfileModal);
+            }
+
+            if (profileModal) {
+                profileModal.querySelector('.modal-backdrop').addEventListener('click', closeProfileModal);
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && !profileModal.classList.contains('hidden')) {
+                        closeProfileModal();
+                    }
+                });
+            }
+
+            // Re-render whenever the session changes, including in another tab.
+            window.spotifieAuth.onAuthChange(() => {
+                window.spotifieAuth.renderAuthUI();
+                if (profileModal && !profileModal.classList.contains('hidden')) {
+                    closeProfileModal();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

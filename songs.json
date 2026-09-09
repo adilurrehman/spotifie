@@ -1,0 +1,168 @@
+{
+  "songs/Bright_(mood)": {
+    "files": [
+      "DHARIA - August Diaries (@DJ Shadow Dubai Remix).mp3",
+      "DIOR - Положение (T3NZU x PANZER Remix).mp3",
+      "Dayana - Before I Die (Scott Rill Remix).mp3"
+    ],
+    "info": {
+      "title": "Bright_(mood) Songs",
+      "description": "Bright Songs for you",
+      "cover": "songs/Bright_(mood)/cover.jpg"
+    }
+  },
+  "songs/Chill_(mood)": {
+    "files": [
+      "Ahmed Chawki_20231203_110017.mp3",
+      "Elsen_Pro_&_Naz_Dej_-_Tuttur_Dur_(Exclusive)_#sekretetemia(1080p60)_20231112_161410.mp3",
+      "C'est La Vie - Khaled _ Fifa World Cup 2022 Qatar Official Promo Song.mp3"
+    ],
+    "info": {
+      "title": "Chill_(mood) Songs",
+      "description": "Yes, Just Chill",
+      "cover": "songs/Chill_(mood)/cover.jpg"
+    }
+  },
+  "songs/pashto": {
+    "files": [
+      "DA ZRA GHAMUNA.mp3",
+      "Che Jahan Tyara Tyara She Ghani Khan Poetry.mp3",
+      "Charta Ye - Ay Husan darey - Slow_Reverb Pashto song - Tiktok viral song slow version - اے حسن داری.mp3"
+    ],
+    "info": {
+      "title": "Pashto Songs",
+      "description": "Beautiful Pashto music",
+      "cover": "songs/pashto/cover.jpg"
+    }
+  },
+  "songs/Diljit": {
+    "files": [
+      "MORNI (Remix) - DJ Ashmac & DJ Sukhi Dubai - SUNANDA SHARMA - SUKH-E - New Punjabi Remix Songs 2018_20231112_161327.mp3",
+      "KAKA - MERE WARGA (Official Video) Sukh-E - New Punjabi Songs 2021 - Latest Punjabi Songs 2021_20231203_105703.mp3",
+      "Sadi_Zindagi_Hi_Tha_Baliye__Official_Video__Sadi_Zindagi_Da_Baliye___Varinder_Brar___Punjabi_Songs(720p)_20230914_095839.mp3"
+    ],
+    "info": {
+      "title": "Diljit Dosanjh",
+      "description": "Diljit Dosanjh hits",
+      "cover": "songs/Diljit/cover.jpg"
+    }
+  },
+  "songs/Funky_(mood)": {
+    "files": [],
+    "info": {
+      "title": "Funky Vibes",
+      "description": "Funky Songs for you",
+      "cover": "songs/Funky_(mood)/cover.jpg"
+    }
+  },
+  "songs/hindi": {
+    "files": [
+      "Chhod_Diya_Full_Video_Song___Arijit_Singh___Baazaar_Movie___Full_Song___2018___Sad_Song_20230920_062816.mp3",
+      "AUR_-_TU_HAI_KAHAN_-_Raffey_-_Usama_-_Ahad_(Official_Music_Video)(720p)_20240109_095854.mp3",
+      "Bollywood_Unplugged_Sessions(720p)_20240628_084029.mp3"
+    ],
+    "info": {
+      "title": "Hindi Songs",
+      "description": "Enjoy Hindi and Urdu Songs, Recommended for You",
+      "cover": "songs/hindi/cover.jpg"
+    }
+  },
+  "songs/Dark_(mood)": {
+    "files": [
+      "Dune Dune  -  Arabic Remix - Snayper Swiyt Remix - ريمكس عربي.mp3"
+    ],
+    "info": {
+      "title": "Dark Horse",
+      "description": "Dark Songs for you",
+      "cover": "songs/Dark_(mood)/cover.jpg"
+    }
+  },
+  "songs/arabic": {
+    "files": [
+      "Ay Balam - Sevcan Dalkıran _ Üzeyir Mehdizade(720P_HD)_1_20231203_110015.mp3",
+      "Ayyan - Earthquake (Official Audio).mp3"
+    ],
+    "info": {
+      "title": "Arabic Remix Songs",
+      "description": "All Arabic and Persian Songs for You",
+      "cover": "songs/arabic/cover.jpg"
+    }
+  },
+  "songs/Angry_(mood)": {
+    "files": [
+      "Jee_Le_Zara_(_Slowed_+_Reverb)__Vishal_Dadlani_(Talaash)__Sync(256k).mp3"
+    ],
+    "info": {
+      "title": "Angry Mood",
+      "description": "Calm your Anger",
+      "cover": "songs/Angry_(mood)/cover.jpg"
+    }
+  },
+  "songs/Uplifting_(mood)": {
+    "files": [
+      "dua_karo_video_street_dancer_3d_varun_dhawanshraddha_k_arijit_singh_bohemia_sachin_jigar_ZVoZWp-bhmI_1080p_20231204_223013.mp3"
+    ],
+    "info": {
+      "title": "Get up",
+      "description": "Get up",
+      "cover": "songs/Uplifting_(mood)/cover.jpg"
+    }
+  },
+  "songs/Love_(mood)": {
+    "files": [
+      "GOLDEN TBILISI - Texili (Trap Remix)_20230711_121617.mp3"
+    ],
+    "info": {
+      "title": "I Love You",
+      "description": "Love is in the air",
+      "cover": "songs/Love_(mood)/cover.jpg"
+    }
+  },
+  "songs/karan_aujla": {
+    "files": [
+      "Yaar_Hathyaar_(Full_Audio)_Himmat_Sandhu__Dusk_N_Dawn__Latest_Punjabi_Song_2023__New_Punjabi_Song(480p)_20240109_095907.mp3",
+      "Karan Aujla - 2022 (Official Video) - Latest Punjabi Song - Mahira Sharma - New Punjabi Song 2022.mp3"
+    ],
+    "info": {
+      "title": "Karan Aujla",
+      "description": "Karan Aujla for you",
+      "cover": "songs/karan_aujla/cover.jpg"
+    }
+  },
+  "songs/AK_Kakar2": {
+    "files": [],
+    "info": {
+      "title": "AK Kakar2",
+      "description": "AK",
+      "cover": "songs/AK_Kakar2/cover.jpg"
+    }
+  },
+  "songs/AK_Kakar": {
+    "files": [],
+    "info": {
+      "title": "AK Kakar",
+      "description": "AK",
+      "cover": "songs/AK_Kakar/cover.ico"
+    }
+  },
+  "songs/AK_Kakar21": {
+    "files": [
+      "dsfdsfdsfds.mp3"
+    ],
+    "info": {
+      "title": "AK Kakar21",
+      "description": "AK Kakar21",
+      "cover": "songs/AK_Kakar21/cover.jpeg"
+    }
+  },
+  "songs/nom": {
+    "files": [
+      "324.mp3"
+    ],
+    "info": {
+      "title": "nom",
+      "description": "AK",
+      "cover": "songs/nom/cover.jpg"
+    }
+  }
+}

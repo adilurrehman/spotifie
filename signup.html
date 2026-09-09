@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Create a Spotifie account to keep playlists, liked songs and listening history.">
+    <title>Create an account - Spotifie</title>
+
+    <!-- What this page is, for a browser, a search engine and a shared link. The
+         canonical address, the social image and the structured record are added by
+         the server at the marker below, because only it knows where this
+         installation has been published. -->
+    <meta name="robots" content="noindex, nofollow">
+    <!-- Spotifie is dark unless this browser has been told otherwise, so the
+         browser chrome around it is too. One colour, not one per system
+         setting: what the operating system prefers does not decide what this
+         page looks like, and a bar disagreeing with the page under it would
+         only look like a mistake. -->
+    <meta name="theme-color" content="#121212">
+    <meta name="color-scheme" content="dark light">
+    <meta name="application-name" content="Spotifie">
+    <!--site-meta-->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/utlity.css">
+    <link rel="icon" type="image/x-icon" href="favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="favicons/favicon-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="Spotifie">
+    <link rel="manifest" href="manifest.webmanifest">
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Apply theme immediately to prevent flash
+        (function() {
+            // Dark unless this browser has been told otherwise. Set here, before
+            // any stylesheet or script, so nothing is ever painted light first.
+            const savedTheme = localStorage.getItem('spotify_theme');
+            document.documentElement.setAttribute('data-theme', savedTheme === 'light' ? 'light' : 'dark');
+        })();
+    </script>
+    <style>
+        /* Auth Page Specific Styles */
+        .auth-page {
+            min-height: 100vh;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .auth-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 40px;
+            background: transparent;
+        }
+
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+        }
+
+        .auth-logo img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+        }
+
+        .auth-logo span {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .auth-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .auth-card {
+            width: 100%;
+            max-width: 400px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        [data-theme="light"] .auth-card {
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .auth-title {
+            font-size: 32px;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .auth-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .form-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            color: var(--text-primary);
+            transition: all 0.2s;
+            outline: none;
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-input:focus {
+            border-color: #1db954;
+            box-shadow: 0 0 0 3px rgba(29, 185, 84, 0.2);
+        }
+
+        .form-input.error {
+            border-color: #e91429;
+            box-shadow: 0 0 0 3px rgba(233, 20, 41, 0.2);
+        }
+
+        .form-input.success {
+            border-color: #1db954;
+        }
+
+        .password-wrapper {
+            position: relative;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .password-toggle:hover {
+            color: var(--text-primary);
+        }
+
+        .form-error {
+            font-size: 12px;
+            color: #e91429;
+            display: none;
+        }
+
+        .form-error.visible {
+            display: block;
+        }
+
+        .password-strength {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .strength-bar {
+            flex: 1;
+            height: 4px;
+            background: var(--border-color);
+            border-radius: 2px;
+            transition: background 0.2s;
+        }
+
+        .strength-bar.active {
+            background: #e91429;
+        }
+
+        .strength-bar.medium {
+            background: #f59e0b;
+        }
+
+        .strength-bar.strong {
+            background: #1db954;
+        }
+
+        .strength-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: #1db954;
+            color: #000;
+            border: none;
+            border-radius: 500px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 8px;
+        }
+
+        .auth-btn:hover {
+            background: #1ed760;
+            transform: scale(1.02);
+        }
+
+        .auth-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .auth-btn.loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid #000;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .auth-footer p {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .auth-footer a {
+            color: #1db954;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.visible {
+            display: block;
+        }
+
+        .alert.error {
+            background: rgba(233, 20, 41, 0.1);
+            color: #e91429;
+            border: 1px solid rgba(233, 20, 41, 0.3);
+        }
+
+        .alert.success {
+            background: rgba(29, 185, 84, 0.1);
+            color: #1db954;
+            border: 1px solid rgba(29, 185, 84, 0.3);
+        }
+
+        .terms-text {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 16px;
+            line-height: 1.5;
+        }
+
+        .terms-text a {
+            color: var(--text-secondary);
+            text-decoration: underline;
+        }
+
+        .terms-text a:hover {
+            color: #1db954;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        /* Character counter */
+        .char-counter {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: right;
+            margin-top: 4px;
+        }
+
+        .char-counter.error {
+            color: #e91429;
+        }
+
+        .char-counter.success {
+            color: #1db954;
+        }
+
+        /* Responsive */
+        @media screen and (max-width: 480px) {
+            .auth-card {
+                padding: 32px 24px;
+            }
+
+            .auth-title {
+                font-size: 28px;
+            }
+
+            .auth-logo img {
+                width: 40px;
+                height: 40px;
+            }
+
+            .auth-logo span {
+                font-size: 24px;
+            }
+        }
+    </style>
+    <!-- Shared account-page layout, loaded last so it settles the layout -->
+    <link rel="stylesheet" href="css/auth.css">
+</head>
+
+<body class="auth-page">
+    <!-- Theme Toggle -->
+    <div class="theme-toggle-container">
+        <div class="theme-toggle" id="themeToggle" role="button" tabindex="0" aria-label="Toggle theme">
+            <div class="theme-toggle-track">
+                <div class="theme-toggle-thumb">
+                    <svg class="theme-icon moon-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <svg class="theme-icon sun-icon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div class="theme-toggle-inactive-icon">
+                    <svg class="theme-icon inactive-sun" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M12 1V3M12 21V23M4.22 4.22L5.64 5.64M18.36 18.36L19.78 19.78M1 12H3M21 12H23M4.22 19.78L5.64 18.36M18.36 5.64L19.78 4.22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                    <svg class="theme-icon inactive-moon" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="auth-header">
+        <a href="index.html" class="auth-logo">
+            <img src="img/logo.webp" alt="Spotifie">
+            <span>Spotifie</span>
+        </a>
+    </header>
+
+    <!-- Main Content -->
+    <main class="auth-container">
+        <div class="auth-card">
+            <h1 class="auth-title">Create Account</h1>
+            <p class="auth-subtitle">Join Spotifie and start your music journey</p>
+
+            <div id="alertBox" class="alert"></div>
+
+            <form id="signupForm" class="auth-form">
+                <div class="form-group">
+                    <label class="form-label" for="username">
+                        Username
+                        <span class="form-hint">(2-10 characters)</span>
+                    </label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        class="form-input" 
+                        placeholder="Choose a username"
+                        required
+                        minlength="2"
+                        maxlength="10"
+                        autocomplete="username"
+                    >
+                    <div class="char-counter" id="usernameCounter">0/10</div>
+                    <span class="form-error" id="usernameError">Username must be 2-10 characters</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        class="form-input" 
+                        placeholder="Enter your email"
+                        required
+                        autocomplete="email"
+                    >
+                    <span class="form-error" id="emailError">Please enter a valid email</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">
+                        Password
+                        <span class="form-hint">(minimum 6 characters)</span>
+                    </label>
+                    <div class="password-wrapper">
+                        <input 
+                            type="password" 
+                            id="password" 
+                            class="form-input" 
+                            placeholder="Create a password"
+                            required
+                            minlength="6"
+                            autocomplete="new-password"
+                        >
+                        <button type="button" class="password-toggle" id="togglePassword" aria-label="Toggle password visibility">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="password-strength">
+                        <div class="strength-bar" id="strength1"></div>
+                        <div class="strength-bar" id="strength2"></div>
+                        <div class="strength-bar" id="strength3"></div>
+                        <div class="strength-bar" id="strength4"></div>
+                    </div>
+                    <span class="strength-text" id="strengthText"></span>
+                    <span class="form-error" id="passwordError">Password must be at least 6 characters</span>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="confirmPassword">Confirm Password</label>
+                    <div class="password-wrapper">
+                        <input 
+                            type="password" 
+                            id="confirmPassword" 
+                            class="form-input" 
+                            placeholder="Confirm your password"
+                            required
+                            minlength="6"
+                            autocomplete="new-password"
+                        >
+                        <button type="button" class="password-toggle" id="toggleConfirmPassword" aria-label="Toggle password visibility">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <span class="form-error" id="confirmPasswordError">Passwords do not match</span>
+                </div>
+
+                <button type="submit" class="auth-btn" id="submitBtn">Create Account</button>
+
+                <p class="terms-text">
+                    By signing up, you agree to our 
+                    <a href="about.html#terms">Terms of Service</a> and 
+                    <a href="about.html#privacy">Privacy Policy</a>
+                </p>
+            </form>
+
+            <div class="auth-footer">
+                <p>Already have an account? <a href="signin.html">Sign In</a></p>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/auth.js"></script>
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', newTheme);
+            localStorage.setItem('spotify_theme', newTheme);
+        }
+
+        if (themeToggle) {
+            themeToggle.addEventListener('click', toggleTheme);
+            themeToggle.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleTheme();
+                }
+            });
+        }
+
+        // Form Elements
+        const signupForm = document.getElementById('signupForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const alertBox = document.getElementById('alertBox');
+        const usernameInput = document.getElementById('username');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const usernameCounter = document.getElementById('usernameCounter');
+        const usernameError = document.getElementById('usernameError');
+        const emailError = document.getElementById('emailError');
+        const passwordError = document.getElementById('passwordError');
+        const confirmPasswordError = document.getElementById('confirmPasswordError');
+        const strengthText = document.getElementById('strengthText');
+
+        // Password Toggle Functions
+        function createPasswordToggle(toggleBtn, input) {
+            toggleBtn.addEventListener('click', () => {
+                const type = input.type === 'password' ? 'text' : 'password';
+                input.type = type;
+                toggleBtn.innerHTML = type === 'password' 
+                    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+                    : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+            });
+        }
+
+        createPasswordToggle(document.getElementById('togglePassword'), passwordInput);
+        createPasswordToggle(document.getElementById('toggleConfirmPassword'), confirmPasswordInput);
+
+        // Username Character Counter
+        usernameInput.addEventListener('input', () => {
+            const length = usernameInput.value.length;
+            usernameCounter.textContent = `${length}/10`;
+            
+            if (length < 2) {
+                usernameCounter.className = 'char-counter error';
+            } else if (length <= 10) {
+                usernameCounter.className = 'char-counter success';
+            } else {
+                usernameCounter.className = 'char-counter error';
+            }
+            
+            // Clear error state
+            usernameInput.classList.remove('error');
+            usernameError.classList.remove('visible');
+        });
+
+        // Password Strength Checker
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            
+            if (password.length >= 6) strength++;
+            if (password.length >= 8) strength++;
+            if (/[A-Z]/.test(password) && /[a-z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            
+            return Math.min(strength, 4);
+        }
+
+        function updatePasswordStrength() {
+            const password = passwordInput.value;
+            const strength = checkPasswordStrength(password);
+            
+            const bars = ['strength1', 'strength2', 'strength3', 'strength4'].map(id => 
+                document.getElementById(id)
+            );
+            
+            const strengthLabels = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+            const strengthClasses = ['', 'active', 'medium', 'medium', 'strong'];
+            
+            bars.forEach((bar, index) => {
+                bar.className = 'strength-bar';
+                if (index < strength) {
+                    bar.classList.add(strengthClasses[strength] || 'active');
+                }
+            });
+            
+            strengthText.textContent = password.length > 0 ? strengthLabels[strength] : '';
+        }
+
+        passwordInput.addEventListener('input', () => {
+            updatePasswordStrength();
+            passwordInput.classList.remove('error');
+            passwordError.classList.remove('visible');
+        });
+
+        // Validation Functions
+        function validateEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function validateUsername(username) {
+            return username.length >= 2 && username.length <= 10;
+        }
+
+        // Show/Hide Alert
+        function showAlert(message, type) {
+            alertBox.textContent = message;
+            alertBox.className = `alert visible ${type}`;
+        }
+
+        function hideAlert() {
+            alertBox.className = 'alert';
+        }
+
+        // Clear errors on input
+        emailInput.addEventListener('input', () => {
+            emailInput.classList.remove('error');
+            emailError.classList.remove('visible');
+        });
+
+        confirmPasswordInput.addEventListener('input', () => {
+            confirmPasswordInput.classList.remove('error');
+            confirmPasswordError.classList.remove('visible');
+        });
+
+        // Form Submission
+        signupForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            hideAlert();
+            
+            const username = usernameInput.value.trim();
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+            const confirmPassword = confirmPasswordInput.value;
+            
+            // Validate
+            let isValid = true;
+            
+            if (!validateUsername(username)) {
+                usernameInput.classList.add('error');
+                usernameError.classList.add('visible');
+                isValid = false;
+            }
+            
+            if (!validateEmail(email)) {
+                emailInput.classList.add('error');
+                emailError.classList.add('visible');
+                isValid = false;
+            }
+            
+            if (password.length < 6) {
+                passwordInput.classList.add('error');
+                passwordError.classList.add('visible');
+                isValid = false;
+            }
+            
+            if (password !== confirmPassword) {
+                confirmPasswordInput.classList.add('error');
+                confirmPasswordError.classList.add('visible');
+                isValid = false;
+            }
+            
+            if (!isValid) return;
+            
+            // Submit
+            submitBtn.disabled = true;
+            submitBtn.classList.add('loading');
+            
+            try {
+                const result = await window.spotifieAuth.signUp(email, password, username);
+                if (result.success && result.needsConfirmation) {
+                    // Email confirmation is enabled: there is no session yet, so
+                    // the account is not signed in.
+                    showAlert('Account created. Check your email to confirm it, then sign in.', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'signin.html';
+                    }, 2500);
+                } else if (result.success) {
+                    showAlert('Account created successfully! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1500);
+                } else {
+                    showAlert(result.error || 'Failed to create account. Please try again.', 'error');
+                }
+            } catch (error) {
+                showAlert('An error occurred. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('loading');
+            }
+        });
+
+        // Already signed in? Only a real Supabase session counts.
+        document.addEventListener('DOMContentLoaded', async () => {
+            await window.spotifieAuth.ready();
+
+            // A configuration problem must read as one, not as a login failure.
+            const configError = window.spotifieAuth.getConfigError();
+            if (configError) {
+                showAlert(configError, 'error');
+                return;
+            }
+
+            const session = await window.spotifieAuth.getSession();
+            if (session) {
+                window.location.href = 'index.html';
+            }
+        });
+    </script>
+</body>
+
+</html>
