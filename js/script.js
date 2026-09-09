@@ -883,13 +883,35 @@ async function initDeviceMusicScan() {
     const client = getCatalogClient();
     if (!client) return;
 
+    // Is there a helper on this machine at all?
+    //
+    // Spotifie runs in two places now. Opened from the server somebody started
+    // themselves, there is one, and everything about the music on the device
+    // works as it always has. Opened from a published copy there is not, and
+    // that is an ordinary state rather than a fault: the published catalogue
+    // and signing in both work, and the music on the device is reported as out
+    // of reach rather than pretended away.
+    const platform = getPlatform();
+    if (platform) {
+        const here = await platform.detectLocalCapability();
+        if (!here) {
+            platform.setLocalMusic('unavailable');
+            markLocalMusicUnavailable();
+            return;
+        }
+    }
+
     try {
         deviceScanReport = await client.getDeviceScanStatus();
     } catch (err) {
-        // Without an answer from the local server there is nothing to ask
-        // about: the page carries on as it is.
+        // Asked for and not answered: the helper was there a moment ago and is
+        // not now. Said once, and looked for again on the schedule below.
+        if (platform) platform.setLocalMusic('unavailable');
+        markLocalMusicUnavailable();
         return;
     }
+
+    if (platform) platform.setLocalMusic('available');
 
     updateScanMenuLabel();
 
@@ -1317,6 +1339,14 @@ async function loadSongsConfig() {
         // next visit draw the library before making that journey again.
         rememberPublishedCatalogue(albums.items || [], tracks.items || []);
 
+        // And what that journey found, so the rest of the application can
+        // decide from one place whether the published catalogue is there.
+        const platform = getPlatform();
+        if (platform) {
+            const sources = (tracks.sources || albums.sources || {}).global;
+            platform.setCloudCatalogue(sources && sources.available === false ? 'unavailable' : 'available');
+        }
+
         // And what this machine's own half looked like, so a later check knows
         // whether it has moved rather than assuming it has.
         renderedLocalFingerprint = localFingerprint(
@@ -1339,6 +1369,9 @@ async function loadSongsConfig() {
         return true;
     } catch (error) {
         console.error('Could not load the music catalogue:', error);
+
+        const platform = getPlatform();
+        if (platform) platform.setCloudCatalogue('unavailable');
         return false;
     }
 }
@@ -1566,6 +1599,12 @@ async function loadCatalogFromCache() {
     // it was current.
     renderedCatalogFingerprint = snapshot.fingerprint;
     renderedLocalFingerprint = localFingerprint(local.albums, local.tracks);
+
+    // Drawn from the copy this device kept, which is not the same as knowing
+    // the published catalogue is reachable - the check that follows settles
+    // that.
+    const platform = getPlatform();
+    if (platform) platform.setCloudCatalogue('cached');
 
     console.log(
         'Drew the library from this device:',
@@ -1959,7 +1998,7 @@ async function getsongs(folder) {
         const badge = songData.isUserAdded ? '<span class="user-added-badge">Added</span>' : '';
 
         li.innerHTML = `
-            <img class="pointer song-icon" src="${escapeHTML(trackArtworkSrc(songData.track, folder))}" alt="" onerror="this.onerror=null;this.src='${basePath}img/music.svg'">
+            <img class="pointer song-icon" src="${escapeHTML(trackArtworkSrc(songData.track, folder))}" alt="" width="40" height="40" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${basePath}img/music.svg'">
             <div class="musicinfo pointer">
                 <div title="${songName}">${songName}${badge}</div>
                 <div title="${artistName}">${artistName}</div>
@@ -2466,6 +2505,139 @@ function initAppShellCache() {
  * and a single quiet line is shown the first time it happens rather than a
  * popup each time something fails.
  */
+/**
+ * Catch what nothing else caught.
+ *
+ * A promise nobody handled, or an error thrown where no caller was waiting,
+ * used to reach the console and stop there - which is fine for whoever wrote
+ * the code and no use at all to whoever is looking at the page. Neither should
+ * ever put a stack trace in front of somebody, and neither should be silent.
+ *
+ * So: one short line, said at most once in a while, in the words of what
+ * actually stopped working. The details still go to the console, where they
+ * belong. Nothing here reads a token, a path or anything out of a library.
+ */
+function initErrorBoundary() {
+    let lastToldAt = 0;
+
+    const tell = (message) => {
+        const now = Date.now();
+        // A page that has genuinely broken tends to break repeatedly. Saying so
+        // forty times helps nobody.
+        if (now - lastToldAt < 30000) return;
+        lastToldAt = now;
+        showToast(message);
+    };
+
+    const describe = (error) => {
+        if (!error) return null;
+
+        // The two that a person can act on, said in their own terms.
+        const text = String((error && error.message) || error);
+        if (/NetworkError|Failed to fetch|network/i.test(text)) {
+            return 'Something could not be reached. Spotifie will try again.';
+        }
+        if (/QuotaExceeded|storage/i.test(text)) {
+            return 'This browser is out of room to keep things in.';
+        }
+        return null;
+    };
+
+    window.addEventListener('unhandledrejection', (event) => {
+        const reason = event && event.reason;
+        console.warn('Spotifie: an operation failed', reason);
+
+        const message = describe(reason);
+        if (message) tell(message);
+    });
+
+    window.addEventListener('error', (event) => {
+        // A picture or a script that would not load is reported here too, and
+        // is not something to interrupt anybody about: the resolver already
+        // falls back, and the page carries on.
+        if (event && event.target && event.target !== window) return;
+        console.warn('Spotifie: ' + ((event && event.message) || 'an error occurred'));
+    });
+}
+
+/** What this installation can do, or null in a page that did not load it. */
+function getPlatform() {
+    return window.spotifiePlatform || null;
+}
+
+/**
+ * Say that the music on this device is out of reach, without losing it.
+ *
+ * The collection stays exactly where it is - the card, its name, and whatever
+ * was last known about it. What changes is one line saying it cannot be
+ * reached from here, because a collection that quietly emptied itself would
+ * look like the music had gone rather than like the helper had.
+ *
+ * Nothing is deleted, nothing is forgotten, and the moment a helper answers
+ * again the ordinary path puts the real contents back.
+ */
+function markLocalMusicUnavailable() {
+    document.body.classList.add('local-music-unavailable');
+
+    const card = document.querySelector('.local-music-card');
+    if (!card) return;
+
+    const line = card.querySelector('p');
+    if (line) line.textContent = 'Not reachable from here';
+    card.setAttribute('title', 'Spotifie is not running on this device, so the music on it cannot be read.');
+}
+
+/** And that it is reachable again. */
+function markLocalMusicAvailable() {
+    document.body.classList.remove('local-music-unavailable');
+
+    const card = document.querySelector('.local-music-card');
+    if (card) card.removeAttribute('title');
+}
+
+/**
+ * Watch for a helper appearing or disappearing, and answer either.
+ *
+ * The looking backs off while there is nothing there, so a page left open
+ * beside no helper costs a handful of requests rather than thousands, and it
+ * looks again at once when somebody comes back to the tab - which is usually a
+ * second after they started the helper.
+ *
+ * A helper that returns is used without a reload: the library is read again
+ * and the music on the device simply reappears.
+ */
+function watchLocalHelper() {
+    const platform = getPlatform();
+    if (!platform) return;
+
+    let connected = null;
+
+    platform.watch(async (state) => {
+        const nowConnected = state.localHelper === 'connected';
+        if (nowConnected === connected) return;
+
+        const first = connected === null;
+        connected = nowConnected;
+        if (first) return;
+
+        if (!nowConnected) {
+            platform.setLocalMusic('unavailable');
+            markLocalMusicUnavailable();
+            return;
+        }
+
+        // Back. Read what is here again, and put it on screen where it was.
+        try {
+            platform.setLocalMusic('available');
+            markLocalMusicAvailable();
+            await refreshAfterDeviceChange();
+            showToast('Reconnected to this device');
+        } catch (error) {
+            console.warn('Could not read this device after reconnecting:', error && error.message);
+        }
+    });
+}
+
 function initOfflineState() {
     const apply = (online) => {
         if (networkAvailable === online) return;
@@ -2492,6 +2664,9 @@ async function main() {
     // is widened to match. On a return visit there is no opening screen and
     // the reports go nowhere.
     splashReached('bootstrap');
+
+    // Before anything else that can fail: what happens when something does.
+    initErrorBoundary();
 
     // Initialize Theme first for immediate visual feedback
     initializeTheme();
@@ -2601,6 +2776,8 @@ async function main() {
     // Losing the connection changes what can be played, not whether the
     // application works. Said once, when it happens.
     initOfflineState();
+    // A helper started, or stopped, after the page was opened.
+    watchLocalHelper();
     initAppShellCache();
 
     // Searching this device for music: the controls, and the one-time question
@@ -5369,37 +5546,20 @@ async function saveEditedAlbum(folder, newName, newDescription, newCover) {
     showNotification(`Album "${newName}" updated.`);
 }
 
+/**
+ * Say that something worked.
+ *
+ * The same toast as every other message, in the same place, with the same
+ * timing - because two ways of telling somebody the same kind of thing is one
+ * way too many. This used to build its own element with its own colours
+ * written into it, its own layer above every dialog, and no limit on how many
+ * could pile up at once; it looked identical to a toast and behaved worse.
+ *
+ * Kept as its own name because "this worked" and "this did not" read
+ * differently at the call site, and there are sixty of those.
+ */
 function showNotification(message) {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.textContent = message;
-    
-    // Add styles inline for the notification
-    notification.style.cssText = `
-        position: fixed;
-        bottom: 120px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: #1db954;
-        color: #000;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        font-size: 14px;
-        z-index: 3000;
-        animation: notificationSlide 0.3s ease;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    `;
-    
-    document.body.appendChild(notification);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-        notification.style.opacity = '0';
-        notification.style.transition = 'opacity 0.3s';
-        setTimeout(() => notification.remove(), 300);
-    }, 3000);
+    showToast(message, 3000);
 }
 
 // Initialize delete confirmation modal
@@ -5974,21 +6134,58 @@ function watchPersonalLibrary() {
     personal.onChange(() => {
         syncLikeStates();
 
-        // What the library looks like, in one string: which playlists exist,
-        // how long each is, and how many songs are liked. Unchanged means
-        // nothing to rebuild.
+        // Which collections the library holds, in one string: whether there is
+        // a Liked Songs to show at all, and which playlists exist. Unchanged
+        // means the set of cards is unchanged, and there is nothing to build.
+        //
+        // Deliberately not the number of liked songs. Liking a song changes
+        // what is inside Liked Songs and changes no card: the hearts are
+        // redrawn above, in place, and every card on the page stays exactly
+        // the card it was. Counting liked songs here meant every heart pressed
+        // rebuilt the whole library - and with it re-resolved the artwork of
+        // every album on screen - to change one icon.
         const shape = [
-            personal.liked.size,
+            personal.liked.size > 0 ? 'liked' : 'none',
             personal.playlists
                 .map((playlist) => playlist.id + ':' + playlist.trackCount + ':' + playlist.updatedAt)
                 .join(',')
         ].join('|');
 
-        if (shape === lastShape) return;
-        lastShape = shape;
+        if (shape === lastShape) {
+            // The cards are right. What is being looked at may not be: a song
+            // unliked while Liked Songs is open has to leave the list.
+            if (isPersonalFolder(currentFolder)) scheduleOpenViewRefresh();
+            return;
+        }
 
+        lastShape = shape;
         schedulePersonalRefresh();
     });
+}
+
+/**
+ * Redraw the list being looked at, without touching the cards.
+ *
+ * For the changes that alter what is inside a collection but not which
+ * collections there are: a song liked or unliked while Liked Songs is open, a
+ * song played while Recently Played is. One rebuild for a burst of them.
+ */
+let openViewRefreshHandle = null;
+
+function scheduleOpenViewRefresh() {
+    if (openViewRefreshHandle) return;
+
+    openViewRefreshHandle = setTimeout(async () => {
+        openViewRefreshHandle = null;
+        try {
+            applyPersonalCollections();
+            if (isPersonalFolder(currentFolder) && predefinedSongs[currentFolder]) {
+                await getsongs(currentFolder);
+            }
+        } catch (error) {
+            console.warn('Could not redraw this view:', error && error.message);
+        }
+    }, 0);
 }
 
 /** One rebuild for a burst of changes, on the next frame rather than at once. */
@@ -9584,7 +9781,7 @@ function renderAlbumDetail(folder) {
         row.innerHTML = `
             <span class="album-track-index">${index + 1}</span>
             <span class="album-track-artwork">
-                <img class="album-track-art" src="${escapeHTML(artwork)}" alt="" onerror="this.onerror=null;this.src='${basePath}img/music.svg'">
+                <img class="album-track-art" src="${escapeHTML(artwork)}" alt="" width="48" height="48" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${basePath}img/music.svg'">
                 <button class="album-track-play" type="button" aria-label="Play">
                     <img class="libPlayButton invert pointer" src="${basePath}img/play.svg" alt="Play">
                 </button>

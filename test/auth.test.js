@@ -420,7 +420,12 @@ test('a missing config endpoint reports a configuration error, not a login failu
 
     const error = context.auth.getConfigError();
     assert.ok(error, 'the configuration failure is recorded');
-    assert.match(error, /\/api\/config/);
+
+    // Neither place had the settings - not the local server, and not the file
+    // a published copy carries - so what is reported is the thing to do about
+    // it rather than which of the two was asked first.
+    assert.match(error, /Supabase is not configured/);
+    assert.match(error, /SUPABASE_URL/);
     assert.match(error, /npm start/);
 
     // Every action reports the same configuration problem instead of a
@@ -455,8 +460,13 @@ test('an unreachable config endpoint explains how to start the app', async () =>
         }
     });
 
+    // Nothing answered anywhere: not the local server, not the file a
+    // published copy carries. What is reported is what to do - the settings to
+    // supply, and how to run it locally - rather than which address failed
+    // first, which is of no use to anybody.
     const error = context.auth.getConfigError();
-    assert.match(error, /Could not reach \/api\/config/);
+    assert.match(error, /Supabase is not configured/);
+    assert.match(error, /SUPABASE_URL/);
     assert.match(error, /npm start/);
 });
 
@@ -507,14 +517,44 @@ test('a 503 configuration error is reported as a Supabase configuration problem'
     assert.match(error, /SUPABASE_URL/);
 });
 
-test('a 404 blames the wrong server, not the credentials', async () => {
+test('a missing configuration is never reported as a credentials problem', async () => {
     const context = await loadAuth({
         session: null,
         fetch: async () => ({ ok: false, status: 404, json: async () => ({}) })
     });
 
     const error = context.auth.getConfigError();
-    assert.match(error, /not being served by the Spotifie server/i);
-    assert.match(error, /Live Preview|Live Server/i);
+    assert.match(error, /Supabase is not configured/);
+    assert.match(error, /Live Preview|Live Server/i, 'and still says how to run it locally');
     assert.ok(!/invalid (email|login)/i.test(error), 'it is not reported as a credentials problem');
+});
+
+test('a published copy reads its settings from the file beside it', async () => {
+    const asked = [];
+
+    const context = await loadAuth({
+        session: null,
+        fetch: async (url) => {
+            asked.push(String(url));
+
+            // No local server, which is what a published copy meets.
+            if (String(url).indexOf('/api/config') !== -1) {
+                return { ok: false, status: 404, json: async () => ({}) };
+            }
+
+            return {
+                ok: true,
+                status: 200,
+                json: async () => ({ supabaseUrl: 'https://example.supabase.co', supabaseAnonKey: 'anon-key' })
+            };
+        }
+    });
+
+    // The server first, because when there is one it is the authority; the
+    // file next, which is where a published copy keeps the same two values.
+    assert.ok(asked.some((url) => url.indexOf('/api/config') !== -1), 'the server was asked');
+    assert.ok(asked.some((url) => url.indexOf('config.json') !== -1), 'and then the file');
+
+    // And with settings in hand there is no configuration problem at all.
+    assert.strictEqual(context.auth.getConfigError(), null);
 });

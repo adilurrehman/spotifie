@@ -1278,7 +1278,14 @@
 
     <!-- Supabase SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- What this installation can do: whether there is a helper on this
+         machine, whether the published catalogue can be reached, and whether
+         there is a network at all. Everything below reads the answer rather
+         than assuming one. -->
+    <script src="js/platform.js"></script>
     <script src="js/auth.js"></script>
+    <!-- The published catalogue, for a copy with no server to assemble it. -->
+    <script src="js/cloudCatalog.js"></script>
     <script src="js/libraryClient.js"></script>
     <script src="js/catalogCache.js"></script>
     <script src="js/catalogClient.js"></script>

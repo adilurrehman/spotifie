@@ -455,12 +455,21 @@ test('Local Music is a card like every other, and the first one', () => {
     const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
 
     // The same class as every other album, so it gets the same cell and the
-    // same footprint. Nothing gives it a rule of its own.
+    // same footprint.
     assert.match(player, /cardDiv\.className = 'cardcontainer pointer rounded'/);
-    assert.ok(
-        !RULES.some((rule) => /system.?local.?music|local-music/i.test(rule.selector)),
-        'Local Music has no styling of its own to escape the grid with'
-    );
+
+    // What rules it does have say how it looks, never where it goes or how
+    // big it is: a card that could size or place itself is a card that can
+    // leave the grid the others are in.
+    const own = RULES.filter((rule) => /local-music/i.test(rule.selector));
+    own.forEach((rule) => {
+        assert.ok(
+            !/(^|;)\s*(width|height|min-width|min-height|max-width|max-height|position|top|left|right|bottom|grid-\w+|flex-basis)\s*:/.test(
+                rule.body
+            ),
+            rule.selector + ' sizes or places nothing'
+        );
+    });
 
     // It leads the library because the order says so, not because it is
     // placed anywhere.
@@ -963,6 +972,222 @@ test('placeholders never make the page wider than the window', () => {
 
     // The grid of them is the library's own grid, so it wraps the same way.
     assert.match(PLAYER, /cardsArea\.replaceChildren\(grid\);\s*markBusy\(cardsArea, true\);/);
+});
+
+// ============================================
+// Reachable with a finger, and with a keyboard
+// ============================================
+
+/**
+ * Two things every control owes whoever is using it.
+ *
+ * A target big enough to hit without aiming, on a screen that has no pointer
+ * to aim with; and a mark saying where the keyboard is, for somebody who never
+ * touches the screen at all. Neither is decoration, and neither is something a
+ * control should have to remember for itself - so both are held here, for the
+ * controls that had one, the other, or neither.
+ */
+
+test('a finger gets a target on every control that is only an icon', () => {
+    // Asked of the pointer, never of the width. A tablet is a wide screen with
+    // no mouse on it, and a rule written against a breakpoint would have left
+    // it with targets meant for something it does not have.
+    const touch = RULES.filter((rule) => rule.media.some((query) => /hover:\s*none|pointer:\s*coarse/.test(query)));
+    assert.ok(touch.length > 0, 'touch is answered at all');
+
+    const covered = touch.map((rule) => rule.selector).join(' ');
+    ['.nav-history-btn', '.card-size-btn', '.backup-btn', '.create-album-btn', '.song-menu-btn', '.modal-close', '.player-btn'].forEach(
+        (selector) => {
+            assert.ok(covered.includes(selector), selector + ' is given a target');
+        }
+    );
+
+    // Given without moving anything: the area is a pseudo-element centred on
+    // the control, so a header that fits at 320 pixels still fits.
+    const areas = touch.filter((rule) => /::after/.test(rule.selector) && /width:\s*44px/.test(rule.body));
+    assert.ok(areas.length > 0, 'the area is drawn beside the control, not around it');
+    assert.match(areas[0].body, /position:\s*absolute/);
+    assert.match(areas[0].body, /height:\s*44px/);
+
+    // And the controls that can simply be 44 are 44.
+    const sized = touch.filter((rule) => /player-btn-primary|card-menu-btn|hamburger/.test(rule.selector));
+    assert.ok(sized.length > 0, 'the larger controls are sized directly');
+});
+
+test('nothing on a touch screen waits to be hovered', () => {
+    const hoverOnly = RULES.filter(
+        (rule) =>
+            rule.media.some((query) => /hover:\s*none|pointer:\s*coarse/.test(query)) &&
+            /opacity:\s*0(\.\d+)?\s*;/.test(rule.body) &&
+            !/opacity:\s*1/.test(rule.body)
+    );
+    assert.deepStrictEqual(hoverOnly, [], 'no control is faded out on a screen that cannot hover');
+
+    // The two that were: a card's options button, and a row's.
+    const shown = RULES.filter(
+        (rule) =>
+            rule.media.some((query) => /hover:\s*none|pointer:\s*coarse/.test(query)) &&
+            /card-menu-btn|song-menu-btn/.test(rule.selector)
+    );
+    assert.ok(shown.some((rule) => /opacity:\s*1/.test(rule.body)), 'they are simply there');
+});
+
+test('every control says where the keyboard is', () => {
+    const focus = RULES.filter((rule) => /:focus/.test(rule.selector));
+    const covered = focus.map((rule) => rule.selector).join(' | ');
+
+    // The three that had no mark of their own and inherited none.
+    ['.song-menu-btn', '.modal-close', '.volumeRange'].forEach((selector) => {
+        assert.ok(covered.includes(selector), selector + ' has a focus mark');
+    });
+
+    // Every focus rule leaves something visible behind: an outline, or a ring
+    // drawn as a shadow. A rule that only removed the outline would be worse
+    // than no rule.
+    focus.forEach((rule) => {
+        if (!/outline:\s*none|outline:\s*0/.test(rule.body)) return;
+        assert.match(
+            rule.body,
+            /box-shadow|border-color|background|outline-offset/,
+            rule.selector + ' replaces the outline it removes'
+        );
+    });
+});
+
+test('the player says what each of its controls does', () => {
+    const controls = {
+        play: 'Play',
+        previous: 'Previous track',
+        next: 'Next track',
+        shuffle: 'Shuffle',
+        repeat: 'Repeat',
+        volume: 'Volume',
+        expandPlayer: 'Now Playing'
+    };
+
+    Object.keys(controls).forEach((id) => {
+        const pattern = new RegExp('id="' + id + '"[^>]*aria-label="[^"]+"');
+        const reversed = new RegExp('aria-label="[^"]+"[^>]*id="' + id + '"');
+        assert.ok(pattern.test(PAGE) || reversed.test(PAGE), id + ' is named');
+    });
+
+    // Seeking is a slider a keyboard can move, and it says where it is.
+    assert.match(PAGE, /class="seekbar[^"]*"[^>]*role="slider"/);
+    assert.match(PAGE, /aria-label="Seek position"/);
+    assert.match(PAGE, /aria-valuemin="0"[^>]*aria-valuemax="100"/);
+    assert.match(PAGE, /tabindex="0"/);
+
+    const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
+    assert.match(player, /event\.key === 'ArrowRight' \|\| event\.key === 'PageUp'/);
+    assert.match(player, /aria-valuetext/, 'and says the position in words, not only in percent');
+
+    // Volume is a real range input, which a keyboard already knows how to use.
+    assert.match(PAGE, /class="volumeRange[^"]*"[^>]*type="range"/);
+    assert.match(PAGE, /aria-label="Volume level"/);
+});
+
+test('every field a person types into is named, not merely hinted at', () => {
+    // A placeholder is not a label: it is gone the moment anything is typed,
+    // and several screen readers never announce it at all.
+    const inputs = Array.from(PAGE.matchAll(/<input\b[^>]*>/g)).map((m) => m[0]);
+    const typed = inputs.filter((tag) => !/type="(hidden|checkbox|radio|range|file)"/.test(tag));
+
+    assert.ok(typed.length > 0, 'the page has fields');
+
+    typed.forEach((tag) => {
+        const id = /id="([^"]+)"/.exec(tag);
+        const named =
+            /aria-label=/.test(tag) ||
+            /aria-labelledby=/.test(tag) ||
+            (id && new RegExp('<label[^>]*for="' + id[1] + '"').test(PAGE)) ||
+            (id && new RegExp('<label[^>]*>[\\s\\S]{0,200}id="' + id[1] + '"').test(PAGE));
+
+        assert.ok(named, 'a field is named: ' + tag.slice(0, 70));
+    });
+});
+
+// ============================================
+// One change costs one change
+// ============================================
+
+test('liking a song redraws the hearts and not the library', () => {
+    const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
+    const watching = player.slice(player.indexOf('function watchPersonalLibrary()'), player.indexOf('function scheduleOpenViewRefresh()'));
+
+    // What the shape describes is which collections exist - not how much is in
+    // them. Counting liked songs here meant every heart pressed rebuilt every
+    // card in the library, and re-resolved the artwork of each one.
+    assert.match(watching, /personal\.liked\.size > 0 \? 'liked' : 'none'/);
+    assert.ok(!/personal\.liked\.size,/.test(watching), 'a count of liked songs decides nothing here');
+
+    // The hearts are still redrawn, every time, in place.
+    assert.match(watching, /syncLikeStates\(\);/);
+
+    // And the list being looked at is refreshed when it is one of the ones
+    // that changed, without touching the cards.
+    assert.match(watching, /if \(isPersonalFolder\(currentFolder\)\) scheduleOpenViewRefresh\(\);/);
+    assert.match(player, /function scheduleOpenViewRefresh\(\)/);
+});
+
+test('a row fetches its picture when it is reached, at the size it will be', () => {
+    const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
+
+    // Thirty rows used to mean thirty requests before anything was on screen.
+    assert.match(player, /class="album-track-art"[^>]*width="48" height="48" loading="lazy" decoding="async"/);
+    assert.match(player, /class="pointer song-icon"[^>]*width="40" height="40" loading="lazy" decoding="async"/);
+
+    // The stated sizes are the sizes the stylesheet gives them, so nothing
+    // moves when a picture arrives.
+    assert.strictEqual(valueOf('.album-track-art', 'width', 1280), '48px');
+    assert.strictEqual(valueOf('.album-track-art', 'height', 1280), '48px');
+    assert.strictEqual(valueOf('.songslist ul li .song-icon', 'width', 1280), '40px');
+    assert.strictEqual(valueOf('.songslist ul li .song-icon', 'height', 1280), '40px');
+
+    // A card's own artwork is not lazy: it is what somebody came to see.
+    const cards = player.slice(player.indexOf('async function refreshAlbumCards()'), player.indexOf('function bindAlbumCardEvents()'));
+    assert.ok(!/class="pointer rounded"[^>]*loading="lazy"/.test(cards), 'the artwork above the fold is fetched at once');
+});
+
+test('there is one way of telling somebody something', () => {
+    const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
+
+    // Two toasts, one of which built its own element with its own colours and
+    // its own layer above every dialog, is one toast too many.
+    assert.match(player, /function showNotification\(message\) \{\s*showToast\(message, 3000\);\s*\}/);
+    assert.ok(!/className = 'notification'/.test(player), 'nothing builds a second kind');
+    assert.ok(!/notificationSlide/.test(player), 'and nothing refers to an animation that never existed');
+
+    // One at a time: a new message replaces the one before it.
+    assert.match(player, /const existingToast = document\.querySelector\('\.toast-notification'\);[\s\S]{0,120}existingToast\.remove\(\)/);
+
+    // Above the dialogs, by a named layer rather than by a large number.
+    assert.strictEqual(valueOf('.toast-notification', 'z-index', 1280), 'var(--layer-toast)');
+    assert.match(CSS, /--layer-toast:\s*\d+;/);
+});
+
+test('what sits above what is decided in one place', () => {
+    assert.match(CSS, /--layer-modal:\s*2000;/);
+    assert.match(CSS, /--layer-modal-over-modal:\s*2010;/);
+    assert.match(CSS, /--layer-toast:\s*2100;/);
+
+    // Every layer used by a dialog or a message is one of those names. A
+    // number written at the point of use is how two things end up on the same
+    // layer and the wrong one wins.
+    ['.modal', '.modal.modal-confirm', '.toast-notification'].forEach((selector) => {
+        const value = valueOf(selector, 'z-index', 1280);
+        assert.match(value, /^var\(--layer-/, selector + ' uses a named layer');
+    });
+});
+
+test('the stylesheet has no rule for anything that does not exist', () => {
+    // Every class named here was checked against every page, every script and
+    // the worker before being taken out; each appeared in the stylesheet and
+    // nowhere else.
+    ['song-badge', 'search-result-name', 'search-result-album', 'skeleton-hero-art', 'skeleton-list', 'fade-out'].forEach(
+        (name) => {
+            assert.ok(!CSS.includes('.' + name), '.' + name + ' is gone');
+        }
+    );
 });
 
 // ============================================

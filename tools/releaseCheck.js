@@ -44,7 +44,14 @@ const FORBIDDEN_PATHS = [
     /(^|[/\\])node_modules([/\\]|$)/i,
     /(^|[/\\])test([/\\]|$)/i,
     /(^|[/\\])CLAUDE\.md$/i,
-    /\.(pem|key|p12|pfx)$/i
+    /\.(pem|key|p12|pfx)$/i,
+    // Somebody's own library state, in any of the shapes it is kept in.
+    /(^|[/\\])(state|scan-state|playback)\.json$/i,
+    /(^|[/\\])users([/\\]|$)/i,
+    /(^|[/\\])(local-state|user-state|runtime-data)([/\\]|$)/i,
+    // A map back to source is a copy of the source. The release ships the
+    // code it runs; it should never also ship a second copy of it by accident.
+    /\.map$/i
 ];
 
 /** Audio, of any kind. A release carries an application, not a music library. */
@@ -136,9 +143,16 @@ function checkExpectedShape(files, failures) {
         'README.md',
         'js/script.js',
         'js/auth.js',
+        'js/platform.js',
         'css/style.css',
         'lib/sessionAuth.js',
-        'lib/catalogRoutes.js'
+        'lib/catalogRoutes.js',
+        // What a copy published to a static host needs and a copy run from a
+        // terminal ignores: its own public settings, the headers a host should
+        // send, and the list of files such a host must not publish.
+        'config.json',
+        '_headers',
+        '.assetsignore'
     ];
 
     for (const file of required) {
@@ -155,6 +169,91 @@ function checkExpectedShape(files, failures) {
         }
         if (/eyJ[A-Za-z0-9_-]{20,}\./.test(config)) {
             failures.push('lib/publicConfig.js still carries a key.');
+        }
+    }
+
+    checkRuntimeConfig(failures);
+    checkStaticHostFiles(names, failures);
+}
+
+/**
+ * The settings a published copy carries.
+ *
+ * Two public values or nothing - a copy built without them is honest about
+ * being unconfigured, which is fine. What is never fine is a secret: the anon
+ * key is meant for a browser and a service-role key would hand every reader of
+ * the page the whole database.
+ */
+function checkRuntimeConfig(failures) {
+    const file = path.join(DIST, 'config.json');
+    if (!fs.existsSync(file)) return;
+
+    let settings;
+    try {
+        settings = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch (e) {
+        failures.push('config.json is not valid JSON.');
+        return;
+    }
+
+    const key = String(settings.supabaseAnonKey || '');
+    if (/service.role/i.test(key) || /^sb_secret_/.test(key)) {
+        failures.push('config.json carries a secret key. Only the anon/publishable key belongs in a browser.');
+    }
+
+    const url = String(settings.supabaseUrl || '');
+    if (url && /localhost|127\.0\.0\.1/i.test(url)) {
+        failures.push('config.json points at this machine rather than at a Supabase project.');
+    }
+
+    for (const field of Object.keys(settings)) {
+        if (['supabaseUrl', 'supabaseAnonKey', 'configured'].indexOf(field) === -1) {
+            failures.push('config.json carries an unexpected field: ' + field + '.');
+        }
+    }
+}
+
+/**
+ * What a static host is told, and what it is told to keep to itself.
+ *
+ * The release is also a Node application, and a host that published every file
+ * in it would serve the server's own source and the database schema at
+ * addresses anybody could guess. The list that prevents that is checked here
+ * rather than trusted.
+ */
+function checkStaticHostFiles(names, failures) {
+    const ignoreFile = path.join(DIST, '.assetsignore');
+    if (fs.existsSync(ignoreFile)) {
+        const ignored = fs.readFileSync(ignoreFile, 'utf8');
+        ['server.js', 'lib/', 'package.json', 'supabase-setup.sql'].forEach((entry) => {
+            if (ignored.indexOf(entry) === -1) {
+                failures.push('.assetsignore does not keep ' + entry + ' off a static host.');
+            }
+        });
+    }
+
+    const headersFile = path.join(DIST, '_headers');
+    if (fs.existsSync(headersFile)) {
+        const headers = fs.readFileSync(headersFile, 'utf8');
+        ['Content-Security-Policy', 'X-Content-Type-Options', 'Referrer-Policy', 'frame-ancestors'].forEach(
+            (header) => {
+                if (headers.indexOf(header) === -1) failures.push('_headers is missing ' + header + '.');
+            }
+        );
+
+        if (/script-src[^;]*\*/.test(headers)) {
+            failures.push('_headers allows scripts from anywhere.');
+        }
+    }
+
+    // A page must not claim to live on the machine it was built on.
+    for (const name of names) {
+        if (!/\.html$/i.test(name)) continue;
+
+        const page = fs.readFileSync(path.join(DIST, name), 'utf8');
+        const canonical = /<link rel="canonical" href="([^"]+)"/.exec(page);
+        if (canonical && /localhost|127\.0\.0\.1/i.test(canonical[1])) {
+            failures.push(name + ' names this machine as its address.');
         }
     }
 }

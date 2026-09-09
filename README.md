@@ -454,6 +454,72 @@ The safe route is a fresh repository:
 
 The public repository then has no history to leak, because it starts at the release.
 
+## Deploying Spotifie on Cloudflare
+
+Spotifie runs in two places, and only one of them is Cloudflare.
+
+**Cloudflare hosts the application**: the pages, the styles, the scripts, the icons, the manifest and the
+service worker, plus `robots.txt`, `sitemap.xml` and `llms.txt`. **The machine somebody is sitting at
+hosts their music**: the local server finds it, indexes it, and streams it from their own disk. Audio is
+never uploaded, and Cloudflare is never asked to store any of it.
+
+| | |
+| --- | --- |
+| Build command | `npm run build:public` |
+| Output directory | `public-release/dist` |
+| Framework preset | None — it is static files |
+
+Set these in the Cloudflare project, as build-time environment variables. All three are public values.
+
+| Variable | Purpose |
+| --- | --- |
+| `PUBLIC_SITE_URL` | The deployed origin, e.g. `https://spotifie.example`. Canonical URLs, the sitemap and the structured data follow it |
+| `SUPABASE_URL` | The Supabase project URL |
+| `SUPABASE_ANON_KEY` | The anon/publishable key |
+
+**A service-role key must never be set here, or anywhere a browser can reach.** The build refuses to write
+one into the release, and `npm run release:check` refuses to pass a release that carries one.
+
+### What the build produces
+
+Alongside the application, `npm run build:public` writes three files a static host needs:
+
+- `config.json` — the two public Supabase values, for a copy with no server to ask. A build without them
+  writes `"configured": false`, and the app reports that rather than looking broken.
+- `_headers` — the security headers and a cache rule per kind of file. Pages and `sw.js` are revalidated
+  on every visit; styles, scripts and images may be kept.
+- `.assetsignore` — the half of the release that is a Node application. Wrangler leaves `server.js`,
+  `lib/`, `package.json` and `supabase-setup.sql` out of the upload, so no server source and no database
+  schema is ever served as a downloadable file.
+
+`wrangler.jsonc` points at `./public-release/dist`. There is no SPA fallback and none is needed: every
+address is a real file, and the player never changes the path it is on.
+
+### Public and private stay separate
+
+The release is built from an allowlist, so the administrator pages, the admin modules and this project's
+own Supabase settings are absent by construction rather than by being filtered out. Publish by deploying
+`public-release/dist` — never this repository, whose history holds the private half.
+
+### What a deployed copy can and cannot do
+
+The published catalogue, signing in, playlists, liked songs and the public pages all work from Cloudflare.
+Local Music needs the local server: with none running, the collection is shown as not reachable rather
+than emptied, and it comes back on its own when the server appears — no reload.
+
+One caveat worth knowing before you promise it to anybody: a page served over HTTPS reaching
+`http://127.0.0.1` is mixed content. Chromium treats loopback as trustworthy and allows it; other
+browsers vary. Running Spotifie locally with `npm start` is the supported way to use Local Music.
+
+### After deploying
+
+- `/` loads, and `/about.html` and `/developer.html` resolve
+- `/robots.txt`, `/sitemap.xml` and `/llms.txt` answer, and the sitemap names the deployed origin
+- The canonical URL on `/` is the deployed address, not `127.0.0.1`
+- `/server.js`, `/lib/…`, `/package.json` and `/supabase-setup.sql` all answer 404
+- `/admin-dashboard.html` and `/js/admin.js` answer 404
+- Signing in works, which means `config.json` reached the browser
+
 ## Discoverability
 
 Everything Spotifie says about itself to a machine is written in `lib/siteMeta.js` and served by the

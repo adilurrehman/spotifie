@@ -23,12 +23,20 @@
     // Keys written by older versions that could be mistaken for a session.
     const LEGACY_AUTH_KEYS = ['spotifie_user', 'spotifie_admin', 'spotifie_admin_pending'];
 
-    // Public configuration is served by the local Node server on this origin.
+    // Where the public Supabase settings come from.
+    //
+    // Two places, asked in that order, because Spotifie runs in two. Served by
+    // the local Node server when there is one; written into a file beside the
+    // application when it was published to a static host, which has no server
+    // to ask. Both carry the same two values, and both are public: the project
+    // URL and the anon key. A service-role key belongs in neither, and in no
+    // browser.
     const CONFIG_URL = '/api/config';
+    const STATIC_CONFIG_URL = 'config.json';
     const START_HINT =
-        'This page is not being served by the Spotifie server. Stop any other server on this ' +
-        'port (VS Code Live Preview / Live Server, or an older "node server.js"), run "npm start", ' +
-        'and open the address it prints - http://127.0.0.1:3000 by default.';
+        'If you are running Spotifie yourself, stop any other server on this port (VS Code Live ' +
+        'Preview / Live Server, or an older "node server.js"), run "npm start", and open the ' +
+        'address it prints - http://127.0.0.1:3000 by default.';
     const CONFIG_UNAVAILABLE = 'Authentication is unavailable: the app configuration could not be loaded. ' + START_HINT;
 
     let configError = null;
@@ -84,13 +92,74 @@
         return cached;
     }
 
-    /**
-     * Fetch the public Supabase settings from the local server.
-     * The endpoint is served by server.js on the same origin, so the app must
-     * be opened through `npm start` - not from the filesystem and not from a
-     * separate static server.
+/**
+     * The settings, from whichever of the two places has them.
+     *
+     * The local server first, because when there is one it is the authority on
+     * this installation. A 404 or an unreachable origin is not an error here -
+     * it is how a published copy answers, and the file beside the application
+     * is asked next. Only when neither has anything is there a problem to
+     * report.
      */
     async function loadPublicConfig() {
+        const fromServer = await tryConfigSource(CONFIG_URL, { cache: 'no-store' });
+        if (fromServer) return fromServer;
+
+        const fromFile = await tryConfigSource(STATIC_CONFIG_URL, {});
+        if (fromFile) return fromFile;
+
+        throw new Error(
+            'Supabase is not configured for this copy of Spotifie. ' +
+                'Set SUPABASE_URL and SUPABASE_ANON_KEY (see .env.example) before building it. ' +
+                START_HINT
+        );
+    }
+
+    /**
+     * One place the settings might be, or null.
+     *
+     * Answers null for every way of not being there - no route, no file, not
+     * reachable, not JSON, incomplete - because the caller's next move is the
+     * same for all of them: ask somewhere else. A source that answers with
+     * something unusable is worth a line in the console, and nothing more.
+     */
+    async function tryConfigSource(url, init) {
+        let response;
+        try {
+            response = await fetch(url, Object.assign({ credentials: 'same-origin' }, init));
+        } catch (e) {
+            return null;
+        }
+
+        if (!response.ok) {
+            // A server that has the route but no settings says so, and that is
+            // worth passing on rather than silently trying elsewhere.
+            if (response.status === 503) {
+                let detail = '';
+                try {
+                    const body = await response.json();
+                    detail = (body && (body.detail || body.error)) || '';
+                } catch (e) {
+                    detail = '';
+                }
+                throw new Error('Supabase is not configured.' + (detail ? ' ' + detail : ''));
+            }
+            return null;
+        }
+
+        let config;
+        try {
+            config = await response.json();
+        } catch (e) {
+            return null;
+        }
+
+        if (!config || !config.supabaseUrl || !config.supabaseAnonKey) return null;
+        return config;
+    }
+
+    /** Kept for the tests that describe how a broken server is reported. */
+    async function loadConfigFromServer() {
         let response;
         try {
             response = await fetch(CONFIG_URL, { credentials: 'same-origin', cache: 'no-store' });
@@ -101,8 +170,6 @@
         }
 
         if (response.status === 404) {
-            // The Spotifie server always answers this route, so a 404 means the
-            // page came from a different server on this port.
             throw new Error(CONFIG_URL + ' was not found. ' + START_HINT);
         }
         if (!response.ok) {

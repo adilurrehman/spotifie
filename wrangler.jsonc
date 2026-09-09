@@ -1,0 +1,49 @@
+{
+    // Spotifie, published as a static site on Cloudflare Workers.
+    //
+    // What is deployed is the sanitized public build and nothing else. It is
+    // produced by `npm run build:public`, which copies an allowlist into
+    // public-release/dist - so the administrator pages, the admin modules, the
+    // tests, this project's own Supabase settings and every trace of a local
+    // library are absent by construction rather than by being filtered here.
+    //
+    // The release also contains the Node server that can run it locally.
+    // Cloudflare does not run that server, and .assetsignore inside the
+    // directory keeps it - and lib/, package.json and supabase-setup.sql - out
+    // of the upload, so no server source and no database schema is ever served
+    // as a downloadable file.
+    //
+    // Nothing secret belongs in this file. It is read at build time, it is
+    // committed, and the only Supabase values Spotifie ever puts in a browser
+    // are the project URL and the anon key, which are public by design. A
+    // service-role key must never appear here or anywhere near a browser.
+    "$schema": "./node_modules/wrangler/config-schema.json",
+    "name": "spotifie",
+    "compatibility_date": "2026-09-09",
+
+    "assets": {
+        // Exactly what `npm run build:public` writes.
+        "directory": "./public-release/dist",
+
+        // No single-page fallback, on purpose. Every address this application
+        // offers is a real file - index.html, about.html, developer.html and
+        // the four authentication pages - and the player never changes the
+        // path it is on: it pushes state without a URL. Rewriting unknown
+        // addresses to index.html would answer a genuine mistake with a
+        // working page and hide it, so a request for something that is not
+        // here is answered as what it is.
+        "not_found_handling": "none",
+
+        // Cloudflare's own default, kept because it is the only setting that
+        // answers the site root at all: "none" serves a file for every address
+        // written exactly as written and nothing for "/", which is the one
+        // address every visitor arrives at. The cost is a redirect from
+        // /about.html to /about, which costs a round trip and changes nothing
+        // a visitor sees.
+        "html_handling": "auto-trailing-slash"
+    },
+
+    "observability": {
+        "enabled": true
+    }
+}

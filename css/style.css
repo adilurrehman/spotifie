@@ -1026,13 +1026,6 @@
     border-color: #1db954;
 }
 
-/* Song badge (Local tag) */
-[data-theme="light"] .song-badge,
-[data-theme="light"] .add-songs-item-badge {
-    background-color: rgba(29, 185, 84, 0.15);
-    color: #1db954;
-}
-
 /* Add songs actions footer */
 [data-theme="light"] .add-songs-actions {
     background-color: var(--bg-elevated);
@@ -1095,10 +1088,6 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
-[data-theme="light"] .search-section-title {
-    color: var(--text-secondary);
-}
-
 [data-theme="light"] .search-result-item {
     color: var(--text-primary);
 }
@@ -1107,20 +1096,11 @@
     background-color: var(--bg-hover);
 }
 
-[data-theme="light"] .search-result-name {
-    color: var(--text-primary);
-}
-
 [data-theme="light"] .search-result-title {
     color: var(--text-primary);
 }
 
 [data-theme="light"] .search-result-meta {
-    color: var(--text-secondary);
-}
-
-[data-theme="light"] .search-result-album,
-[data-theme="light"] .search-result-artist {
     color: var(--text-secondary);
 }
 
@@ -1898,6 +1878,9 @@ button:focus-visible {
 :root {
     --layer-modal: 2000;
     --layer-modal-over-modal: 2010;
+    /* A message about what just happened sits above whatever it happened in,
+       including a dialog. It blocks nothing and leaves by itself. */
+    --layer-toast: 2100;
 }
 
 .modal {
@@ -2717,13 +2700,6 @@ button:focus-visible {
 
 [data-theme="light"] .song-menu-btn:hover {
     color: var(--text-primary);
-}
-
-/* Touch device support for song menu */
-@media (hover: none), (pointer: coarse) {
-    .song-menu-btn {
-        opacity: 0.7;
-    }
 }
 
 /* User added song indicator */
@@ -3752,8 +3728,6 @@ body {
 
 }
 
-@media screen and (max-width: 620px) {
-}
 
 @media screen and (max-width: 545px) {
 
@@ -3984,7 +3958,7 @@ body {
     border-radius: 8px;
     font-size: 14px;
     font-weight: 500;
-    z-index: 10000;
+    z-index: var(--layer-toast);
     animation: slideUpFade 0.3s ease-out;
     max-width: 90%;
     text-align: center;
@@ -4010,10 +3984,6 @@ body {
         opacity: 1;
         transform: translateX(-50%) translateY(0);
     }
-}
-
-.toast-notification.fade-out {
-    animation: slideDownFade 0.3s ease-in forwards;
 }
 
 @keyframes slideDownFade {
@@ -4892,7 +4862,6 @@ body {
 [data-theme="light"] .device-scan-detail {
     color: var(--text-secondary);
 }
-
 
 
 /* ==================== What a control looks like when it is used ====================
@@ -7099,24 +7068,6 @@ img[src$="img/music.svg"],
     }
 }
 
-/* ---- the album being opened ----
-   The hero, at the size the hero will be. */
-.skeleton-hero-art {
-    width: clamp(160px, 17vw, 240px);
-    aspect-ratio: 1;
-    max-width: 100%;
-    border-radius: 8px;
-}
-
-/* A list of placeholders is one thing waiting, not a list of things. */
-.skeleton-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 4px;
-}
-
 @media screen and (max-width: 620px) {
     .skeleton-track {
         grid-template-columns: 22px 40px minmax(0, 1fr) 44px;
@@ -7198,8 +7149,12 @@ img[src$="img/music.svg"],
     }
 
     /* A row's options button is not something to hunt for on a screen that
-       cannot hover: it is simply there. */
-    .song-menu-btn {
+       cannot hover: it is simply there. Named for both themes, because the
+       light theme sets its own opacity on this button and would otherwise win
+       on specificity and leave it faded on exactly the screens that cannot
+       hover to un-fade it. */
+    .song-menu-btn,
+    [data-theme="light"] .song-menu-btn {
         opacity: 1;
     }
 
@@ -7225,4 +7180,34 @@ img[src$="img/music.svg"],
 /* A slider is followed while it is being used, so its handle is marked too. */
 .volumeRange:focus-visible::-webkit-slider-thumb {
     box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+
+/* ==========================================================================
+   When the music on this device cannot be reached
+   --------------------------------------------------------------------------
+   A published copy of Spotifie has no helper on the machine it is being read
+   on, so there is nothing to ask about the music there. The collection stays
+   exactly where it is - same card, same name, same place in the grid - and
+   says so in the line that usually holds a count.
+
+   Deliberately quiet. This is an ordinary state of an application that runs in
+   two places, not a failure: somebody browsing the published catalogue from a
+   phone is not doing anything wrong, and a warning would suggest they were.
+   ========================================================================== */
+
+.local-music-unavailable .local-music-card .card-art {
+    opacity: 0.55;
+}
+
+.local-music-unavailable .local-music-card p {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* The controls that would ask the helper something are not offered when there
+   is nothing to ask. */
+.local-music-unavailable .local-music-card .play,
+.local-music-unavailable .local-music-card .card-menu {
+    display: none;
 }

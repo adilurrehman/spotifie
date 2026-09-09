@@ -442,6 +442,10 @@ function releaseFiles() {
     const walk = (directory) => {
         for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
             const full = path.join(directory, entry.name);
+            // Whatever a released server wrote while this file was running it.
+            // It is this test's leavings rather than part of the release, and
+            // the assertions below are about what the build produced.
+            if (entry.name === '.spotifie') continue;
             if (entry.isDirectory()) walk(full);
             else files.push(path.relative(OUT, full).split(path.sep).join('/'));
         }
@@ -558,6 +562,16 @@ after(async () => {
     if (!releaseServerPromise) return;
     const started = await releaseServerPromise;
     started.child.kill();
+
+    // And the working data it wrote goes with it.
+    //
+    // A Spotifie keeps its index and its device state beside itself, so a
+    // release started from its own directory - which is what starting it here
+    // does - leaves a .spotifie there. That belongs to this test rather than
+    // to the release, and a release with one in it is a release that would
+    // publish somebody's library state. It is removed here so the directory is
+    // left exactly as the build wrote it.
+    fs.rmSync(path.join(OUT, '.spotifie'), { recursive: true, force: true });
 });
 
 function ask(port, pathname, method) {

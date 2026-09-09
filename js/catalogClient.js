@@ -115,20 +115,99 @@
         return this._request(this.baseUrl + '/status');
     };
 
-    CatalogClient.prototype.getTracks = function (options) {
-        var url = this.baseUrl + '/tracks' + this._query(options);
+    /**
+     * The published catalogue, from whichever half of Spotifie is running.
+     *
+     * A Spotifie server assembles it and hands it over, which is the path
+     * whenever there is one. A published copy has no server, so the same two
+     * tables are read straight from Supabase - the rows are public and the
+     * browser holds the key that may read them and change nothing.
+     *
+     * Both answer the same shape, so nothing above here learns which it was.
+     */
+    CatalogClient.prototype._catalogue = function (kind, options) {
+        var url = this.baseUrl + '/' + kind + this._query(options);
         var self = this;
+
         return this._shared(url, function () {
-            return self._request(url);
+            return self._request(url).catch(function (error) {
+                // A route that is not there is a copy with no server, not a
+                // failure. Anything else - refused, broken, unreachable - is
+                // passed on, because pretending otherwise would hide it.
+                if (error.status !== 404) throw error;
+                return self._fromCloud(kind);
+            });
         });
     };
 
-    CatalogClient.prototype.getAlbums = function (options) {
-        var url = this.baseUrl + '/albums' + this._query(options);
+    /** Everything published, read from Supabase and shaped as a server would. */
+    CatalogClient.prototype._fromCloud = function (kind) {
         var self = this;
-        return this._shared(url, function () {
-            return self._request(url);
+
+        return this._cloudCatalogue().then(function (catalogue) {
+            if (!catalogue) {
+                var missing = new Error('The published catalogue is not reachable from here.');
+                missing.status = 503;
+                throw missing;
+            }
+
+            return catalogue.read().then(function (answer) {
+                var items = kind === 'albums' ? answer.albums : answer.tracks;
+                self._cloud = catalogue;
+
+                return {
+                    total: items.length,
+                    items: items,
+                    sources: {
+                        local: { available: false, trackCount: 0, error: null },
+                        global: { available: true, trackCount: answer.tracks.length, error: null }
+                    }
+                };
+            });
         });
+    };
+
+    /**
+     * The reader for a copy with no server, made once.
+     *
+     * Needs a signed-in-or-not Supabase client, which the page already has for
+     * authentication - so there is one key, one session and one place that
+     * knows anything about Supabase.
+     */
+    CatalogClient.prototype._cloudCatalogue = function () {
+        var self = this;
+        if (this._cloudPromise) return this._cloudPromise;
+
+        var auth = typeof window !== 'undefined' ? window.spotifieAuth : null;
+        var Catalogue = typeof window !== 'undefined' ? window.SpotifieCloudCatalog : null;
+
+        if (!auth || !Catalogue) return Promise.resolve(null);
+
+        this._cloudPromise = auth
+            .tryGetClient()
+            .then(function (supabase) {
+                if (!supabase) return null;
+                self._cloud = new Catalogue({ client: supabase });
+                return self._cloud;
+            })
+            .catch(function () {
+                return null;
+            });
+
+        return this._cloudPromise;
+    };
+
+    /** The reader in use, when there is one. Used to resolve media addresses. */
+    CatalogClient.prototype.cloudCatalogue = function () {
+        return this._cloud || null;
+    };
+
+    CatalogClient.prototype.getTracks = function (options) {
+        return this._catalogue('tracks', options);
+    };
+
+    CatalogClient.prototype.getAlbums = function (options) {
+        return this._catalogue('albums', options);
     };
 
     /**
@@ -170,7 +249,21 @@
             return Promise.resolve(cached.url);
         }
 
-        return this._request(this.baseUrl + '/tracks/' + encodeURIComponent(trackId) + '/stream').then(function (result) {
+        return this._request(this.baseUrl + '/tracks/' + encodeURIComponent(trackId) + '/stream')
+            .catch(function (error) {
+                // No server to ask. A published copy signs the address itself,
+                // for a published song; a song on somebody's device is not
+                // reachable from here at all, and says so by answering nothing.
+                if (error.status !== 404) throw error;
+
+                var cloud = self.cloudCatalogue();
+                if (!cloud) return null;
+
+                return cloud.resolveAudio(trackId).then(function (signed) {
+                    return signed ? { url: signed, expiresIn: 3600 } : null;
+                });
+            })
+            .then(function (result) {
             if (!result || !result.url) return null;
             if (result.expiresIn) {
                 // Refresh a minute before Supabase expires the signature.
@@ -196,6 +289,13 @@
      */
     CatalogClient.prototype.artworkImageUrl = function (id, options) {
         if (!id) return null;
+
+        // This address is served by a Spotifie server, and a published copy
+        // has none: it would answer nothing, and the picture would fall back
+        // to the default while a perfectly good one waited in storage.
+        // Answering null here sends the caller to the signed address instead,
+        // which is the one that works where there is no server.
+        if (this._cloud) return null;
 
         var settings = options || {};
         var kind = settings.kind === 'album' ? 'albums' : 'tracks';
@@ -223,6 +323,22 @@
         this.mediaCache.delete('artwork:' + id);
 
         return this._request(this.baseUrl + '/' + kind + '/' + encodeURIComponent(id) + '/artwork')
+            .catch(function (error) {
+                // No server to ask. A published copy signs an address for the
+                // picture itself, from the same storage the server would have
+                // signed one from - and gets the fallback if there is nothing
+                // there, exactly as it would have.
+                if (error.status !== 404) throw error;
+
+                var cloud = self.cloudCatalogue();
+                if (!cloud) return null;
+
+                return cloud.resolveArtwork(id).then(function (signed) {
+                    // Answered in the shape the server answers, so what follows
+                    // does not care which of the two signed it.
+                    return signed ? { url: signed, expiresIn: 3600 } : null;
+                });
+            })
             .then(function (result) {
                 var url = result && result.url;
                 if (!url) return fallback;
