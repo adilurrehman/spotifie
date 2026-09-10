@@ -1124,8 +1124,8 @@ test('an answer that never arrived is not remembered as a no', () => {
 
     // A session still settling is the usual reason, and it is worth exactly
     // one more attempt - never a loop.
-    assert.match(check, /if \(verified === null\) \{[\s\S]{0,220}retried: true/);
-    assert.match(check, /if \(settings\.retried\) return false;/);
+    assert.match(check, /if \(verified === null\) \{[\s\S]{0,400}retried: true/);
+    assert.match(check, /if \(settings\.retried\) \{[\s\S]{0,160}return false;/);
 
     // Only a real answer is kept, and only for the account it was about.
     assert.match(check, /adminAnswer = \{ userId: userId, verified: verified \};/);
@@ -1413,11 +1413,14 @@ test('an administrator gets the item, and it does not wait for a refresh', async
     assert.ok(client.asked.indexOf('is_admin()') !== -1, 'the narrowest question was the one asked');
     assert.ok(client.asked.indexOf('is_admin(uid)') === -1, 'and once it answered, nothing else was');
 
-    // And said what happened, once, naming the account and nothing else.
-    assert.ok(
-        loaded.logs.some((line) => line.indexOf('is_admin() says true for admin-0001') !== -1),
-        'the answer is reported'
-    );
+    // And said what happened, in the safe diagnostic shape: the session, the
+    // account id, the answer the database gave, and the decision - never a
+    // token, a key or anything that could be used to sign in.
+    assert.ok(loaded.logs.some((line) => line === '[admin] session: yes'), 'the session is reported');
+    assert.ok(loaded.logs.some((line) => line === '[admin] uid: admin-0001'), 'the account is reported');
+    assert.ok(loaded.logs.some((line) => line === '[admin] rpc data: true (is_admin())'), 'the answer is reported');
+    assert.ok(loaded.logs.some((line) => line === '[admin] verifiedAdmin: true'), 'the decision is reported');
+    assert.ok(loaded.logs.some((line) => line === '[admin] menu rerender'), 'the rerender is reported');
     assert.ok(!loaded.logs.some((line) => /token|apikey|Bearer|eyJ/i.test(line)), 'and nothing that could be used');
 });
 
@@ -1521,6 +1524,72 @@ test('signing out takes it away', async () => {
 
     assert.strictEqual(page.elements.get('dashboardLink').style.display, 'none');
     assert.strictEqual(await loaded.auth.isAdmin(), false);
+});
+
+test('a session restored after the first render brings the item in, without a refresh', async () => {
+    // The order incognito actually produces: the page renders before Supabase
+    // has restored the session, so the header is drawn signed-out, and the
+    // session (and the admin answer) arrive a moment later. The item must
+    // appear then, on its own.
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: null,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'none', 'signed out at first');
+
+    // Supabase restores the session and announces it, exactly as it does on a
+    // real load once storage has been read.
+    client.signIn(ADMIN_SESSION);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex', 'and the item arrives on its own');
+});
+
+test('a guest never sees the item', async () => {
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({ session: null });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'none');
+    assert.strictEqual(await loaded.auth.isAdmin(), false);
+});
+
+test('the diagnostics say what happened and never a token', async () => {
+    // The failure was impossible to see from outside, so the worker of last
+    // resort is a clear line in the console. These are the lines, and the one
+    // thing that must never be among them.
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        // The zero-argument function is missing, as on a database that has not
+        // had the current schema applied; the fallback by id answers.
+        rpc: (name, args) => {
+            if (name !== 'is_admin') return null;
+            if (!args) return { data: null, error: { message: 'Could not find the function public.is_admin' } };
+            return { data: args.uid === 'admin-0001', error: null };
+        }
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.ok(loaded.logs.some((line) => line === '[admin] session: yes'));
+    assert.ok(loaded.logs.some((line) => line === '[admin] uid: admin-0001'));
+    assert.ok(loaded.logs.some((line) => /^\[admin\] rpc error: is_admin\(\):/.test(line)), 'the missing function is named');
+    assert.ok(loaded.logs.some((line) => line === '[admin] rpc data: true (is_admin(uid))'), 'the fallback answered');
+    assert.ok(loaded.logs.some((line) => line === '[admin] verifiedAdmin: true'));
+    assert.ok(!loaded.logs.some((line) => /token|apikey|Bearer|eyJ|access_token/i.test(line)), 'never a token');
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex');
 });
 
 test('the database answers this about the caller, and says nothing else', () => {

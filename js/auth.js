@@ -561,6 +561,7 @@
         const settings = options || {};
         const session = await getSession();
         if (!session || !session.user) {
+            if (!settings.retried) console.info('[admin] session: no');
             adminAnswer = { userId: null, verified: null };
             return false;
         }
@@ -570,19 +571,32 @@
             return adminAnswer.verified;
         }
 
+        if (!settings.retried) {
+            // The account id, never the token: an id says who the answer is
+            // about and grants nothing; a token would be a way in.
+            console.info('[admin] session: yes');
+            console.info('[admin] uid: ' + userId);
+        }
+
         const client = await tryGetClient();
         if (!client) return false;
 
         const verified = await askDatabaseAboutAdmin(client, userId);
 
         // Only a real answer is remembered. A session that was still settling
-        // when this was asked gets one more chance rather than a permanent no.
+        // when this was asked gets one more chance rather than a permanent no -
+        // which is what stops a slow first answer being cached as "not an
+        // administrator" for the rest of the visit.
         if (verified === null) {
-            if (settings.retried) return false;
+            if (settings.retried) {
+                console.info('[admin] verifiedAdmin: false (could not reach the database)');
+                return false;
+            }
             await new Promise((resolve) => setTimeout(resolve, 400));
             return isAdmin({ refresh: true, retried: true });
         }
 
+        console.info('[admin] verifiedAdmin: ' + verified);
         adminAnswer = { userId: userId, verified: verified };
         return verified;
     }
@@ -645,18 +659,17 @@
      * in it because that is what the answer is about; nothing else is - no
      * token, no key, no session.
      */
-    let adminDiagnosticFor = null;
-
     function adminDiagnostic(userId, how, verified, problem) {
-        if (adminDiagnosticFor === userId && verified === null) return;
-        if (verified !== null) adminDiagnosticFor = userId;
-
         if (problem) {
-            console.info('Spotifie admin check: ' + how + ' could not answer for ' + userId + ': ' + problem);
+            // Which way of asking could not answer, and why. The zero-argument
+            // function being absent is the expected first line on a project
+            // whose database has not had the current schema applied yet - the
+            // next line shows the fallback answering.
+            console.info('[admin] rpc error: ' + how + ': ' + problem);
             return;
         }
 
-        console.info('Spotifie admin check: ' + how + ' says ' + verified + ' for ' + userId);
+        console.info('[admin] rpc data: ' + verified + ' (' + how + ')');
     }
 
     // ============================================
@@ -910,6 +923,7 @@
                     // it looks like by then is what gets the item - and an
                     // answer about somebody who has since signed out, or been
                     // replaced, changes nothing.
+                    console.info('[admin] menu rerender');
                     applyAdminUI();
                 })
                 .catch((error) => {
