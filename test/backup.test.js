@@ -802,7 +802,7 @@ test('the app shell is kept, and no audio is', () => {
     // opening a page ends in a real response: the network, then the copy of
     // that page, then the copy of the application, then a page saying it is
     // offline. Never a rejection, and never nothing at all.
-    const opening = worker.slice(worker.indexOf('function openApplication'), worker.indexOf('function openAsset'));
+    const opening = worker.slice(worker.indexOf('function openApplication'), worker.indexOf('function openCode'));
     assert.match(opening, /cached \|\| cache\.match\(APP_SHELL\)/);
     assert.match(opening, /cached \|\| offlinePage\(\)/);
     assert.ok(!/Response\.error\(\)/.test(opening), 'a page is never answered with a failure');

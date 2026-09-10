@@ -38,7 +38,7 @@
 'use strict';
 
 /** Raise this to retire every previous cache. */
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const SHELL_CACHE = 'spotifie-shell-' + CACHE_VERSION;
 
 /**
@@ -212,6 +212,33 @@ function openApplication(request) {
 }
 
 /**
+ * Code, asked for the same way the page was.
+ *
+ * A page comes from the network and its scripts must come from the same place,
+ * or a release can be half old: a new page loading a script from before it, or
+ * the other way round. That is not theoretical - it is how a sign-in page came
+ * to call something its own script did not have yet, and to sit forever saying
+ * it was redirecting.
+ *
+ * The cached copy is still there for a device with no network, which is what
+ * it is for.
+ */
+function openCode(request) {
+    return caches.open(SHELL_CACHE).then((cache) =>
+        fetch(request)
+            .then((response) => {
+                if (response && response.ok && response.type === 'basic') {
+                    cache.put(request, response.clone()).catch(() => {
+                        /* a full cache is not a failed request */
+                    });
+                }
+                return response;
+            })
+            .catch(() => cache.match(request).then((cached) => cached || Response.error()))
+    );
+}
+
+/**
  * Answer from the cache and check afterwards.
  *
  * For everything that is not a page: what is held goes up at once, and what is
@@ -264,6 +291,15 @@ self.addEventListener('fetch', (event) => {
     }
 
     if (isAlwaysLive(url) || isAudio(url, request)) return;
+
+    // Scripts and stylesheets belong to the page that asked for them, so they
+    // are fetched the way the page was. Pictures, fonts and the manifest do
+    // not change with a release in a way that can break anything, and are
+    // still answered from what is held.
+    if (request.destination === 'script' || request.destination === 'style') {
+        event.respondWith(openCode(request));
+        return;
+    }
 
     event.respondWith(openAsset(request));
 });

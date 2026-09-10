@@ -1152,6 +1152,16 @@ function platformSaysLocalMusic(state) {
 
 /** The browser's own reader for the music on this device, when there is one. */
 function getBrowserLibrary() {
+    // Only where there is nothing better.
+    //
+    // A copy running from its own server has a helper that can read the music
+    // folders somebody has already approved, all of them, without asking for a
+    // folder every time. A published copy has no such thing, and one folder
+    // chosen from a picker is the whole of what a browser can offer. Mixing
+    // the two would mean the same machine answering two different ways
+    // depending on which page happened to ask.
+    if (!isPublishedCopy()) return null;
+
     const library = window.spotifieBrowserLibrary;
     return library && library.supported() ? library : null;
 }
@@ -8314,6 +8324,18 @@ async function refreshLocalManager() {
     const client = getCatalogClient();
     if (!client) return;
 
+    // Where the music on this device is read from decides what this shows.
+    //
+    // A browser that can be handed a folder is the whole story on a published
+    // copy: the folders somebody chose, the songs in them, and no helper
+    // anywhere in it. Looking for one first would be a request to a machine
+    // that is usually not there, and the message about Spotifie not running
+    // here would be answering a question nobody asked.
+    if (getBrowserLibrary()) {
+        await refreshBrowserManager();
+        return;
+    }
+
     // Opening this is somebody asking about the music on their device, which
     // is the moment a published copy goes looking for a helper - and the only
     // moment. A copy running from its own server has already found one.
@@ -8364,6 +8386,61 @@ async function refreshLocalManager() {
     ['localHealth', 'localLocations', 'localTracks'].forEach((id) =>
         clearSkeleton(document.getElementById(id))
     );
+}
+
+/**
+ * The manager, for a copy that reads this device through the browser.
+ *
+ * The same panels, filled from the folders somebody handed over rather than
+ * from a server: how many songs there are, where they came from, when each
+ * folder was last looked at, and which of them the browser would want a word
+ * about before it could be read again.
+ */
+async function refreshBrowserManager() {
+    const library = getBrowserLibrary();
+    if (!library) return;
+
+    await library.load();
+
+    const folders = library.folders();
+
+    localManager.tracks = Object.keys(window.libraryTracks || {})
+        .map((id) => window.libraryTracks[id])
+        .filter((track) => track && track.source === 'local');
+
+    localManager.unavailable = unavailableCollectionTracks();
+
+    const lastScanAt = folders.reduce((latest, folder) => Math.max(latest, folder.lastScanAt || 0), 0);
+
+    localManager.health = {
+        device: {
+            trackCount: localManager.tracks.length,
+            locationCount: folders.length
+        },
+        lastReconciledAt: lastScanAt ? new Date(lastScanAt).toISOString() : null,
+        lastScanAt: lastScanAt ? new Date(lastScanAt).toISOString() : null
+    };
+
+    localManager.locations = folders.map((folder) => ({
+        id: folder.id,
+        label: folder.name,
+        trackCount: folder.trackCount,
+        lastScanAt: folder.lastScanAt ? new Date(folder.lastScanAt).toISOString() : null,
+        needsPermission: folder.needsPermission
+    }));
+
+    // Two songs that are the same file are one song here already: a folder is
+    // indexed by where each file sits inside it, so there is nothing to
+    // report and nothing to clean up.
+    localManager.duplicates = null;
+
+    renderLocalHealth();
+    renderLocalLocations();
+    renderLocalTracks();
+    renderLocalUnavailable();
+    renderLocalDuplicates();
+
+    ['localHealth', 'localLocations', 'localTracks'].forEach((id) => clearSkeleton(document.getElementById(id)));
 }
 
 /**
@@ -8474,7 +8551,11 @@ function renderLocalLocations() {
             meta.className = 'local-location-meta';
             meta.textContent =
                 location.trackCount + (location.trackCount === 1 ? ' song' : ' songs') +
-                ' · looked at ' + describeWhen(location.lastScanAt);
+                ' · looked at ' + describeWhen(location.lastScanAt) +
+                // A folder the browser wants a word about before it can be
+                // read again. Its songs are still listed; choosing it in a
+                // rescan is what reconnects it.
+                (location.needsPermission ? ' · needs reconnecting' : '');
 
             main.append(label, meta);
 
@@ -8705,7 +8786,16 @@ async function onLocalLocationClick(event) {
     button.textContent = 'Working…';
 
     try {
-        await client._request('/api/library/locations/' + encodeURIComponent(location.id), { method: 'DELETE' });
+        // A folder the browser handed over is forgotten here rather than by a
+        // server: the record goes, its songs leave Local Music, and the files
+        // themselves are not touched by any of it.
+        const library = getBrowserLibrary();
+        if (library) {
+            await library.forget(location.id);
+        } else {
+            await client._request('/api/library/locations/' + encodeURIComponent(location.id), { method: 'DELETE' });
+        }
+
         showToast('Spotifie will not look in ' + location.label + ' any more');
 
         await refreshAfterDeviceChange();
@@ -8837,6 +8927,25 @@ async function bulkAddToAlbum() {
 async function runLocalScan(options) {
     const settings = options || {};
     const state = document.getElementById('localScanState');
+    const library = getBrowserLibrary();
+
+    // Two different questions, and on a copy that reads through the browser
+    // they have two different answers.
+    //
+    // Rescanning means choosing a folder, because a page cannot look anywhere
+    // it has not been pointed at, and pretending otherwise is how somebody
+    // ends up pressing a button that quietly does nothing. Checking for
+    // changes means looking again at the folders already handed over, which
+    // needs no picker and no permission that was not already given.
+    if (library) {
+        if (settings.mode === 'full') {
+            await rescanBrowserFolder();
+            return;
+        }
+
+        await checkBrowserFolders();
+        return;
+    }
 
     if (state) {
         state.classList.remove('hidden');
@@ -8857,6 +8966,96 @@ async function runLocalScan(options) {
         if (state) state.textContent = 'Could not search this device.';
     } finally {
         document.getElementById('localCancelScanBtn')?.classList.add('hidden');
+    }
+}
+
+/**
+ * Rescan: choose the folder, then read it again.
+ *
+ * Always the picker, whether or not the folder is one Spotifie already knows.
+ * Choosing one it knows is a rescan of that folder alone - new songs appear,
+ * deleted ones go, and nothing in any other folder is touched. Choosing a new
+ * one adds it.
+ */
+async function rescanBrowserFolder() {
+    const library = getBrowserLibrary();
+    if (!library) return false;
+
+    const state = document.getElementById('localScanState');
+    const known = library.folders().length;
+
+    if (state) {
+        state.classList.remove('hidden');
+        state.textContent = 'Choose the folder to look at…';
+    }
+
+    try {
+        const summary = await library.chooseFolder();
+
+        await refreshAfterDeviceChange();
+        await refreshLocalManager();
+        updateScanMenuLabel();
+        markLocalMusicAvailable();
+        platformSaysLocalMusic('available');
+
+        const added = summary.added || 0;
+        const removed = summary.removed || 0;
+
+        if (state) {
+            state.textContent =
+                library.folders().length > known
+                    ? summary.folder + ' added · ' + summary.trackCount + ' songs'
+                    : 'Up to date · ' + added + ' new, ' + removed + ' gone';
+        }
+
+        showToast(
+            library.folders().length > known
+                ? summary.folder + ' added to Local Music'
+                : summary.folder + ' checked · ' + added + ' new, ' + removed + ' gone'
+        );
+        return true;
+    } catch (error) {
+        // Closing the picker is an answer, not a fault.
+        const closed = error && (error.name === 'AbortError' || error.name === 'NotAllowedError');
+        if (state) state.textContent = closed ? 'Nothing chosen.' : 'That folder could not be read.';
+        return false;
+    }
+}
+
+/**
+ * Check for changes: the folders already handed over, and no picker.
+ *
+ * Cheap on purpose - a file whose name, size and modified time have not moved
+ * is not opened at all. A folder the browser now wants a word about is left
+ * alone and said to need reconnecting, rather than emptied.
+ */
+async function checkBrowserFolders() {
+    const library = getBrowserLibrary();
+    if (!library) return false;
+
+    const state = document.getElementById('localScanState');
+    if (state) {
+        state.classList.remove('hidden');
+        state.textContent = 'Checking for changes…';
+    }
+
+    try {
+        const summary = await library.refresh();
+
+        await refreshAfterDeviceChange();
+        await refreshLocalManager();
+
+        if (state) {
+            state.textContent = summary.needsPermission
+                ? summary.needsPermission +
+                  (summary.needsPermission === 1 ? ' folder needs' : ' folders need') +
+                  ' reconnecting - rescan to choose it again'
+                : 'Up to date · ' + (summary.added || 0) + ' new, ' + (summary.removed || 0) + ' gone';
+        }
+        return true;
+    } catch (error) {
+        if (state) state.textContent = 'Could not check those folders.';
+        return false;
     }
 }
 

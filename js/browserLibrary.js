@@ -130,7 +130,13 @@
                 try {
                     folders.put(folder);
                 } catch (e) {
-                    folders.put({ id: folder.id, name: folder.name, handle: null, addedAt: folder.addedAt });
+                    folders.put({
+                        id: folder.id,
+                        name: folder.name,
+                        handle: null,
+                        addedAt: folder.addedAt,
+                        lastScanAt: folder.lastScanAt || null
+                    });
                 }
 
                 // Everything this folder used to hold goes, and what it holds
@@ -481,6 +487,13 @@
     function asTrack(row) {
         var guessed = fromFileName(row.name);
 
+        // Which of the chosen folders this came out of. The manager lists
+        // folders and songs together, and a song that could not say where it
+        // came from could not be taken away with its folder either.
+        var folder = state.folders.filter(function (known) {
+            return known.id === row.folderId;
+        })[0];
+
         return {
             id: row.id,
             source: 'local',
@@ -503,7 +516,9 @@
                 hasArtwork: false,
                 fileName: row.name,
                 size: row.size,
-                addedAt: row.addedAt || null
+                addedAt: row.addedAt || null,
+                folderId: row.folderId,
+                folderName: folder ? folder.name : null
             }
         };
     }
@@ -547,7 +562,25 @@
     /** Which folders are here, and whether they can be read right now. */
     function folders() {
         return state.folders.map(function (folder) {
-            return { id: folder.id, name: folder.name, addedAt: folder.addedAt, trackCount: countIn(folder.id) };
+            return {
+                id: folder.id,
+                name: folder.name,
+                addedAt: folder.addedAt,
+                // When this folder was last looked at, and whether it can be
+                // looked at now: a browser can take its permission back at any
+                // time, and a folder in that state is one to reconnect rather
+                // than one that has gone.
+                lastScanAt: folder.lastScanAt || null,
+                needsPermission: Boolean(folder.needsPermission),
+                trackCount: countIn(folder.id)
+            };
+        });
+    }
+
+    /** Say a folder cannot be read at the moment, without losing its songs. */
+    function markNeedsPermission(folderId, needs) {
+        state.folders.forEach(function (folder) {
+            if (folder.id === folderId) folder.needsPermission = Boolean(needs);
         });
     }
 
@@ -631,25 +664,55 @@
             return row.folderId === folder.id;
         });
 
+        var known = new Set(
+            existing.map(function (row) {
+                return row.id;
+            })
+        );
+
         return index(folder, existing)
             .then(function (rows) {
+                folder.lastScanAt = Date.now();
+                folder.needsPermission = false;
+
                 return writeFolder(
-                    { id: folder.id, name: folder.name, handle: folder.handle, addedAt: folder.addedAt },
+                    {
+                        id: folder.id,
+                        name: folder.name,
+                        handle: folder.handle,
+                        addedAt: folder.addedAt,
+                        lastScanAt: folder.lastScanAt
+                    },
                     rows
                 ).then(function () {
                     state.folders = state.folders
-                        .filter(function (known) {
-                            return known.id !== folder.id;
+                        .filter(function (existingFolder) {
+                            return existingFolder.id !== folder.id;
                         })
                         .concat([folder]);
 
+                    // What this folder holds now, in place of what it held.
+                    // A song still there keeps the name it had, so a like or a
+                    // playlist entry pointing at it still points at it; one
+                    // that has gone from the folder goes from the library; and
+                    // no other folder is touched.
                     state.tracks = state.tracks
                         .filter(function (row) {
                             return row.folderId !== folder.id;
                         })
                         .concat(rows);
 
-                    return { folder: folder.name, trackCount: rows.length, total: state.tracks.length };
+                    var added = rows.filter(function (row) {
+                        return !known.has(row.id);
+                    }).length;
+
+                    return {
+                        folder: folder.name,
+                        trackCount: rows.length,
+                        added: added,
+                        removed: Math.max(0, existing.length - (rows.length - added)),
+                        total: state.tracks.length
+                    };
                 });
             })
             .finally(function () {
@@ -667,7 +730,7 @@
      * rather than on every page load forever.
      */
     function refresh() {
-        if (!supported()) return Promise.resolve({ scanned: 0, needsPermission: 0 });
+        if (!supported()) return Promise.resolve({ scanned: 0, needsPermission: 0, added: 0, removed: 0 });
 
         return load().then(function () {
             return state.folders.reduce(
@@ -675,13 +738,21 @@
                     return chain.then(function (summary) {
                         return permissionFor(folder).then(function (permission) {
                             if (permission !== 'granted') {
+                                // Kept, listed, and marked as needing a word
+                                // from somebody. Nothing is thrown away for a
+                                // permission that can be given again.
+                                markNeedsPermission(folder.id, true);
                                 summary.needsPermission += 1;
                                 return summary;
                             }
 
+                            markNeedsPermission(folder.id, false);
+
                             return scanFolder(folder)
-                                .then(function () {
+                                .then(function (result) {
                                     summary.scanned += 1;
+                                    summary.added += result.added || 0;
+                                    summary.removed += result.removed || 0;
                                     return summary;
                                 })
                                 .catch(function () {
@@ -690,7 +761,7 @@
                         });
                     });
                 },
-                Promise.resolve({ scanned: 0, needsPermission: 0 })
+                Promise.resolve({ scanned: 0, needsPermission: 0, added: 0, removed: 0 })
             );
         });
     }

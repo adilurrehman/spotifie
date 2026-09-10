@@ -672,6 +672,40 @@
             alertBox.className = 'alert';
         }
 
+        /**
+         * Into the application, once and for certain.
+         *
+         * Creating an account ends here, so this must not be able to fail
+         * quietly. It asks the session code where the application is and falls
+         * back to the root of this origin if that answer is missing - which is
+         * what left people looking at "Redirecting..." forever when a page was
+         * newer than the script it was loaded beside.
+         */
+        let leavingForApp = false;
+
+        function goToApp() {
+            if (leavingForApp) return;
+            leavingForApp = true;
+
+            let target = '/';
+            try {
+                const auth = window.spotifieAuth;
+                if (auth && typeof auth.homeUrl === 'function') target = auth.homeUrl() || '/';
+            } catch (e) {
+                target = '/';
+            }
+
+            try {
+                window.location.replace(target);
+            } catch (e) {
+                window.location.href = target;
+            }
+
+            setTimeout(() => {
+                if (window.location.href !== target) window.location.href = target;
+            }, 1200);
+        }
+
         // Clear errors on input
         emailInput.addEventListener('input', () => {
             emailInput.classList.remove('error');
@@ -737,9 +771,7 @@
                     }, 2500);
                 } else if (result.success) {
                     showAlert('Account created successfully! Redirecting...', 'success');
-                    setTimeout(() => {
-                        window.location.replace(window.spotifieAuth.homeUrl());
-                    }, 1500);
+                    goToApp();
                 } else {
                     showAlert(result.error || 'Failed to create account. Please try again.', 'error');
                 }
@@ -763,9 +795,7 @@
             }
 
             const session = await window.spotifieAuth.getSession();
-            if (session) {
-                window.location.replace(window.spotifieAuth.homeUrl());
-            }
+            if (session) goToApp();
         });
     </script>
 </body>

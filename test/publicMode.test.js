@@ -697,7 +697,7 @@ test('the music on a device is asked of that device, never of the host', async (
 const WORKER = source('sw.js');
 
 test('a page is asked of the network first, and answered whatever happens', () => {
-    const opening = WORKER.slice(WORKER.indexOf('function openApplication'), WORKER.indexOf('function openAsset'));
+    const opening = WORKER.slice(WORKER.indexOf('function openApplication'), WORKER.indexOf('function openCode'));
 
     // The network first. A document answered from a cache is how an
     // application ends up asking for scripts that a deploy has replaced.
@@ -738,7 +738,7 @@ test('a new worker retires what the old one kept', () => {
     // The broken cache is on the machines of everybody who has opened the
     // site. Retiring it is the version, and taking over at once is what stops
     // a page from being answered by the old worker one more time.
-    assert.match(WORKER, /const CACHE_VERSION = 'v3';/);
+    assert.match(WORKER, /const CACHE_VERSION = 'v4';/);
     assert.match(WORKER, /\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
     assert.match(WORKER, /self\.skipWaiting\(\)/);
     assert.match(WORKER, /self\.clients\.claim\(\)/);
@@ -773,7 +773,8 @@ test('the application has one address, and it is the root', () => {
 test('signing in and out lands on the application, not on a second copy of it', () => {
     ['signin.html', 'signup.html'].forEach((page) => {
         const text = source(page);
-        assert.match(text, /window\.location\.replace\(window\.spotifieAuth\.homeUrl\(\)\)/, page + ' goes home');
+        assert.match(text, /auth\.homeUrl\(\) \|\| '\/'/, page + ' goes home');
+        assert.match(text, /window\.location\.replace\(target\)/, page + ' replaces rather than pushes');
         assert.ok(!/location\.href = 'index\.html'/.test(text), page + ' does not name the file');
     });
 
@@ -886,7 +887,7 @@ test('a folder that would need asking again is left alone, and its songs stay', 
     assert.match(LIBRARY, /queryPermission\(\{ mode: 'read' \}\)/);
 
     const refresh = LIBRARY.slice(LIBRARY.indexOf('function refresh()'), LIBRARY.indexOf('function reconnect()'));
-    assert.match(refresh, /if \(permission !== 'granted'\) \{[\s\S]{0,120}needsPermission \+= 1;/);
+    assert.match(refresh, /if \(permission !== 'granted'\) \{[\s\S]{0,400}needsPermission \+= 1;/);
     assert.ok(!/requestPermission/.test(refresh), 'nothing asks by itself');
 
     const reconnect = LIBRARY.slice(LIBRARY.indexOf('function reconnect()'), LIBRARY.indexOf('function forget('));
@@ -911,4 +912,166 @@ test('a copy with no server reaches its own device without asking any host', () 
     const cloud = client.slice(client.indexOf('CatalogClient.prototype._fromCloud'), client.indexOf('CatalogClient.prototype._cloudCatalogue'));
     assert.match(cloud, /here\.albums\.concat\(answer\.albums\)/);
     assert.match(cloud, /here\.tracks\.concat\(answer\.tracks\)/);
+});
+
+// ============================================
+// Signing in ends somewhere
+// ============================================
+
+/**
+ * "Sign in successful! Redirecting..." and then nothing, forever.
+ *
+ * The page asked the session code where the application was, a second later,
+ * inside a timer - and when that answer was not there, the exception went
+ * nowhere and the person was left reading a sentence about a redirect that was
+ * never going to happen. A page newer than the script cached beside it is all
+ * it took.
+ *
+ * So leaving is immediate, has an answer of its own to fall back on, and
+ * happens once however many things ask for it.
+ */
+
+['signin.html', 'signup.html'].forEach((page) => {
+    test('signing in from ' + page + ' always arrives somewhere', () => {
+        const text = source(page);
+
+        // One way out, and it knows where to go without being told.
+        assert.match(text, /function goToApp\(\)/);
+        assert.match(text, /let target = '\/';/, page + ' has an answer of its own');
+        assert.match(text, /typeof auth\.homeUrl === \x27function\x27/);
+        assert.match(text, /window\.location\.replace\(target\)/);
+
+        // Once. The form and the session check both reach it, and two
+        // navigations would leave a dead page in somebody\x27s history.
+        assert.match(text, /if \(leavingForApp\) return;/);
+
+        // And immediately: nothing is waited for that may already have
+        // happened, and nothing is waited on forever.
+        assert.ok(
+            !/setTimeout\([\s\S]{0,80}location\.replace\(window\.spotifieAuth/.test(text),
+            page + ' does not put the redirect behind a timer'
+        );
+        assert.match(text, /setTimeout\(\(\) => \{\s*if \(window\.location\.href !== target\)/);
+    });
+});
+
+test('a page and the code it loads come from the same release', () => {
+    // A new page beside an old script is what broke signing in: the page
+    // called something the script did not have. Both are fetched, and the
+    // cached copy is what a device with no network falls back on.
+    assert.match(WORKER, /function openCode\(request\)/);
+    assert.match(WORKER, /request\.destination === 'script' \|\| request\.destination === 'style'/);
+
+    const code = WORKER.slice(WORKER.indexOf('function openCode'), WORKER.indexOf('function openAsset'));
+    assert.ok(code.indexOf('fetch(request)') < code.indexOf('cache.match(request)'), 'the network first');
+
+    // And a version that retires what the broken one kept.
+    assert.match(WORKER, /const CACHE_VERSION = 'v4';/);
+});
+
+// ============================================
+// Managing the folders somebody chose
+// ============================================
+
+/**
+ * One model, in every part of the interface.
+ *
+ * On a published copy the music on this device is the folders somebody handed
+ * over - not folders a helper found, and never both at once. The manager shows
+ * those folders and the songs in them, rescanning means choosing a folder, and
+ * checking for changes means looking again at what is already known.
+ */
+
+const PLAYER_SOURCE = source('js', 'script.js');
+
+test('the manager reads this device the way the rest of the copy does', () => {
+    const refresh = PLAYER_SOURCE.slice(
+        PLAYER_SOURCE.indexOf('async function refreshLocalManager()'),
+        PLAYER_SOURCE.indexOf('async function refreshBrowserManager()')
+    );
+
+    // The browser first, and no helper looked for before it - looking would
+    // be a request to a machine that is usually not there, and the message
+    // about Spotifie not running here answers a question nobody asked.
+    const browser = refresh.indexOf('getBrowserLibrary()');
+    const helper = refresh.indexOf('requestLocalMusic()');
+    assert.ok(browser !== -1 && helper !== -1 && browser < helper, 'the browser is asked first');
+    assert.match(refresh, /if \(getBrowserLibrary\(\)\) \{[\s\S]{0,120}refreshBrowserManager\(\);\s*return;/);
+});
+
+test('the manager lists the folders and their songs', () => {
+    const manager = PLAYER_SOURCE.slice(
+        PLAYER_SOURCE.indexOf('async function refreshBrowserManager()'),
+        PLAYER_SOURCE.indexOf('function unavailableCollectionTracks()')
+    );
+
+    // Every folder chosen, with what it holds and when it was last read.
+    assert.match(manager, /library\.folders\(\)/);
+    assert.match(manager, /label: folder\.name/);
+    assert.match(manager, /trackCount: folder\.trackCount/);
+    assert.match(manager, /lastScanAt: folder\.lastScanAt/);
+    assert.match(manager, /needsPermission: folder\.needsPermission/);
+
+    // And every song from every one of them - the library the page is
+    // already holding, which is the union of the managed folders.
+    assert.match(manager, /source === 'local'/);
+    assert.match(manager, /locationCount: folders\.length/);
+
+    // A folder that would need asking again says so rather than vanishing.
+    assert.match(PLAYER_SOURCE, /location\.needsPermission \? ' · needs reconnecting' : ''/);
+});
+
+test('rescanning asks which folder, and checking for changes does not', () => {
+    const scan = PLAYER_SOURCE.slice(
+        PLAYER_SOURCE.indexOf('async function runLocalScan(options)'),
+        PLAYER_SOURCE.indexOf('async function cancelLocalScan()')
+    );
+
+    // Rescan: the picker, every time. A page cannot look anywhere it has
+    // not been pointed at, and a button that quietly does nothing is worse
+    // than one that asks.
+    assert.match(scan, /if \(settings\.mode === 'full'\) \{\s*await rescanBrowserFolder\(\);/);
+    const rescan = PLAYER_SOURCE.slice(
+        PLAYER_SOURCE.indexOf('async function rescanBrowserFolder()'),
+        PLAYER_SOURCE.indexOf('async function checkBrowserFolders()')
+    );
+    assert.match(rescan, /library\.chooseFolder\(\)/);
+
+    // Check for changes: the folders already handed over, no picker.
+    const check = PLAYER_SOURCE.slice(
+        PLAYER_SOURCE.indexOf('async function checkBrowserFolders()'),
+        PLAYER_SOURCE.indexOf('async function cancelLocalScan()')
+    );
+    assert.match(check, /library\.refresh\(\)/);
+    assert.ok(!/chooseFolder\(\)/.test(check), 'nothing is asked for that was already given');
+    assert.match(check, /needsPermission/);
+});
+
+test('forgetting a folder is done here, not asked of a server', () => {
+    const forget = PLAYER_SOURCE.slice(
+        PLAYER_SOURCE.indexOf('async function onLocalLocationClick(event)'),
+        PLAYER_SOURCE.indexOf('function selectedLocalTracks()')
+    );
+
+    assert.match(forget, /library\.forget\(location\.id\)/);
+
+    // The files themselves are never touched, and what somebody put in a
+    // playlist stays in it.
+    assert.match(forget, /No file on your device is deleted/);
+});
+
+test('a rescan of one folder leaves every other folder alone', () => {
+    const scan = LIBRARY.slice(LIBRARY.indexOf('function scanFolder(folder)'), LIBRARY.indexOf('function refresh()'));
+
+    // Only this folder\x27s rows are replaced. A song still there keeps the
+    // name it had, one that has gone goes, and the other folders are not
+    // part of the comparison at all.
+    assert.match(scan, /row\.folderId !== folder\.id/);
+    assert.match(scan, /added: added/);
+    assert.match(scan, /removed: Math\.max\(0, existing\.length - \(rows\.length - added\)\)/);
+
+    // And every song knows which folder it came out of, so it can leave
+    // with that folder and be counted under it.
+    assert.match(LIBRARY, /folderId: row\.folderId/);
+    assert.match(LIBRARY, /folderName: folder \? folder\.name : null/);
 });

@@ -513,6 +513,45 @@
             alertBox.className = 'alert';
         }
 
+        /**
+         * Into the application, once and for certain.
+         *
+         * Signing in ends here, so this must not be able to fail quietly. It
+         * asks the session code where the application is and falls back to the
+         * root of this origin if that answer is missing - which is what left
+         * people looking at "Redirecting..." forever when a page was newer
+         * than the script it was loaded beside.
+         *
+         * Once only: the form and the session check can both reach it, and two
+         * navigations would put a dead entry in somebody's history.
+         */
+        let leavingForApp = false;
+
+        function goToApp() {
+            if (leavingForApp) return;
+            leavingForApp = true;
+
+            let target = '/';
+            try {
+                const auth = window.spotifieAuth;
+                if (auth && typeof auth.homeUrl === 'function') target = auth.homeUrl() || '/';
+            } catch (e) {
+                target = '/';
+            }
+
+            try {
+                window.location.replace(target);
+            } catch (e) {
+                window.location.href = target;
+            }
+
+            // A replace that the browser declines to make is still somebody
+            // sitting on a page that says it is leaving.
+            setTimeout(() => {
+                if (window.location.href !== target) window.location.href = target;
+            }, 1200);
+        }
+
         function validateEmail(email) {
             return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         }
@@ -554,10 +593,10 @@
             try {
                 const result = await window.spotifieAuth.signIn(email, password);
                 if (result.success) {
+                    // Signed in, and the session says so. Nothing waits on an
+                    // event that may already have been and gone.
                     showAlert('Sign in successful! Redirecting...', 'success');
-                    setTimeout(() => {
-                        window.location.replace(window.spotifieAuth.homeUrl());
-                    }, 1000);
+                    goToApp();
                 } else {
                     showAlert(result.error || 'Invalid email or password', 'error');
                 }
@@ -592,9 +631,7 @@
             }
 
             const session = await window.spotifieAuth.getSession();
-            if (session) {
-                window.location.replace(window.spotifieAuth.homeUrl());
-            }
+            if (session) goToApp();
         });
     </script>
 </body>
