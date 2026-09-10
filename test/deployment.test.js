@@ -101,14 +101,14 @@ test('the release is an application, and holds nobody library', () => {
 
     // And nothing of the private half of the project.
     //
-    // The dashboard and its script are not that half. Both ask the database
-    // whether the account reading them is an administrator and send everybody
-    // else away, and every write they attempt is refused again by the
-    // row-level policies - so publishing them hands nobody anything. What must
-    // never be here is what actually decides: the server modules that verify
-    // administrators, and the sign-in page that belongs to a copy somebody
-    // runs themselves.
-    const allowed = ['admin-dashboard.html', 'js/admin.js'];
+    // The dashboard's script is not that half: it decides nothing, it carries
+    // no secret, and the gated page loads it as an ordinary asset. The
+    // dashboard document itself is not here at all - it is not a static file,
+    // but something the worker holds and serves only to a proven administrator.
+    // What must never be here is what actually decides: the server modules that
+    // verify administrators, and the sign-in page that belongs to a copy
+    // somebody runs themselves.
+    const allowed = ['js/admin.js'];
     const privateHalf = files.filter(
         (name) =>
             (/admin/i.test(name) && allowed.indexOf(name) === -1) ||
@@ -151,6 +151,11 @@ test('every address a visitor can reach resolves to a file', () => {
         // either way, and either way it has to be in the release.
         const file = name.replace(/^\.\//, '').replace(/^\//, '');
         if (!file) return;
+
+        // The one address in the page that is not a file: the dashboard is
+        // reached through the worker's entry gate, not by opening a document,
+        // so it is deliberately not among the published files.
+        if (file === 'admin-dashboard') return;
 
         assert.ok(files.has(file), 'index.html names ' + name + ', which is published');
     });
@@ -363,8 +368,10 @@ test('the check refuses every shape of private thing', () => {
 
     // The half that decides anything, by file name: the modules a server would
     // check an administrator with, and the sign-in page that belongs to a copy
-    // somebody runs themselves.
-    ['admin-login', 'adminAuth', 'adminCatalogRoutes', 'adminAlbumRoutes'].forEach((name) => {
+    // somebody runs themselves. The dashboard document too - it is never a
+    // static file, so finding it among the assets means the worker's gate has
+    // been bypassed.
+    ['admin-dashboard', 'admin-login', 'adminAuth', 'adminCatalogRoutes', 'adminAlbumRoutes'].forEach((name) => {
         assert.ok(checker.indexOf(name) !== -1, 'a release carrying ' + name + ' is refused');
     });
 

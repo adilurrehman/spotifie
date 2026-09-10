@@ -47,25 +47,19 @@ const OUT = process.env.SPOTIFIE_RELEASE_OUT
 // ============================================
 
 /**
- * Pages a visitor can open.
+ * Pages a visitor can open, as ordinary static files.
  *
  * admin-login.html is deliberately not here: it belongs to a copy somebody
  * runs themselves, and this being a list of what to include is what makes that
  * a fact rather than something to remember.
  *
- * The dashboard is here, and is not an exception to that.
- *
- * It grants nothing. Opening it asks the database whether this account is an
- * administrator and sends anybody else away; every action inside it is refused
- * again by the row-level policies, which read the same table and do not care
- * what page asked. Publishing it is publishing an interface that is useless to
- * everybody except the accounts the database already trusts - and leaving it
- * out was why an administrator signing in to the published copy had a link to
- * a page that was not there.
- *
- * What stays out is what actually decides anything: the server modules that
- * check administrators and perform privileged writes. They are absent, so the
- * released server has no privileged endpoints at all.
+ * admin-dashboard.html is deliberately not here either, and for a different
+ * reason. It is not a page a visitor may simply open by its address - it is
+ * served by the Cloudflare worker only to an administrator who has just proven
+ * it, so it is held inside the worker (see writeAdminDocument) rather than
+ * published as a file anybody could request. What stays a plain file is its
+ * script and stylesheets, which carry no secret; the page that ties them
+ * together is the part that is gated.
  */
 const PAGES = [
     'index.html',
@@ -74,16 +68,17 @@ const PAGES = [
     'signin.html',
     'signup.html',
     'forgot-password.html',
-    'reset-password.html',
-    'admin-dashboard.html'
+    'reset-password.html'
 ];
 
 /** Browser code the pages load. */
 const BROWSER_SCRIPTS = [
-    // The dashboard's own script, which is what asks the database whether the
-    // account reading it is an administrator and sends everybody else away. It
-    // decides nothing: the row-level policies refuse every write it attempts
-    // on behalf of an account the database does not trust.
+    // The dashboard's own script. The gated page the worker serves loads it,
+    // and it carries no secret - it asks the database whether the account
+    // reading it is an administrator and sends everybody else away, decides
+    // nothing itself, and the row-level policies refuse every write it attempts
+    // on behalf of an account the database does not trust. So it is an ordinary
+    // public asset; the page that uses it is the part held back and gated.
     'js/admin.js',
     // What this copy is - a checkout, or something published. Read before
     // anything asks an origin for an API it may not have.
@@ -107,13 +102,20 @@ const BROWSER_SCRIPTS = [
 ];
 
 /**
- * The dashboard, and the script that decides who may see it.
+ * The dashboard, and the script that drives it.
  *
- * Published together or not at all, and only when this working copy has them:
+ * Present together or not at all, and only when this working copy has them:
  * they live in the private half of the project, so a checkout without them
- * builds a release without them and without the link to them.
+ * builds a release with no dashboard to serve and no link to one. The page
+ * itself never becomes a public file - it is held inside the worker - but its
+ * script is an ordinary asset, so both must be present for either to matter.
  */
 const ADMIN_FILES = ['admin-dashboard.html', 'js/admin.js'];
+
+// Where the built dashboard document is written for the worker to hold. The
+// worker imports this exact path; the build writes it (or a module that
+// exports null when there is no dashboard to serve).
+const ADMIN_DOCUMENT_MODULE = path.join(ROOT, 'worker', 'generated', 'adminDocument.mjs');
 
 const STYLES = ['css/style.css', 'css/auth.css', 'css/utlity.css'];
 
@@ -232,6 +234,57 @@ function stripDashboardLink(html) {
     if (lineEnd === -1) lineEnd = html.length;
 
     return html.slice(0, lineStart) + html.slice(lineEnd + 1);
+}
+
+/**
+ * Write the dashboard document into the worker.
+ *
+ * The dashboard is the one page that is not a public file: the worker holds it
+ * and serves it only to a proven administrator. So it is emitted here as a
+ * module the worker imports, rather than copied into the assets a static host
+ * would answer for anybody. A build with no dashboard writes a module that
+ * exports null, and the worker treats that as "there is no dashboard here" -
+ * which is what a checkout without the private half produces.
+ *
+ * The document's own references to scripts, styles and images are rewritten to
+ * absolute paths on the way in. Served from /admin-dashboard rather than from a
+ * file, a relative reference could resolve against the wrong base; an absolute
+ * one names the asset the same way wherever the page is served.
+ *
+ * Skipped when the build is aimed at a directory other than the default one:
+ * that is the test suite building throwaway releases, and it has no worker to
+ * feed and no business rewriting a file in the working tree.
+ */
+function writeAdminDocument(present) {
+    if (process.env.SPOTIFIE_RELEASE_OUT) return;
+
+    ensureDirectory(path.dirname(ADMIN_DOCUMENT_MODULE));
+
+    if (!present) {
+        fs.writeFileSync(ADMIN_DOCUMENT_MODULE, 'export default null;\n');
+        return;
+    }
+
+    const html = fs
+        .readFileSync(path.join(ROOT, 'admin-dashboard.html'), 'utf8')
+        // Named the same way wherever the page is served from.
+        .replace(/\b(src|href)="(js|css|img|favicons)\//g, '$1="/$2/');
+
+    // Held as a template literal, so the three sequences that would end one
+    // early or start an interpolation are escaped. Nothing else is changed.
+    const escaped = html.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+
+    const module = [
+        '// Generated by npm run build:public. Do not edit.',
+        '//',
+        '// The administrator dashboard document, held inside the worker so it is',
+        '// served only to a proven administrator and never answered as a public',
+        '// file. Regenerated on every build from admin-dashboard.html.',
+        'export default `' + escaped + '`;',
+        ''
+    ].join('\n');
+
+    fs.writeFileSync(ADMIN_DOCUMENT_MODULE, module);
 }
 
 
@@ -593,6 +646,11 @@ function build() {
     for (const style of STYLES) copyFile(style);
     for (const directory of ASSET_DIRECTORIES) copyDirectory(directory);
 
+    // The dashboard document, into the worker rather than the assets - so it is
+    // never a file anybody can request, only something the worker serves once
+    // it has proven who is asking.
+    writeAdminDocument(dashboard);
+
     for (const file of SERVER_FILES) {
         copyFile(file, { transform: file === 'lib/publicConfig.js' ? neutralisePublicConfig : null });
     }
@@ -702,8 +760,8 @@ function report() {
     console.log('');
     console.log('Left out by design: the administrator sign-in page, the admin server');
     console.log('modules, the tests, the working data, and this project\'s own Supabase');
-    console.log('settings. The dashboard is included and grants nothing: the database');
-    console.log('decides who may use it.');
+    console.log('settings. The dashboard is not a public file: the worker holds it and');
+    console.log('serves it only to an administrator it has verified against Supabase.');
     console.log('');
     console.log('Check it before publishing:  npm run release:check');
 }

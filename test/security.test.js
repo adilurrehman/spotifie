@@ -459,20 +459,27 @@ test('the release is the application, and nothing that runs it as an administrat
 
     // What decides whether an account is an administrator, and what it may do
     // with that: none of it is here, so the released server has no privileged
-    // route to reach at all.
-    ['admin-login.html', 'lib/adminAuth.js', 'lib/adminCatalogRoutes.js', 'lib/adminAlbumRoutes.js', 'CLAUDE.md'].forEach(
-        (file) => {
-            assert.ok(files.indexOf(file) === -1, file + ' is not in the release');
-        }
-    );
-
-    // The dashboard is here, and grants nothing by being here: it asks the
-    // database whether the account reading it is an administrator and sends
-    // everybody else away, and the row-level policies refuse every write it
-    // attempts on behalf of an account the database does not trust.
-    ['admin-dashboard.html', 'js/admin.js'].forEach((file) => {
-        assert.ok(files.indexOf(file) !== -1, file + ' is in the release');
+    // route to reach at all. The dashboard document is not here either - it is
+    // not a static file at all, but something the Cloudflare worker holds and
+    // serves only to a proven administrator; a copy of it among the assets
+    // would be a way around that gate.
+    [
+        'admin-dashboard.html',
+        'admin-login.html',
+        'lib/adminAuth.js',
+        'lib/adminCatalogRoutes.js',
+        'lib/adminAlbumRoutes.js',
+        'CLAUDE.md'
+    ].forEach((file) => {
+        assert.ok(files.indexOf(file) === -1, file + ' is not in the release');
     });
+
+    // The dashboard's script is here, and grants nothing by being here: the
+    // gated page loads it, and it asks the database whether the account reading
+    // it is an administrator and sends everybody else away. The row-level
+    // policies refuse every write it attempts on behalf of an account the
+    // database does not trust.
+    assert.ok(files.indexOf('js/admin.js') !== -1, 'js/admin.js is in the release');
 
     // Nothing from the working copy's own life, either.
     files.forEach((file) => {
@@ -605,17 +612,13 @@ test('the released server has no administrator route to reach', async () => {
     }
 
     // The administrator sign-in page belongs to a copy somebody runs
-    // themselves and is nowhere in a release, under any spelling.
-    for (const page of ['/admin-login.html', '/admin-login']) {
+    // themselves and is nowhere in a release, under any spelling. The dashboard
+    // document is not a static file at all - the Cloudflare worker holds it, so
+    // the plain asset server that ships in the release has nothing to answer
+    // for it, which is the point: no address opens the dashboard by its file.
+    for (const page of ['/admin-login.html', '/admin-login', '/admin-dashboard.html', '/admin-dashboard']) {
         assert.strictEqual(await ask(started.port, page), 404, page + ' is not there');
     }
-
-    // The dashboard answers, and answering is all it does: it asks the
-    // database who is reading it and sends everybody else away, and every
-    // write it could attempt is refused by the policies on the tables. What
-    // does not answer is the half below - there is no privileged route here at
-    // all, for an administrator or for anybody else.
-    assert.strictEqual(await ask(started.port, '/admin-dashboard.html'), 200, 'the dashboard is served');
 
     // Every write to the shared catalogue, and the rescan.
     const writes = [

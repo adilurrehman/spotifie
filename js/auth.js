@@ -438,6 +438,49 @@
         return fetch(url, settings);
     }
 
+    /**
+     * Open the administrator dashboard, the only way it opens.
+     *
+     * On a published copy the dashboard is not a page anybody can navigate to.
+     * The Cloudflare worker serves it only after it has verified, against
+     * Supabase, that the account asking is an administrator - so this asks the
+     * worker for entry, carrying the current access token, and navigates only
+     * once the worker has granted it. A non-administrator, or somebody whose
+     * session has lapsed, is granted nothing and goes nowhere; the worker sends
+     * a direct attempt at the address back to the application regardless.
+     *
+     * On a local checkout there is no worker and no gate: the server serves the
+     * page and admin.js guards it, so this simply opens it.
+     *
+     * Answers whether entry was granted, so a caller can say when it was not.
+     */
+    async function enterAdmin() {
+        const deployment = global.spotifieDeployment;
+        const published = Boolean(deployment && deployment.isPublished());
+
+        // Same-origin, deliberately: the worker that grants entry and serves
+        // the dashboard is whatever origin served this page, which is not
+        // always the canonical publicSiteUrl - a preview build, or the site
+        // reached by another name, is served and gated by its own origin. The
+        // entry cookie is set there and must be sent back there.
+        if (!published) {
+            global.location.assign('/admin-dashboard.html');
+            return true;
+        }
+
+        try {
+            const response = await authorizedFetch('/api/admin/enter', { method: 'POST' });
+            if (response && response.ok) {
+                global.location.assign('/admin-dashboard');
+                return true;
+            }
+        } catch (e) {
+            /* offline, or the worker refused: there is nothing to open */
+        }
+
+        return false;
+    }
+
     // ============================================
     // PROFILE
     // ============================================
@@ -930,6 +973,19 @@
             });
         });
 
+        // The dashboard link never simply navigates. On a published copy the
+        // page is behind the worker's gate, so opening it means asking the
+        // worker for entry first; a plain navigation to its address would only
+        // be sent back. enterAdmin does the asking and the opening.
+        const dashboardLink = document.getElementById('dashboardLink');
+        if (dashboardLink) {
+            dashboardLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (userDropdown) userDropdown.classList.remove('active');
+                enterAdmin();
+            });
+        }
+
         renderAuthUI();
     }
 
@@ -989,6 +1045,7 @@
         getUser,
         getAccessToken,
         authorizedFetch,
+        enterAdmin,
         getProfile,
         isAdmin,
         signUp,

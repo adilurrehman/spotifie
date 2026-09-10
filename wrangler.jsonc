@@ -21,9 +21,27 @@
     "name": "spotifie",
     "compatibility_date": "2026-09-09",
 
+    // A small worker in front of the static assets. It exists for one thing:
+    // the administrator dashboard, which is not a public file. Cloudflare
+    // serves every matching asset before this worker is consulted, so the
+    // worker only ever sees what is not a file - the protected /admin-dashboard
+    // route and the POST /api/admin/enter that grants entry to it - and hands
+    // everything else to the assets binding below. It holds no secret: it reads
+    // the two public Supabase values from the config the build wrote, and
+    // verifies every administrator live against Supabase.
+    //
+    // Written by `npm run build:public`; `npm run deploy` runs that build first
+    // so the document the worker serves is always current.
+    "main": "./worker/index.mjs",
+
     "assets": {
         // Exactly what `npm run build:public` writes.
         "directory": "./public-release/dist",
+
+        // How the worker reaches the static files: env.ASSETS.fetch(request).
+        // The worker uses it to answer everything that is not the admin route,
+        // and to read its own /config.json for the public Supabase settings.
+        "binding": "ASSETS",
 
         // No single-page fallback, on purpose. Every address this application
         // offers is a real file - index.html, about.html, developer.html and

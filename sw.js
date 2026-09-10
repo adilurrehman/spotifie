@@ -38,7 +38,7 @@
 'use strict';
 
 /** Raise this to retire every previous cache. */
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const SHELL_CACHE = 'spotifie-shell-' + CACHE_VERSION;
 
 /**
@@ -283,6 +283,15 @@ self.addEventListener('fetch', (event) => {
     // signing in stopped working.
     if (url.origin !== self.location.origin) return;
 
+    // Anything privileged or personal is never this worker's to answer, and
+    // that is true of a navigation to it as much as a fetch of it. The
+    // protected admin route is decided live by the server on every request -
+    // a short-lived entry session it grants and can withhold - so it must
+    // reach the network untouched, never a page this worker cached a moment
+    // when access happened to be allowed. Left before the navigation branch
+    // for exactly that reason.
+    if (isAlwaysLive(url)) return;
+
     // A page. Handled first and on its own, because getting this wrong is the
     // difference between a slow Spotifie and no Spotifie.
     if (request.mode === 'navigate') {
@@ -290,7 +299,7 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    if (isAlwaysLive(url) || isAudio(url, request)) return;
+    if (isAudio(url, request)) return;
 
     // Scripts and stylesheets belong to the page that asked for them, so they
     // are fetched the way the page was. Pictures, fonts and the manifest do

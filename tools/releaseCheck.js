@@ -36,15 +36,20 @@ const DIST = process.env.SPOTIFIE_RELEASE_OUT
  * Files and paths that would mean the privileged half of the project was
  * included.
  *
- * The dashboard page and its script are not on this list. They decide nothing:
- * both ask the database whether the account reading them is an administrator,
- * and every write they attempt is refused again by the row-level policies,
- * which read the same table and do not care what page asked. What must never
- * be released is what actually decides - the server modules that verify
- * administrators and perform privileged writes - and the administrator sign-in
- * page, which belongs to a copy somebody runs themselves.
+ * The dashboard document is on this list: it must never be a static file. On a
+ * published copy it is not served from the assets at all - the Cloudflare
+ * worker holds it and serves it only to an administrator it has verified live
+ * against Supabase - so finding admin-dashboard.html among the released files
+ * means the gate has been bypassed and anybody could open it by its address.
+ * The dashboard's script is not on this list: it carries no secret, it decides
+ * nothing, and the gated page loads it as an ordinary asset.
+ *
+ * The administrator sign-in page and the server modules that actually decide
+ * who is an administrator are on the list too: they belong to a copy somebody
+ * runs themselves, never to a release.
  */
 const FORBIDDEN_PATHS = [
+    /(^|[/\\])admin-dashboard\.html$/i,
     /(^|[/\\])admin-login\.html$/i,
     /(^|[/\\])adminAuth\.js$/i,
     /(^|[/\\])adminCatalogRoutes\.js$/i,
@@ -298,7 +303,11 @@ function checkStaticHostFiles(names, failures) {
         }
     }
 
-    // A page must not claim to live on the machine it was built on.
+    // A page must not claim to live on the machine it was built on, and must
+    // not link straight to the raw dashboard file. The dashboard opens only
+    // through the worker's entry gate; an <a href> to admin-dashboard.html
+    // would be a way around it - which is exactly what the gate exists to
+    // close.
     for (const name of names) {
         if (!/\.html$/i.test(name)) continue;
 
@@ -306,6 +315,10 @@ function checkStaticHostFiles(names, failures) {
         const canonical = /<link rel="canonical" href="([^"]+)"/.exec(page);
         if (canonical && /localhost|127\.0\.0\.1/i.test(canonical[1])) {
             failures.push(name + ' names this machine as its address.');
+        }
+
+        if (/href="[^"]*admin-dashboard\.html/i.test(page)) {
+            failures.push(name + ' links directly to the raw dashboard file instead of the entry gate.');
         }
     }
 }

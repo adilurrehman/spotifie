@@ -721,11 +721,21 @@ test('a page is asked of the network first, and answered whatever happens', () =
 test('navigation is handled before anything else the worker does', () => {
     const handler = WORKER.slice(WORKER.indexOf("self.addEventListener('fetch'"));
 
-    // Before the rules about what may be cached, so no rule about assets can
-    // ever decide how a page is answered.
+    // Anything privileged or personal is never this worker's to answer, and
+    // that comes first of all: a navigation to the protected admin route is
+    // decided live by the server on every visit and must reach the network
+    // untouched, never a page this worker cached a moment access was allowed.
+    const alwaysLive = handler.indexOf('isAlwaysLive(url)');
     const navigation = handler.indexOf("request.mode === 'navigate'");
-    const assets = handler.indexOf('isAlwaysLive(url)');
-    assert.ok(navigation !== -1 && assets !== -1 && navigation < assets, 'pages come first');
+    const audio = handler.indexOf('isAudio(url, request)');
+
+    assert.ok(alwaysLive !== -1 && navigation !== -1 && audio !== -1, 'all three checks are present');
+    assert.ok(alwaysLive < navigation, 'the privileged and personal bypass comes before pages');
+
+    // And an ordinary page is still answered as a page, before any rule about
+    // what may be cached can decide it: the navigation branch comes before the
+    // audio and asset branches.
+    assert.ok(navigation < audio, 'ordinary pages come before the caching rules');
 
     // And nothing that belongs to somebody else is touched: Supabase, the
     // fonts, the helper at its own address. A worker that answered those is a
@@ -738,7 +748,7 @@ test('a new worker retires what the old one kept', () => {
     // The broken cache is on the machines of everybody who has opened the
     // site. Retiring it is the version, and taking over at once is what stops
     // a page from being answered by the old worker one more time.
-    assert.match(WORKER, /const CACHE_VERSION = 'v4';/);
+    assert.match(WORKER, /const CACHE_VERSION = 'v5';/);
     assert.match(WORKER, /\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
     assert.match(WORKER, /self\.skipWaiting\(\)/);
     assert.match(WORKER, /self\.clients\.claim\(\)/);
@@ -966,7 +976,7 @@ test('a page and the code it loads come from the same release', () => {
     assert.ok(code.indexOf('fetch(request)') < code.indexOf('cache.match(request)'), 'the network first');
 
     // And a version that retires what the broken one kept.
-    assert.match(WORKER, /const CACHE_VERSION = 'v4';/);
+    assert.match(WORKER, /const CACHE_VERSION = 'v5';/);
 });
 
 // ============================================
@@ -1144,25 +1154,64 @@ test('the menu corrects itself when the answer arrives', () => {
     assert.match(AUTH, /notify\(event\);\s*renderAuthUI\(\);/);
 });
 
-test('the published copy carries the link, and the page it points at', () => {
+test('the dashboard is held by the worker, not published as a file', () => {
     const build = source('tools', 'buildPublic.js');
 
-    assert.match(build, /'admin-dashboard\.html'/);
+    // The page is not in the list of static pages any more: it is written into
+    // the worker instead, so no address serves it as a file.
+    const pages = /const PAGES = \[([\s\S]*?)\];/.exec(build)[1];
+    assert.ok(!/admin-dashboard\.html/.test(pages), 'the dashboard is not a published page');
+
+    // Its script still is - the gated page loads it, and it carries no secret.
     assert.match(build, /'js\/admin\.js'/);
 
-    // The page keeps its link, and the only thing that would take it out is
-    // the dashboard itself not being published - a checkout without the
-    // private half of the project. Taking it out of a release that does have
-    // the dashboard was why an administrator had no way to reach it.
+    // The build writes the document into the worker, and only when this copy
+    // has it; a checkout without the private half writes a worker that serves
+    // nothing and strips the link.
     assert.match(build, /const ADMIN_FILES = \['admin-dashboard\.html', 'js\/admin\.js'\];/);
-    assert.match(build, /page === 'index\.html' && !dashboard \? stripDashboardLink : null/);
     assert.match(build, /const dashboard = ADMIN_FILES\.every\(\(file\) => fs\.existsSync/);
+    assert.match(build, /function writeAdminDocument\(present\)/);
+    assert.match(build, /writeAdminDocument\(dashboard\)/);
 
     // What decides anything is still absent, so a released server has no
     // privileged route at all.
     ['adminAuth.js', 'adminCatalogRoutes.js', 'adminAlbumRoutes.js', 'admin-login.html'].forEach((name) => {
         assert.ok(build.indexOf("'" + name + "'") === -1, name + ' is not published');
     });
+});
+
+test('the worker gates the dashboard and holds no secret of its own', () => {
+    const worker = source('worker', 'index.mjs');
+
+    // The dashboard opens through the worker or not at all: a POST that grants
+    // entry, and a GET that serves the held document.
+    assert.match(worker, /\/api\/admin\/enter/);
+    assert.match(worker, /pathname === '\/admin-dashboard'/);
+
+    // The raw file address never opens it.
+    assert.match(worker, /pathname === '\/admin-dashboard\.html'[\s\S]{0,120}notFound\(\)/);
+
+    // Entry is granted only after Supabase confirms the caller is an
+    // administrator - never from anything the browser sets for itself.
+    assert.match(worker, /supabaseUser\(config, token\)/);
+    assert.match(worker, /supabaseIsAdmin\(config, token, user\.id\)/);
+
+    // And it is re-checked, live, on every visit to the page.
+    const dashboard = worker.slice(worker.indexOf('async function handleDashboard'), worker.indexOf('function backToApp'));
+    assert.match(dashboard, /supabaseUser\(config, token\)/);
+    assert.match(dashboard, /supabaseIsAdmin\(config, token, user\.id\)/);
+
+    // The cookie it sets is not readable by script, is confined to the
+    // dashboard route, and is short-lived.
+    assert.match(worker, /HttpOnly/);
+    assert.match(worker, /SameSite=Strict/);
+    assert.match(worker, /Path=\/admin-dashboard/);
+    assert.match(worker, /ENTRY_MAX_AGE/);
+
+    // No secret of its own: it reads the two public Supabase values from the
+    // config the build wrote, and signs nothing with a private key.
+    assert.match(worker, /publicConfig\(env, url\)/);
+    assert.ok(!/service_role|sb_secret_|JWT_SECRET|SIGNING/i.test(worker), 'the worker holds no secret');
 });
 
 test('the dashboard decides nothing on its own', () => {

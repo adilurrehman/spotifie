@@ -782,7 +782,11 @@ test('the app shell is kept, and no audio is', () => {
     assert.match(worker, /function isAudio\(url, request\)/);
     assert.match(worker, /request\.destination === 'audio'/);
     assert.match(worker, /mp3\|m4a\|aac\|flac\|wav\|ogg\|opus/);
-    assert.match(worker, /if \(isAlwaysLive\(url\) \|\| isAudio\(url, request\)\) return;/);
+    // The privileged and personal bypass runs before the navigation branch, so
+    // a page on the protected admin route is decided live rather than served
+    // from cache; audio bypasses after it. Two guards now, not one.
+    assert.match(worker, /if \(isAlwaysLive\(url\)\) return;/);
+    assert.match(worker, /if \(isAudio\(url, request\)\) return;/);
 
     // Nothing personal and nothing privileged is cached either.
     assert.match(worker, /url\.pathname\.startsWith\('\/api\/'\)/);
