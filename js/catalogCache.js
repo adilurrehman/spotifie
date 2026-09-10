@@ -54,6 +54,11 @@
         'format',
         'hasArtwork',
         'artworkVersion',
+        // Where a published cover is kept. Stable, and the reason a library
+        // drawn from this copy can sign an address for its artwork on the
+        // first paint rather than after the catalogue has been read again.
+        // A path is not a key: reading the object still needs a signature.
+        'artworkPath',
         'createdAt',
         'updatedAt'
     ];

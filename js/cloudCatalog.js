@@ -90,6 +90,16 @@
             metadata: {
                 hasArtwork: Boolean(row.artwork_path),
                 artworkVersion: artworkVersionOf(row.artwork_path),
+                // Where the picture is kept, which is stable and is the one
+                // thing worth remembering about it. A copy with no server
+                // signs its own address from this; without it, a library drawn
+                // from the device's copy before the catalogue has been read
+                // has nothing to sign and shows the default cover instead.
+                //
+                // A path is not a key. Reading the object still needs the
+                // signature, and the signature still needs the policy to allow
+                // it.
+                artworkPath: row.artwork_path || null,
                 createdAt: row.created_at || null,
                 updatedAt: row.updated_at || null
             }
@@ -116,6 +126,7 @@
                 format: clean(row.mime_type),
                 hasArtwork: Boolean(row.artwork_path),
                 artworkVersion: artworkVersionOf(row.artwork_path),
+                artworkPath: row.artwork_path || null,
                 createdAt: row.created_at || null,
                 updatedAt: row.updated_at || null
             }
@@ -139,6 +150,8 @@
         // address is a temporary key, and keeping one is keeping a key.
         this.paths = new Map();
         this.signed = new Map();
+        // The read that fills the table above, while it is happening.
+        this.indexed = null;
     }
 
     /** Is there anything to read from? */
@@ -180,6 +193,10 @@
                 self.paths.set(toTrackId(row.id), { artwork: row.artwork_path || null, audio: row.audio_path || null });
             });
 
+            // Everything is known now, so the smaller read that exists to find
+            // out where one file is has nothing left to find out.
+            self.indexed = Promise.resolve(true);
+
             // An album is what its tracks add up to, and each track carries the
             // name of the album it is on.
             var byId = new Map();
@@ -201,6 +218,81 @@
     };
 
     /**
+     * Take note of where the files are, from a catalogue somebody already has.
+     *
+     * The library is drawn from the device's copy before Supabase is asked
+     * anything, and each item in that copy carries the path its picture is
+     * kept at. Handing them over here is what lets a cover be signed on that
+     * first paint rather than after a round trip - which is the difference
+     * between a library that comes back with its artwork and one that comes
+     * back as a wall of default covers and stays that way until something
+     * forces a redraw.
+     */
+    CloudCatalog.prototype.learn = function (items) {
+        var self = this;
+
+        (items || []).forEach(function (item) {
+            if (!item || !item.id) return;
+
+            var metadata = item.metadata || {};
+            var artwork = metadata.artworkPath || null;
+            if (!artwork) return;
+
+            var known = self.paths.get(item.id) || {};
+            if (known.artwork === artwork) return;
+
+            self.paths.set(item.id, { artwork: artwork, audio: known.audio || null });
+            // A picture that has moved is a different picture, so an address
+            // signed for the old one is no longer worth keeping.
+            self.signed.delete('artwork:' + item.id);
+        });
+    };
+
+    /**
+     * Where everything is kept, asked for once.
+     *
+     * The fallback for an item nothing has said anything about: two small
+     * reads of ids and paths, shared by every caller and made at most once per
+     * page. The whole catalogue read fills the same table, so this is only
+     * ever the first one to arrive.
+     */
+    CloudCatalog.prototype.index = function () {
+        var self = this;
+        if (this.indexed) return this.indexed;
+        if (!this.client) return Promise.resolve(null);
+
+        this.indexed = Promise.all([
+            this.client.from('catalog_albums').select('id,artwork_path'),
+            this.client.from('catalog_tracks').select('id,artwork_path,audio_path')
+        ])
+            .then(function (answers) {
+                if (answers[0].error || answers[1].error) return null;
+
+                (answers[0].data || []).forEach(function (row) {
+                    var id = toAlbumId(row.id);
+                    var known = self.paths.get(id) || {};
+                    self.paths.set(id, { artwork: row.artwork_path || null, audio: known.audio || null });
+                });
+
+                (answers[1].data || []).forEach(function (row) {
+                    self.paths.set(toTrackId(row.id), {
+                        artwork: row.artwork_path || null,
+                        audio: row.audio_path || null
+                    });
+                });
+
+                return true;
+            })
+            .catch(function () {
+                // Asking again later is better than never asking again.
+                self.indexed = null;
+                return null;
+            });
+
+        return this.indexed;
+    };
+
+    /**
      * A temporary address for one file, or null.
      *
      * Signed when it is asked for and remembered only until it expires, so a
@@ -213,7 +305,18 @@
 
         var known = this.paths.get(id);
         var objectPath = known ? known[kind] : null;
-        if (!objectPath) return Promise.resolve(null);
+
+        // Nothing here has said where this one is. That is an ordinary state
+        // on a first paint from the device's copy, so it is asked rather than
+        // given up on - the alternative is the default cover for a picture
+        // that is sitting in storage.
+        if (!objectPath) {
+            return this.index().then(function () {
+                var found = self.paths.get(id);
+                if (!found || !found[kind]) return null;
+                return self.resolve(id, kind);
+            });
+        }
 
         var cacheKey = kind + ':' + id;
         var cached = this.signed.get(cacheKey);

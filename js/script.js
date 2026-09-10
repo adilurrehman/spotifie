@@ -867,6 +867,74 @@ let deviceScanDismissedThisSession = false;
 // here, and when it last happened.
 let deviceScanReport = null;
 
+// ---- the answer this device gave, when there is no server to keep it ----
+//
+// With a Spotifie server running, whether this machine may be searched is the
+// server's to remember, and it does. A published copy has no server: the
+// question is still about this device rather than about an account - a guest
+// and a signed-in listener on the same machine are answering the same
+// question - so the answer is kept where the device keeps things, and every
+// account on it reads the same one.
+//
+// A decision, not a credential: whether somebody agreed to Spotifie looking
+// for their music. Nothing here can grant access to anything.
+const LOCAL_MUSIC_PERMISSION_KEY = 'spotifie_local_music';
+
+/** Is this a copy served as files, with no Spotifie server on this origin? */
+function isPublishedCopy() {
+    const deployment = window.spotifieDeployment;
+    return Boolean(deployment && deployment.isPublished());
+}
+
+/** What this device last answered about being searched, or null. */
+function localMusicPermission() {
+    try {
+        return localStorage.getItem(LOCAL_MUSIC_PERMISSION_KEY);
+    } catch (e) {
+        // A browser that refuses storage asks the question again, which is the
+        // safe way round: it never assumes an agreement nobody gave.
+        return null;
+    }
+}
+
+/** Remember that somebody agreed, so the question is not asked again. */
+function rememberLocalMusicPermission() {
+    try {
+        localStorage.setItem(LOCAL_MUSIC_PERMISSION_KEY, 'allowed');
+    } catch (e) {
+        /* the question comes back next visit; nothing else is affected */
+    }
+}
+
+/**
+ * Make sure Local Music is in the library, even when there is nothing in it.
+ *
+ * Once somebody has agreed to Spotifie looking at this device, the collection
+ * is theirs and it stays: through a refresh, through being offline, and
+ * through a helper that is not running. A card saying "No songs yet" is an
+ * honest answer and a place to come back to; a card that disappears looks like
+ * the music was lost.
+ *
+ * Only ever adds. A real Local Music from the catalogue is already here by the
+ * time this runs, and is left exactly as it is.
+ */
+function ensureLocalMusicCollection() {
+    if (albumInfo[LOCAL_MUSIC_FOLDER]) return false;
+
+    predefinedSongs[LOCAL_MUSIC_FOLDER] = predefinedSongs[LOCAL_MUSIC_FOLDER] || [];
+    albumInfo[LOCAL_MUSIC_FOLDER] = {
+        title: 'Local Music',
+        artist: '',
+        description: '',
+        cover: '',
+        isSystemCollection: true,
+        albumId: LOCAL_MUSIC_ALBUM_ID,
+        source: 'local',
+        isLibraryAlbum: true
+    };
+    return true;
+}
+
 /**
  * Ask about searching this device, or - once that has been agreed to - look
  * again for anything new.
@@ -883,6 +951,28 @@ async function initDeviceMusicScan() {
     const client = getCatalogClient();
     if (!client) return;
 
+    const published = isPublishedCopy();
+
+    // Has this device been asked yet?
+    //
+    // On a published copy the question comes first, before anything is looked
+    // for. It is about the device rather than about a helper, so it is asked
+    // whether or not one is running and without waiting to find out - which is
+    // why it stopped appearing at all: the copy quite correctly found no
+    // helper, and returned before the question could be put.
+    //
+    // It does not wait for Supabase either. Whether somebody wants their own
+    // music looked at has nothing to do with whether they are signed in.
+    if (published && localMusicPermission() !== 'allowed') {
+        if (deviceScanDismissedThisSession) return;
+
+        prompt.classList.remove('hidden');
+        return;
+    }
+
+    // Agreed to. The collection exists from this moment, whatever answers.
+    if (published && ensureLocalMusicCollection()) await refreshAlbumCards();
+
     // Is there a helper on this machine at all?
     //
     // Spotifie runs in two places now. Opened from the server somebody started
@@ -891,9 +981,12 @@ async function initDeviceMusicScan() {
     // that is an ordinary state rather than a fault: the published catalogue
     // and signing in both work, and the music on the device is reported as out
     // of reach rather than pretended away.
+    //
+    // A published copy only looks because somebody asked for this, which is
+    // the one thing that makes looking worth a request.
     const platform = getPlatform();
     if (platform) {
-        const here = await platform.detectLocalCapability();
+        const here = published ? await platform.requestLocalMusic() : await platform.detectLocalCapability();
         if (!here) {
             platform.setLocalMusic('unavailable');
             markLocalMusicUnavailable();
@@ -947,6 +1040,30 @@ function initDeviceScanControls() {
 
     document.getElementById('deviceScanStart')?.addEventListener('click', async () => {
         if (prompt) prompt.classList.add('hidden');
+
+        // Agreed to, and kept: this is the device's answer, so it holds for
+        // everyone who opens Spotifie here and through every refresh until
+        // somebody clears this site's data.
+        rememberLocalMusicPermission();
+
+        // The collection is theirs from this moment. It appears now, empty if
+        // that is all there is to show, rather than after a search that may
+        // find nothing or may not be able to run at all.
+        if (ensureLocalMusicCollection()) await refreshAlbumCards();
+
+        const platform = getPlatform();
+        if (platform && isPublishedCopy()) {
+            const here = await platform.requestLocalMusic();
+            if (!here) {
+                // Nothing on this machine is listening. Said once, plainly,
+                // and the rest of Spotifie carries on exactly as it was.
+                platform.setLocalMusic('unavailable');
+                markLocalMusicUnavailable();
+                showToast('Local Music helper is not available on this device');
+                return;
+            }
+        }
+
         await startDeviceScan();
     });
 
@@ -1404,6 +1521,15 @@ function applyCatalogData(catalogue) {
         if (!window.libraryTracks[track.id]) window.libraryTracks[track.id] = track;
     }
 
+    // Where the published pictures are kept, told to whatever is going to be
+    // asked to resolve them. With a server this does nothing at all; without
+    // one it is the difference between a refresh that comes back with its
+    // artwork and one that comes back as a wall of default covers.
+    const catalogClient = getCatalogClient();
+    if (catalogClient && typeof catalogClient.rememberArtworkPaths === 'function') {
+        catalogClient.rememberArtworkPaths((albums.items || []).concat(tracks.items || []));
+    }
+
     for (const album of albums.items || []) {
         const folder = libraryFolderForAlbum(album.id);
         predefinedSongs[folder] = [];
@@ -1460,6 +1586,11 @@ function applyCatalogData(catalogue) {
         // One entry per track: the same id from two sources is one song.
         if (!predefinedSongs[folder].includes(track.id)) predefinedSongs[folder].push(track.id);
     }
+
+    // A device that agreed to be searched keeps its collection through every
+    // redraw, including one made from a catalogue that could not include it -
+    // a published copy with no helper answering has no local half to send.
+    if (localMusicPermission() === 'allowed') ensureLocalMusicCollection();
 
     return true;
 }
@@ -1828,7 +1959,16 @@ function scheduleCatalogRevalidation() {
 
     catalogRevalidation = revalidateCatalog()
         .then(async (changed) => {
-            if (!changed) return false;
+            if (!changed) {
+                // Nothing moved, so nothing is redrawn - but a cover that could
+                // not be worked out on the first paint would then stay a
+                // default cover for the whole visit, which is exactly how a
+                // published copy came to show a wall of them after a refresh.
+                // The albums that are still showing one are asked again, now
+                // that everything they need is here.
+                await repaintMissingArtwork();
+                return false;
+            }
 
             console.log('The published catalogue has changed; redrawing the library.');
             await redrawAfterCatalogChange();
@@ -3687,7 +3827,12 @@ async function resolveArtwork(request) {
 
             // A client too old to know that address still has the older way,
             // which asks for a signed one. Slower, and good for an hour.
-            const signed = await signArtwork(client, settings.trackId, 'track');
+            const signed = await signArtwork(
+                client,
+                settings.trackId,
+                'track',
+                track.metadata ? track.metadata.artworkVersion : null
+            );
             if (signed) return signed;
         }
     }
@@ -3710,7 +3855,7 @@ async function resolveArtwork(request) {
             });
             if (published) return published;
 
-            const signed = await signArtwork(client, info.albumId, 'album');
+            const signed = await signArtwork(client, info.albumId, 'album', info.artworkVersion);
             if (signed) return signed;
         }
     }
@@ -3739,14 +3884,38 @@ function publishedArtworkUrl(client, id, kind, metadata) {
     return usableArtworkUrl(client.artworkImageUrl(id, { kind: kind, version: version }));
 }
 
-/** Ask the catalogue for a usable address, or null. Nothing is kept here. */
-async function signArtwork(client, id, kind) {
+/**
+ * Ask the catalogue for a usable address, or null. Nothing is kept here.
+ *
+ * Which version of the cover this is goes with the question. A copy with no
+ * server files the pictures it has fetched under that, so a cover this browser
+ * already holds is painted without a signature and without a round trip, and a
+ * cover that has been replaced is fetched again rather than found.
+ */
+async function signArtwork(client, id, kind, version) {
     try {
-        const url = await client.resolveArtworkUrl(id, { kind: kind, fallback: null });
-        return usableArtworkUrl(url);
+        const url = await client.resolveArtworkUrl(id, { kind: kind, fallback: null, version: version || null });
+        return displayableArtworkUrl(url);
     } catch (e) {
         return null;
     }
+}
+
+/**
+ * An address that may be pointed at, including one of our own.
+ *
+ * Everywhere a cover arrives as metadata - a file's tags, a catalogue row,
+ * something somebody typed - an address into this browser's own memory is
+ * refused, because nothing the application was handed should be able to name
+ * one. A picture the catalogue client fetched itself and kept is the one
+ * exception, and the client says so: the page asks it whether the address is
+ * one it made rather than deciding from the shape of the string.
+ */
+function displayableArtworkUrl(url) {
+    const client = getCatalogClient();
+    if (client && typeof client.ownsObjectUrl === 'function' && client.ownsObjectUrl(url)) return url;
+
+    return usableArtworkUrl(url);
 }
 
 /** The album branch on its own, for callers that have an album and no song. */
@@ -3814,7 +3983,7 @@ function paintResolvedArtwork(image, key, resolve, forget) {
 
     const apply = (url) => {
         if (image.dataset.artworkToken !== token) return;
-        if (!usableArtworkUrl(url)) {
+        if (!displayableArtworkUrl(url)) {
             showDefaultArtwork(image);
             return;
         }
@@ -3875,6 +4044,40 @@ function paintAlbumArtwork(image, info, folder) {
         () => resolveArtwork({ info: info, folder: folder }),
         () => forgetArtworkFor({ info: info })
     );
+}
+
+/**
+ * Ask again for the covers that are still showing the default one.
+ *
+ * A picture is worked out once when a card is drawn. On the first paint after
+ * a refresh that happens before anything else is ready, and an album whose
+ * cover could not be worked out at that moment would keep the default one
+ * until something redrew the library - which, for a catalogue that had not
+ * changed, was nothing at all.
+ *
+ * Only the albums that say they have a picture and are not showing one. An
+ * album that genuinely has no cover is left alone, so this cannot become a
+ * second round of requests on every visit.
+ */
+async function repaintMissingArtwork() {
+    const cards = document.querySelectorAll('.cardcontainer[data-folder]');
+    const waiting = [];
+
+    cards.forEach((card) => {
+        const folder = card.dataset.folder;
+        const info = folder ? albumInfo[folder] : null;
+        if (!info || info.hasArtwork === false) return;
+
+        const image = card.querySelector('img');
+        if (!image || image.dataset.artworkState !== 'default') return;
+
+        waiting.push({ image, info, folder });
+    });
+
+    if (!waiting.length) return 0;
+
+    waiting.forEach((card) => paintAlbumArtwork(card.image, card.info, card.folder));
+    return waiting.length;
 }
 
 /** Drop whatever the resolver remembers about these, so the next ask is fresh. */

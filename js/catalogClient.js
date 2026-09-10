@@ -18,6 +18,204 @@
     var DEFAULT_BASE = '/api/catalog';
     var DEFAULT_ARTWORK = 'img/music.svg';
 
+    // ============================================
+    // The pictures this device has already fetched
+    // ============================================
+    //
+    // A published copy signs its own address for a published cover, and a
+    // signed address is good for an hour and different every time. So the
+    // browser's own cache cannot help: every visit asks for the same picture
+    // at an address it has never seen.
+    //
+    // What is kept instead is the picture itself, under a name made of the
+    // things about it that do not change - which album it belongs to, and
+    // which version of its cover this is. A refresh finds it under that name
+    // and paints it immediately, without signing anything or waiting for the
+    // catalogue to be checked. A replaced cover is a different name, so the
+    // old one is never shown in its place and is deleted when the new one
+    // arrives.
+    //
+    // Nothing temporary is written down: the store holds image bytes, and the
+    // signed address that fetched them is used once and dropped.
+
+    var ARTWORK_CACHE = 'spotifie-artwork-v1';
+
+    // The made-up address a kept picture is filed under. Never fetched - it
+    // exists so the store has a stable key to hold, and the parts of it are
+    // the album and the version of its cover.
+    var ARTWORK_KEY_BASE = 'https://artwork.spotifie.local/';
+
+    // Addresses for pictures this page has taken out of the store, so one
+    // picture is unpacked once however many cards ask for it. Memory only, and
+    // gone with the page.
+    var artworkObjectUrls = new Map();
+
+    // Items whose kept picture has just been thrown away because it did not
+    // load. Written down the moment it happens, because emptying the store
+    // itself takes a turn or two and the retry comes immediately after - and a
+    // retry served the very copy that just failed is not a retry.
+    var artworkDropped = new Set();
+
+    function artworkStore() {
+        try {
+            if (typeof caches === 'undefined' || !caches || !caches.open) return Promise.resolve(null);
+            return caches.open(ARTWORK_CACHE).catch(function () {
+                return null;
+            });
+        } catch (e) {
+            // Storage a browser refuses to open - a private window, a setting -
+            // is a slower page and nothing worse.
+            return Promise.resolve(null);
+        }
+    }
+
+    /** What this picture is filed under: the item, and which cover it is. */
+    function artworkKeyFor(id, version) {
+        return ARTWORK_KEY_BASE + encodeURIComponent(id) + '/' + encodeURIComponent(version || 'current');
+    }
+
+    /** And the same for every version of that item's cover, kept or not. */
+    function artworkKeyPrefix(id) {
+        return ARTWORK_KEY_BASE + encodeURIComponent(id) + '/';
+    }
+
+    /**
+     * The picture this device already has for one item, or null.
+     *
+     * An address into memory, so it can be painted straight into an <img>
+     * without a request going anywhere.
+     */
+    function keptArtwork(key, id) {
+        if (artworkDropped.has(id)) return Promise.resolve(null);
+
+        var held = artworkObjectUrls.get(key);
+        if (held) return Promise.resolve(held);
+
+        return artworkStore()
+            .then(function (store) {
+                if (!store) return null;
+                return store.match(key);
+            })
+            .then(function (response) {
+                if (!response || !response.ok) return null;
+                return response.blob();
+            })
+            .then(function (blob) {
+                if (!blob || !blob.size) return null;
+
+                var url = URL.createObjectURL(blob);
+                artworkObjectUrls.set(key, url);
+                return url;
+            })
+            .catch(function () {
+                return null;
+            });
+    }
+
+    /**
+     * Keep the picture at this address under a name that will still mean
+     * something tomorrow.
+     *
+     * The fetch is the same one the <img> is making, so this costs the network
+     * nothing extra in practice. A picture that cannot be fetched - refused,
+     * expired, offline - is simply not kept, and the page carries on with the
+     * address it already has.
+     */
+    function keepArtwork(key, id, url) {
+        if (!key || !url || /^data:|^blob:/.test(url)) return Promise.resolve(false);
+
+        return artworkStore()
+            .then(function (store) {
+                if (!store) return false;
+
+                return fetch(url, { mode: 'cors', credentials: 'omit' }).then(function (response) {
+                    if (!response || !response.ok) return false;
+
+                    var type = response.headers.get('content-type') || '';
+                    if (type && type.indexOf('image/') !== 0) return false;
+
+                    return store.put(key, response.clone()).then(function () {
+                        // A picture that has arrived and been kept is one to
+                        // serve again.
+                        artworkDropped.delete(id);
+                        return forgetOtherVersions(store, id, key);
+                    });
+                });
+            })
+            .catch(function () {
+                return false;
+            });
+    }
+
+    /** A cover that has been replaced is not one to keep a copy of. */
+    function forgetOtherVersions(store, id, keep) {
+        if (!id) return true;
+
+        var prefix = artworkKeyPrefix(id);
+
+        return store
+            .keys()
+            .then(function (requests) {
+                var stale = requests.filter(function (request) {
+                    return request.url.indexOf(prefix) === 0 && request.url !== keep;
+                });
+
+                return Promise.all(
+                    stale.map(function (request) {
+                        var held = artworkObjectUrls.get(request.url);
+                        if (held) {
+                            try {
+                                URL.revokeObjectURL(held);
+                            } catch (e) {
+                                /* the address was already gone */
+                            }
+                        }
+                        artworkObjectUrls.delete(request.url);
+                        return store.delete(request);
+                    })
+                );
+            })
+            .then(function () {
+                return true;
+            })
+            .catch(function () {
+                return true;
+            });
+    }
+
+    /**
+     * Drop every copy of one item's picture, so the next ask is a fresh one.
+     *
+     * Called when a picture failed to load. Whatever was wrong with it, the
+     * copy that was handed out is not one to hand out again - and that
+     * includes the one in the store, because if that is what failed, keeping
+     * it would fail the same way on every visit from here on.
+     */
+    function releaseKeptArtwork(id) {
+        var prefix = artworkKeyPrefix(id);
+        artworkDropped.add(id);
+
+        artworkObjectUrls.forEach(function (url, key) {
+            if (key.indexOf(prefix) !== 0) return;
+
+            try {
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                /* the address was already gone */
+            }
+            artworkObjectUrls.delete(key);
+        });
+
+        artworkStore()
+            .then(function (store) {
+                if (!store) return null;
+                return forgetOtherVersions(store, id, null);
+            })
+            .catch(function () {
+                /* a copy that could not be dropped is fetched over next time */
+            });
+    }
+
     function CatalogClient(options) {
         var settings = options || {};
         this.baseUrl = settings.baseUrl || DEFAULT_BASE;
@@ -57,7 +255,29 @@
      * or broken session is not an error here - the request simply goes out
      * unauthenticated and the server answers with the public content.
      */
+    /**
+     * Where a request actually goes.
+     *
+     * The music on a machine is answered by the helper on that machine, and
+     * with a server running that is this origin, so the address is left alone.
+     * A published copy is served from somewhere that has nothing to do with
+     * anybody's computer: asking it about /api/library is how a static host
+     * came to be asked whether somebody's music folders had changed. Those
+     * requests are addressed to the helper instead, at the one address a
+     * helper is ever at, and never at the address this page came from.
+     */
+    CatalogClient.prototype._addressed = function (url) {
+        if (typeof url !== 'string' || url.indexOf('/api/library') !== 0) return url;
+
+        var deployment = global.spotifieDeployment;
+        if (!deployment || !deployment.isPublished()) return url;
+
+        var origin = deployment.localHelperOrigin();
+        return origin ? origin + url : url;
+    };
+
     CatalogClient.prototype._fetch = function (url, init) {
+        url = this._addressed(url);
         if (this.fetchImpl) return this.fetchImpl(url, init);
 
         if (global.spotifieAuth && global.spotifieAuth.authorizedFetch) {
@@ -198,11 +418,20 @@
         this._cloudPromise = auth
             .tryGetClient()
             .then(function (supabase) {
-                if (!supabase) return null;
+                // No client yet is not "no client ever": this is asked while
+                // the page is still starting, and remembering a no would leave
+                // the catalogue, the covers and the audio unreachable for the
+                // rest of the visit.
+                if (!supabase) {
+                    self._cloudPromise = null;
+                    return null;
+                }
+
                 self._cloud = new Catalogue({ client: supabase });
                 return self._cloud;
             })
             .catch(function () {
+                self._cloudPromise = null;
                 return null;
             });
 
@@ -369,11 +598,17 @@
 
         // The one place a resolved artwork address is held, and only until it
         // expires. Nothing else in the application keeps one.
-        var cached = this.mediaCache.get('artwork:' + id);
+        //
+        // Held under which picture it is as well as which item, so a cover an
+        // administrator has replaced is a different question rather than the
+        // old answer given again for the next hour.
+        var held = 'artwork:' + id + ':' + (settings.version || 'current');
+
+        var cached = this.mediaCache.get(held);
         if (cached && cached.expiresAt > Date.now()) {
             return Promise.resolve(cached.url);
         }
-        this.mediaCache.delete('artwork:' + id);
+        this.mediaCache.delete(held);
 
         // The same distinction as the catalogue: a published copy signs its own
         // address rather than asking an origin that has no route to answer.
@@ -384,19 +619,46 @@
         // away - which is exactly what happened when this asked for a reader
         // that had not been made yet.
         if (this._published()) {
-            return this._cloudCatalogue()
-                .then(function (cloud) {
-                    if (!cloud) return fallback;
-                    return cloud.resolveArtwork(id);
-                })
-                .then(function (signed) {
-                    if (!signed) return fallback;
+            // Which picture this is, as far as the catalogue on this device
+            // knows. The name it is kept under is made of that, so a cover
+            // this browser already has is painted without signing anything.
+            var key = artworkKeyFor(id, settings.version);
 
-                    self.mediaCache.set('artwork:' + id, {
-                        url: signed,
-                        expiresAt: Date.now() + (3600 - 60) * 1000
-                    });
-                    return signed;
+            return keptArtwork(key, id)
+                .then(function (kept) {
+                    if (kept) return kept;
+
+                    return self
+                        ._cloudCatalogue()
+                        .then(function (cloud) {
+                            if (!cloud) return null;
+
+                            // What the catalogue on this device already said
+                            // about where the picture is, handed over before
+                            // anything is asked of Supabase.
+                            var path = self._artworkPaths ? self._artworkPaths.get(id) : null;
+                            if (path && typeof cloud.learn === 'function') {
+                                cloud.learn([{ id: id, metadata: { artworkPath: path } }]);
+                            }
+
+                            return cloud.resolveArtwork(id);
+                        })
+                        .then(function (signed) {
+                            if (!signed) return null;
+
+                            self.mediaCache.set(held, {
+                                url: signed,
+                                expiresAt: Date.now() + (3600 - 60) * 1000
+                            });
+
+                            // Kept for next time, behind the picture going up
+                            // now. A failure here changes nothing on screen.
+                            keepArtwork(key, id, signed);
+                            return signed;
+                        });
+                })
+                .then(function (url) {
+                    return url || fallback;
                 })
                 .catch(function () {
                     return fallback;
@@ -428,7 +690,7 @@
                 // it is good for - a minute short of its life, so one is never
                 // handed out at the moment it stops working.
                 if (result.expiresIn) {
-                    self.mediaCache.set('artwork:' + id, {
+                    self.mediaCache.set(held, {
                         url: url,
                         expiresAt: Date.now() + Math.max(0, result.expiresIn - 60) * 1000
                     });
@@ -436,7 +698,7 @@
                 return url;
             })
             .catch(function () {
-                self.mediaCache.delete('artwork:' + id);
+                self.mediaCache.delete(held);
                 return fallback;
             });
     };
@@ -469,7 +731,23 @@
     /** Forget any cached media URL for a track, forcing a fresh resolve. */
     CatalogClient.prototype.forgetMedia = function (id) {
         this.mediaCache.delete('stream:' + id);
-        this.mediaCache.delete('artwork:' + id);
+        this._forgetHeldArtwork(id);
+    };
+
+    /**
+     * Drop every address held for one item's picture.
+     *
+     * One item can have an address held for more than one version of its cover
+     * - the one on screen, and the one a redraw asked for a moment later - and
+     * forgetting is always about the item rather than about a version of it.
+     */
+    CatalogClient.prototype._forgetHeldArtwork = function (id) {
+        var prefix = 'artwork:' + id + ':';
+        var self = this;
+
+        Array.from(this.mediaCache.keys()).forEach(function (key) {
+            if (key === 'artwork:' + id || key.indexOf(prefix) === 0) self.mediaCache.delete(key);
+        });
     };
 
     /**
@@ -480,7 +758,69 @@
      * fresh one rather than reusing the address that just failed.
      */
     CatalogClient.prototype.forgetArtwork = function (id) {
-        this.mediaCache.delete('artwork:' + id);
+        this._forgetHeldArtwork(id);
+
+        // The address a copy with no server signed for itself, too. Without
+        // this, an expired address is handed back for as long as the reader
+        // thinks it is still good, and the retry that exists to recover from
+        // exactly that fails the same way.
+        if (this._cloud && typeof this._cloud.forgetSigned === 'function') this._cloud.forgetSigned(id);
+
+        // And the copy this page unpacked, in case that was what failed.
+        releaseKeptArtwork(id);
+    };
+
+    /**
+     * Take note of where the published pictures are kept.
+     *
+     * Called with whatever catalogue has just been drawn, wherever it came
+     * from. With a server it does nothing: the server signs its own addresses
+     * and the page never learns a path. Published, it is what lets the first
+     * paint after a refresh sign an address for a cover straight away instead
+     * of showing the default one until the catalogue has been read again.
+     */
+    /**
+     * Is this address one this client made, for a picture it fetched itself?
+     *
+     * A cover arrives as metadata almost everywhere - out of a file's tags,
+     * out of a catalogue row, out of something a person typed - and the page
+     * refuses an address into this browser's own memory from any of those,
+     * because nothing it was handed should be able to name one. A picture this
+     * client fetched and kept is the exception, and this is how the page tells
+     * the two apart rather than trusting the shape of the string.
+     */
+    CatalogClient.prototype.ownsObjectUrl = function (url) {
+        if (typeof url !== 'string' || url.indexOf('blob:') !== 0) return false;
+
+        var mine = false;
+        artworkObjectUrls.forEach(function (held) {
+            if (held === url) mine = true;
+        });
+        return mine;
+    };
+
+    CatalogClient.prototype.rememberArtworkPaths = function (items) {
+        if (!this._published() || !items || !items.length) return;
+
+        // Written down here and now, rather than only handed to a reader that
+        // may not exist yet. The library is painted in the same turn this is
+        // called in, and a card that asked for its cover before the reader had
+        // been made would fall back to asking Supabase where the picture was -
+        // one question, made by every card at once, and a library of default
+        // covers if it did not answer.
+        if (!this._artworkPaths) this._artworkPaths = new Map();
+        var known = this._artworkPaths;
+
+        (items || []).forEach(function (item) {
+            if (!item || !item.id) return;
+
+            var path = item.metadata ? item.metadata.artworkPath : null;
+            if (path) known.set(item.id, path);
+        });
+
+        this._cloudCatalogue().then(function (cloud) {
+            if (cloud && typeof cloud.learn === 'function') cloud.learn(items);
+        });
     };
 
     /**

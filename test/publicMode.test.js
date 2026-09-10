@@ -376,3 +376,303 @@ test('a build outside that builder says so and carries on', () => {
 
     fs.rmSync(out, { recursive: true, force: true });
 });
+
+
+// ============================================
+// The covers a published copy shows, and keeps
+// ============================================
+
+/**
+ * The regression these hold shut.
+ *
+ * A returning visit draws the library from the copy this device kept, before
+ * Supabase is asked anything at all. The reader that signs an address for a
+ * published cover knew where nothing was kept until the catalogue had been
+ * read again - so every card on that first paint asked for a picture, was told
+ * there was none, and showed the default one. The catalogue then came back
+ * unchanged, nothing was redrawn, and a library of default covers stayed on
+ * screen for the whole visit.
+ *
+ * Two things fix it and both are checked here: the paths come with the copy,
+ * and the pictures themselves are kept under a name that does not change.
+ */
+
+const ARTWORK_PATH = 'albums/one/cover.jpg';
+const OTHER_PATH = 'albums/one/cover-2.jpg';
+
+/** A Supabase client that answers from rows, and counts what it was asked. */
+function fakeSupabase(options) {
+    const settings = options || {};
+    const asked = { tables: [], signed: [] };
+
+    return {
+        asked: asked,
+        from(table) {
+            const query = {
+                select(columns) {
+                    asked.tables.push(table + ':' + columns);
+                    return query;
+                },
+                order() {
+                    return query;
+                },
+                then(resolve, reject) {
+                    return Promise.resolve({ data: settings[table] || [], error: null }).then(resolve, reject);
+                }
+            };
+            return query;
+        },
+        storage: {
+            from(bucket) {
+                return {
+                    createSignedUrl(objectPath, seconds) {
+                        asked.signed.push(bucket + '/' + objectPath);
+                        return Promise.resolve({
+                            data: {
+                                signedUrl:
+                                    'https://example.supabase.co/storage/v1/object/sign/' +
+                                    bucket +
+                                    '/' +
+                                    objectPath +
+                                    '?token=' +
+                                    asked.signed.length
+                            },
+                            error: null
+                        });
+                    }
+                };
+            }
+        }
+    };
+}
+
+/** A store shaped like the browser's, kept in memory. */
+function fakeCaches() {
+    const held = new Map();
+
+    const store = {
+        held: held,
+        match(key) {
+            const found = held.get(String(key));
+            return Promise.resolve(found ? found.response() : undefined);
+        },
+        put(key, response) {
+            held.set(String(key), { response: () => response });
+            return Promise.resolve();
+        },
+        keys() {
+            return Promise.resolve(Array.from(held.keys()).map((url) => ({ url: url })));
+        },
+        delete(request) {
+            held.delete(typeof request === 'string' ? request : request.url);
+            return Promise.resolve(true);
+        }
+    };
+
+    return { store: store, open: () => Promise.resolve(store) };
+}
+
+/** A picture, as a response the store can hold. */
+function imageResponse(body) {
+    return {
+        ok: true,
+        headers: { get: (name) => (name.toLowerCase() === 'content-type' ? 'image/jpeg' : null) },
+        clone() {
+            return imageResponse(body);
+        },
+        blob() {
+            return Promise.resolve({ size: body.length, body: body });
+        }
+    };
+}
+
+/**
+ * The catalogue client of a published copy, with the reader it uses and a
+ * browser made of the few things they touch.
+ */
+function loadCatalogue(options) {
+    const settings = options || {};
+    const caches = settings.caches || fakeCaches();
+    const supabase = settings.supabase || fakeSupabase({});
+    const fetched = [];
+
+    const sandbox = {
+        console: { warn() {}, log() {}, error() {} },
+        setTimeout: setTimeout,
+        clearTimeout: clearTimeout,
+        Promise: Promise,
+        Math: Math,
+        Date: Date,
+        Object: Object,
+        Map: Map,
+        Set: Set,
+        Error: Error,
+        String: String,
+        Number: Number,
+        Boolean: Boolean,
+        JSON: JSON,
+        encodeURIComponent: encodeURIComponent,
+        decodeURIComponent: decodeURIComponent,
+        caches: caches,
+        URL: {
+            createObjectURL: (blob) => 'blob:kept/' + (blob && blob.size),
+            revokeObjectURL() {}
+        },
+        fetch(url) {
+            fetched.push(String(url));
+            const answer = settings.fetch ? settings.fetch(String(url)) : imageResponse('picture-bytes');
+            return Promise.resolve(answer);
+        },
+        __SPOTIFIE_CONFIG__: publishedSettings()
+    };
+
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    sandbox.spotifieAuth = { tryGetClient: () => Promise.resolve(supabase) };
+
+    vm.createContext(sandbox);
+    vm.runInContext(DEPLOYMENT, sandbox);
+    vm.runInContext(source('js', 'cloudCatalog.js'), sandbox);
+    vm.runInContext(source('js', 'catalogClient.js'), sandbox);
+
+    return {
+        client: sandbox.spotifieCatalog,
+        supabase: supabase,
+        caches: caches,
+        fetched: fetched,
+        sandbox: sandbox
+    };
+}
+
+/** One published album, as the copy on a device keeps it. */
+function keptAlbum(extra) {
+    return Object.assign(
+        {
+            id: 'global-album:one',
+            source: 'global',
+            title: 'Awaken',
+            metadata: { hasArtwork: true, artworkVersion: 'v1', artworkPath: ARTWORK_PATH }
+        },
+        extra || {}
+    );
+}
+
+test('a cover is signed from what the copy remembered, without reading the catalogue', async () => {
+    const loaded = loadCatalogue();
+
+    // What a returning visit has before it asks Supabase anything: the album,
+    // and where its picture is kept.
+    loaded.client.rememberArtworkPaths([keptAlbum()]);
+
+    const url = await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+
+    assert.match(url, /storage\/v1\/object\/sign\/catalog-artwork\/albums\/one\/cover\.jpg/);
+    assert.deepStrictEqual(loaded.supabase.asked.tables, [], 'no table was read to find that out');
+});
+
+test('an album the copy said nothing about is asked after, not given up on', async () => {
+    const loaded = loadCatalogue({
+        supabase: fakeSupabase({
+            catalog_albums: [{ id: 'one', artwork_path: ARTWORK_PATH }],
+            catalog_tracks: []
+        })
+    });
+
+    const url = await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+
+    assert.match(url, /cover\.jpg/, 'the picture was found');
+    assert.ok(
+        loaded.supabase.asked.tables.some((asked) => asked.indexOf('artwork_path') !== -1),
+        'by asking where it is'
+    );
+
+    // And asked once. A library of thirty cards is not thirty questions.
+    const before = loaded.supabase.asked.tables.length;
+    await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+    assert.strictEqual(loaded.supabase.asked.tables.length, before);
+});
+
+test('a picture this device already has is painted without signing anything', async () => {
+    const first = loadCatalogue();
+    first.client.rememberArtworkPaths([keptAlbum()]);
+
+    const signed = await first.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+    assert.match(signed, /token=/, 'the first visit signs an address');
+
+    // The picture at that address is kept, under a name made of the album and
+    // which version of its cover this is.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const names = Array.from(first.caches.store.held.keys());
+    assert.strictEqual(names.length, 1);
+    assert.match(names[0], /global-album%3Aone\/v1$/, 'named by the album and the cover, not by the address');
+    assert.ok(!/token=/.test(names[0]), 'and never by an address that expires');
+
+    // The next visit finds it there and paints it without asking Supabase.
+    const next = loadCatalogue({ caches: first.caches });
+    next.client.rememberArtworkPaths([keptAlbum()]);
+
+    const kept = await next.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+    assert.match(kept, /^blob:/, 'the picture came from this device');
+    assert.deepStrictEqual(next.supabase.asked.signed, [], 'nothing was signed for it');
+});
+
+test('a cover that has been replaced is fetched again, and the old one is dropped', async () => {
+    const loaded = loadCatalogue();
+    loaded.client.rememberArtworkPaths([keptAlbum()]);
+    await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    // An administrator replaces the cover: a different path, so a different
+    // version, so a different name.
+    loaded.client.rememberArtworkPaths([
+        keptAlbum({ metadata: { hasArtwork: true, artworkVersion: 'v2', artworkPath: OTHER_PATH } })
+    ]);
+
+    const url = await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v2' });
+    assert.match(url, /cover-2\.jpg/, 'the new cover is what gets signed');
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const names = Array.from(loaded.caches.store.held.keys());
+    assert.strictEqual(names.length, 1, 'one cover an album, not one per version ever published');
+    assert.match(names[0], /\/v2$/);
+});
+
+test('an address that expired is not handed back a second time', async () => {
+    const loaded = loadCatalogue();
+    loaded.client.rememberArtworkPaths([keptAlbum()]);
+
+    const first = await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+
+    // What the page does when a picture fails to load: forget the address that
+    // failed, then ask again. Without the reader forgetting too, the same
+    // expired address comes back and the retry fails the same way.
+    loaded.client.forgetArtwork('global-album:one');
+
+    const second = await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+    assert.notStrictEqual(second, first, 'a fresh address');
+    assert.strictEqual(loaded.supabase.asked.signed.length, 2, 'signed again rather than reused');
+});
+
+test('a picture that cannot be fetched changes nothing on screen', async () => {
+    const loaded = loadCatalogue({
+        fetch: () => {
+            throw new Error('Failed to fetch');
+        }
+    });
+    loaded.client.rememberArtworkPaths([keptAlbum()]);
+
+    const url = await loaded.client.resolveArtworkUrl('global-album:one', { kind: 'album', version: 'v1' });
+
+    assert.match(url, /token=/, 'the signed address is still what goes up');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    assert.strictEqual(loaded.caches.store.held.size, 0, 'and nothing was kept');
+});
+
+test('the music on a device is asked of that device, never of the host', async () => {
+    const loaded = loadCatalogue();
+
+    await loaded.client.getDeviceScanStatus().catch(() => null);
+
+    assert.strictEqual(loaded.fetched.length, 1);
+    assert.strictEqual(loaded.fetched[0], 'http://127.0.0.1:3000/api/library/scan', 'the machine, not the host');
+});

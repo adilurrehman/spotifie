@@ -727,3 +727,124 @@ test('the library grid is drawn from collection names, never from positions', ()
     assert.ok(!/currentPlayingAlbum|currentSongsMeta/.test(back), 'playback is not the source of the library');
     assert.ok(!/predefinedSongs\s*=|albumInfo\s*=[^=]/.test(back), 'and nothing is rebuilt on the way back');
 });
+
+
+// ============================================
+// The same question, asked by a copy with no server
+// ============================================
+
+/**
+ * Where the answer lives when there is nothing to keep it.
+ *
+ * Everything above is about a machine running Spotifie: the server is asked
+ * whether this device may be searched, and it remembers. A published copy has
+ * no server on its origin, and the question is still worth asking - somebody
+ * reading it on the computer their music is on can have all of it, through the
+ * helper on that machine.
+ *
+ * It stopped being asked at all. The copy looked for a helper first, found
+ * none, and returned before the question could be put - so the one thing that
+ * would have started a helper conversation never appeared.
+ *
+ * These hold the order right: the device is asked first, the answer is kept
+ * for the device rather than for whoever is signed in, and the collection
+ * exists from the moment somebody agrees whether or not anything answers.
+ */
+
+// The player source is read once, above.
+
+/** The part of the player that deals with the music on this device. */
+function deviceSection() {
+    return PLAYER.slice(
+        PLAYER.indexOf('// ==================== Music on this device'),
+        PLAYER.indexOf('function libraryFolderForAlbum')
+    );
+}
+
+test('the question is put before anything is looked for', () => {
+    const startup = PLAYER.slice(
+        PLAYER.indexOf('async function initDeviceMusicScan()'),
+        PLAYER.indexOf('function initDeviceScanControls()')
+    );
+
+    // Asked, and only then looked into. The other way round is the regression:
+    // no helper, an early return, and a question nobody ever saw.
+    const asked = startup.indexOf("localMusicPermission() !== 'allowed'");
+    const looked = startup.indexOf('requestLocalMusic()');
+
+    assert.ok(asked !== -1 && looked !== -1, 'both happen');
+    assert.ok(asked < looked, 'the device is asked before a helper is looked for');
+
+    // And it does not wait to find out who is reading. Whether somebody wants
+    // their own music looked at is not a question about an account.
+    const upToPrompt = startup.slice(0, startup.indexOf("prompt.classList.remove('hidden')"));
+    assert.ok(!/spotifieAuth|getSession|signedIn/i.test(upToPrompt), 'nothing about signing in comes first');
+});
+
+test('the answer belongs to the device, and every account on it reads the same one', () => {
+    const section = deviceSection();
+
+    // One key for the machine. Nothing in it names an account, so a guest, a
+    // listener and an administrator at the same computer are answering - and
+    // reading - the same question.
+    assert.match(section, /const LOCAL_MUSIC_PERMISSION_KEY = 'spotifie_local_music';/);
+    assert.ok(!/uid|userId|accountId|session/i.test(section.slice(section.indexOf('const LOCAL_MUSIC_PERMISSION_KEY'), section.indexOf('function ensureLocalMusicCollection'))));
+
+    // A browser that refuses storage asks again rather than assuming an
+    // agreement nobody gave.
+    assert.match(section, /catch \(e\) \{[\s\S]{0,200}return null;/);
+});
+
+test('agreeing makes the collection exist, before anything has been found', () => {
+    const allow = PLAYER.slice(
+        PLAYER.indexOf("document.getElementById('deviceScanStart')"),
+        PLAYER.indexOf("document.getElementById('deviceScanLater')")
+    );
+
+    // In this order: remember, show the collection, then go looking. A
+    // collection that appeared only once a search succeeded would vanish on
+    // every machine with no helper on it.
+    const remembered = allow.indexOf('rememberLocalMusicPermission()');
+    const created = allow.indexOf('ensureLocalMusicCollection()');
+    const looked = allow.indexOf('requestLocalMusic()');
+
+    assert.ok(remembered !== -1 && created !== -1 && looked !== -1);
+    assert.ok(remembered < created, 'the answer is kept first');
+    assert.ok(created < looked, 'and the collection exists before anything is asked');
+
+    // Nothing answering is one sentence, not a broken application.
+    assert.match(allow, /showToast\('Local Music helper is not available on this device'\)/);
+    assert.match(allow, /markLocalMusicUnavailable\(\);/);
+});
+
+test('a device that agreed keeps its collection through every redraw', () => {
+    const apply = PLAYER.slice(
+        PLAYER.indexOf('function applyCatalogData(catalogue)'),
+        PLAYER.indexOf('let renderedCatalogFingerprint')
+    );
+
+    // The library is built again from scratch on every catalogue, including
+    // one from a copy with no local half in it. This is what puts the
+    // collection back each time.
+    assert.match(apply, /if \(localMusicPermission\(\) === 'allowed'\) ensureLocalMusicCollection\(\);/);
+
+    // And it only ever adds: a real Local Music, with songs in it, is left
+    // exactly as the catalogue gave it.
+    const ensure = PLAYER.slice(
+        PLAYER.indexOf('function ensureLocalMusicCollection()'),
+        PLAYER.indexOf('async function initDeviceMusicScan()')
+    );
+    assert.match(ensure, /if \(albumInfo\[LOCAL_MUSIC_FOLDER\]\) return false;/);
+    assert.match(ensure, /isSystemCollection: true/, 'and it is the machine own collection, first in the library');
+});
+
+test('saying not now is for this visit, and nothing is written down', () => {
+    const later = PLAYER.slice(
+        PLAYER.indexOf("document.getElementById('deviceScanLater')"),
+        PLAYER.indexOf("document.getElementById('scanDeviceLink')")
+    );
+
+    assert.match(later, /deviceScanDismissedThisSession = true;/);
+    assert.ok(!/localStorage|rememberLocalMusicPermission/.test(later), 'a refusal is not kept');
+    assert.ok(!/startDeviceScan|requestLocalMusic/.test(later), 'and nothing is searched or asked');
+});

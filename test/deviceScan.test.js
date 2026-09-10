@@ -635,10 +635,22 @@ test('the question is asked again after Not Now, and stops after Scan Device', (
     );
     assert.ok(section.length > 0, 'the section was found');
 
-    // The answer that is kept is the server's, about this device - not one
-    // stored per account in the browser.
-    assert.ok(!/localStorage|sessionStorage/.test(section), 'no permission is kept in the browser');
+    // Whose answer this is: the device's, either way.
+    //
+    // With a server running, the server keeps it, and nothing about it is
+    // written in the browser. A published copy has no server to keep it and
+    // still has a device to ask about, so the answer is kept where a browser
+    // keeps things - once for the machine, never once per account, and never
+    // anything that could grant access to anything.
+    assert.ok(!/sessionStorage/.test(section), 'nothing about it is kept for one visit only');
     assert.ok(!/accountId|spotifieAuth|isSignedIn/.test(section), 'and it is not asked per account');
+    assert.match(section, /const LOCAL_MUSIC_PERMISSION_KEY = 'spotifie_local_music';/);
+    assert.match(section, /localStorage\.setItem\(LOCAL_MUSIC_PERMISSION_KEY, 'allowed'\)/);
+
+    // A decision, and only that. Nothing signed, nothing a browser could use
+    // to reach anything.
+    const kept = section.slice(section.indexOf('const LOCAL_MUSIC_PERMISSION_KEY'), section.indexOf('function ensureLocalMusicCollection'));
+    assert.ok(!/token|key:|secret|password/i.test(kept.replace(/LOCAL_MUSIC_PERMISSION_KEY/g, '')), 'nothing but the answer');
 
     // Not now: closed for this visit, nothing written, nothing searched.
     const later = section.slice(
@@ -672,10 +684,16 @@ test('the question is asked again after Not Now, and stops after Scan Device', (
         /if \(deviceScanReport\.permission === 'allowed'\) \{\s*await startDeviceScan\(\{ silent: true \}\);/,
         'an allowed device looks again by itself, and does it quietly'
     );
-    // And the question is never asked again once it has been answered yes.
+    // And the question is never asked again once it has been answered yes -
+    // by the server that was asked, or by the device on a copy that has none.
     assert.ok(
-        startup.indexOf("prompt.classList.remove('hidden')") > startup.indexOf("permission === 'allowed'"),
+        startup.lastIndexOf("prompt.classList.remove('hidden')") > startup.indexOf("permission === 'allowed'"),
         'the prompt is only for a device that has not agreed'
+    );
+    assert.match(
+        startup,
+        /if \(published && localMusicPermission\(\) !== 'allowed'\) \{[\s\S]{0,200}prompt\.classList\.remove\('hidden'\);/,
+        'a published copy asks the device, and asks before it looks for anything'
     );
 });
 
