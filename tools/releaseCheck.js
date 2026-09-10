@@ -32,11 +32,20 @@ const DIST = process.env.SPOTIFIE_RELEASE_OUT
 // What must never be in a release
 // ============================================
 
-/** Files and paths that would mean the administrator tooling was included. */
+/**
+ * Files and paths that would mean the privileged half of the project was
+ * included.
+ *
+ * The dashboard page and its script are not on this list. They decide nothing:
+ * both ask the database whether the account reading them is an administrator,
+ * and every write they attempt is refused again by the row-level policies,
+ * which read the same table and do not care what page asked. What must never
+ * be released is what actually decides - the server modules that verify
+ * administrators and perform privileged writes - and the administrator sign-in
+ * page, which belongs to a copy somebody runs themselves.
+ */
 const FORBIDDEN_PATHS = [
-    /(^|[/\\])admin-dashboard\.html$/i,
     /(^|[/\\])admin-login\.html$/i,
-    /(^|[/\\])admin\.js$/i,
     /(^|[/\\])adminAuth\.js$/i,
     /(^|[/\\])adminCatalogRoutes\.js$/i,
     /(^|[/\\])adminAlbumRoutes\.js$/i,
@@ -69,7 +78,6 @@ const FORBIDDEN_CONTENT = [
     { name: 'a hardcoded password', pattern: /\b(password|passwd|pwd)\s*[:=]\s*['"][^'"]{3,}['"]/i },
     { name: 'a database connection string', pattern: /postgres(ql)?:\/\/[^\s'"]*:[^\s'"]*@/i },
     { name: 'a JWT secret', pattern: /\bjwt[_-]?secret\b/i },
-    { name: 'a link to the admin dashboard', pattern: /admin-dashboard\.html/i },
     { name: 'a link to the admin sign-in page', pattern: /admin-login\.html/i }
 ];
 

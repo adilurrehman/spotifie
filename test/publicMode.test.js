@@ -1075,3 +1075,99 @@ test('a rescan of one folder leaves every other folder alone', () => {
     assert.match(LIBRARY, /folderId: row\.folderId/);
     assert.match(LIBRARY, /folderName: folder \? folder\.name : null/);
 });
+
+// ============================================
+// Who the database says you are
+// ============================================
+
+/**
+ * An administrator signing in to the published copy saw no way to reach the
+ * dashboard.
+ *
+ * Two things were wrong and both are held here. The build took the link out of
+ * the page, so there was nothing to show however the question was answered.
+ * And the question itself is worth asking carefully: it is answered by the
+ * database, from the account's id, never from an address or an email or
+ * anything a browser can write.
+ */
+
+const AUTH = source('js', 'auth.js');
+
+test('being an administrator is something the database says, about an id', () => {
+    const check = AUTH.slice(AUTH.indexOf('async function isAdmin(options)'), AUTH.indexOf('async function signUp('));
+
+    // The function the database already has, asked about this session\x27s
+    // own id - the same function every admin-only policy calls.
+    assert.match(check, /client\.rpc\('is_admin', \{ uid: userId \}\)/);
+
+    // And the account's own row as the second way, which is the one thing
+    // the policy on that table lets it read.
+    assert.match(check, /\.from\('app_admins'\)[\s\S]{0,160}\.eq\('user_id', userId\)/);
+
+    // Never an email, never anything a browser could write for itself.
+    assert.ok(!/email/i.test(check), 'no email decides this');
+    assert.ok(!/localStorage|sessionStorage|location\.search|isAdmin=true/.test(check), 'and nothing a page holds');
+});
+
+test('an answer that never arrived is not remembered as a no', () => {
+    const check = AUTH.slice(AUTH.indexOf('async function isAdmin(options)'), AUTH.indexOf('async function signUp('));
+
+    // A session still settling is the usual reason, and it is worth exactly
+    // one more attempt - never a loop.
+    assert.match(check, /if \(verified === null\) \{[\s\S]{0,220}retried: true/);
+    assert.match(check, /if \(settings\.retried\) return false;/);
+
+    // Only a real answer is kept, and only for the account it was about.
+    assert.match(check, /adminAnswer = \{ userId: userId, verified: verified \};/);
+    assert.match(AUTH, /if \(userId !== previousUserId\) adminAnswer = \{ userId: null, verified: null \};/);
+});
+
+test('the menu corrects itself when the answer arrives', () => {
+    const render = AUTH.slice(AUTH.indexOf('async function renderAuthUI()'), AUTH.indexOf('function initAuthUI()'));
+
+    // Drawn hidden, shown when the database says so - no refresh, and no
+    // waiting on a question before anything appears at all.
+    assert.match(render, /setDisplay\(dashboardLink, 'none'\);/);
+    assert.match(render, /isAdmin\(\)[\s\S]{0,400}setDisplay\(dashboardLink, admin \? 'flex' : 'none'\)/);
+
+    // An answer about somebody who has since signed out, or been replaced,
+    // is discarded rather than painted over the menu of whoever is there.
+    assert.match(render, /currentSession\.user\.id !== user\.id\) return;/);
+
+    // And the whole header is drawn again whenever the session changes, so
+    // signing in and signing out both recalculate this.
+    assert.match(AUTH, /notify\(event\);\s*renderAuthUI\(\);/);
+});
+
+test('the published copy carries the link, and the page it points at', () => {
+    const build = source('tools', 'buildPublic.js');
+
+    assert.match(build, /'admin-dashboard\.html'/);
+    assert.match(build, /'js\/admin\.js'/);
+
+    // The page keeps its link, and the only thing that would take it out is
+    // the dashboard itself not being published - a checkout without the
+    // private half of the project. Taking it out of a release that does have
+    // the dashboard was why an administrator had no way to reach it.
+    assert.match(build, /const ADMIN_FILES = \['admin-dashboard\.html', 'js\/admin\.js'\];/);
+    assert.match(build, /page === 'index\.html' && !dashboard \? stripDashboardLink : null/);
+    assert.match(build, /const dashboard = ADMIN_FILES\.every\(\(file\) => fs\.existsSync/);
+
+    // What decides anything is still absent, so a released server has no
+    // privileged route at all.
+    ['adminAuth.js', 'adminCatalogRoutes.js', 'adminAlbumRoutes.js', 'admin-login.html'].forEach((name) => {
+        assert.ok(build.indexOf("'" + name + "'") === -1, name + ' is not published');
+    });
+});
+
+test('the dashboard decides nothing on its own', () => {
+    const admin = source('js', 'admin.js');
+
+    // It asks for a session and for administrator rights before it shows
+    // anything, and sends everybody else back to the application.
+    assert.match(admin, /requireSession|isAdmin\(\)/);
+    assert.match(admin, /redirectToHome/);
+
+    // And it names no page that a published copy does not have.
+    assert.ok(!/admin-login\.html/.test(admin), 'nothing points at a page that is not published');
+});

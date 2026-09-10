@@ -457,16 +457,21 @@ function releaseFiles() {
 test('the release is the application, and nothing that runs it as an administrator', () => {
     const files = releaseFiles();
 
-    [
-        'admin-dashboard.html',
-        'admin-login.html',
-        'js/admin.js',
-        'lib/adminAuth.js',
-        'lib/adminCatalogRoutes.js',
-        'lib/adminAlbumRoutes.js',
-        'CLAUDE.md'
-    ].forEach((file) => {
-        assert.ok(files.indexOf(file) === -1, file + ' is not in the release');
+    // What decides whether an account is an administrator, and what it may do
+    // with that: none of it is here, so the released server has no privileged
+    // route to reach at all.
+    ['admin-login.html', 'lib/adminAuth.js', 'lib/adminCatalogRoutes.js', 'lib/adminAlbumRoutes.js', 'CLAUDE.md'].forEach(
+        (file) => {
+            assert.ok(files.indexOf(file) === -1, file + ' is not in the release');
+        }
+    );
+
+    // The dashboard is here, and grants nothing by being here: it asks the
+    // database whether the account reading it is an administrator and sends
+    // everybody else away, and the row-level policies refuse every write it
+    // attempts on behalf of an account the database does not trust.
+    ['admin-dashboard.html', 'js/admin.js'].forEach((file) => {
+        assert.ok(files.indexOf(file) !== -1, file + ' is in the release');
     });
 
     // Nothing from the working copy's own life, either.
@@ -494,7 +499,6 @@ test('nothing in the release names a dashboard or carries a secret', () => {
 
         const text = fs.readFileSync(path.join(OUT, file), 'utf8');
 
-        assert.ok(!/admin-dashboard\.html/i.test(text), file + ' names the dashboard');
         assert.ok(!/admin-login\.html/i.test(text), file + ' names the admin sign-in page');
         assert.ok(!/service_role/.test(text), file + ' names a service-role key');
         assert.ok(!/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text), file + ' carries a private key');
@@ -506,9 +510,13 @@ test('nothing in the release names a dashboard or carries a secret', () => {
     assert.ok(!/eyJ[A-Za-z0-9_-]{20,}\./.test(config), 'no key is shipped');
     assert.ok(!/https:\/\/[a-z0-9]{16,}\.supabase\.co/.test(config), 'no project is named');
 
-    // The page has no link to a dashboard it does not have.
+    // The page carries the link to the dashboard, hidden until the database
+    // says the account reading it is an administrator. Leaving it out was why
+    // an administrator signing in to a published copy had no way to reach a
+    // dashboard that was there all along.
     const index = fs.readFileSync(path.join(OUT, 'index.html'), 'utf8');
-    assert.ok(!/dashboardLink/.test(index), 'and no link to one');
+    assert.match(index, /id="dashboardLink"/);
+    assert.match(index, /style="display: none;"/);
 });
 
 // ============================================
@@ -596,10 +604,18 @@ test('the released server has no administrator route to reach', async () => {
         assert.strictEqual(await ask(started.port, page), 200, page + ' is there');
     }
 
-    // The dashboard, in every spelling.
-    for (const page of ['/admin-dashboard.html', '/admin-login.html', '/admin-dashboard', '/admin-login', '/js/admin.js']) {
+    // The administrator sign-in page belongs to a copy somebody runs
+    // themselves and is nowhere in a release, under any spelling.
+    for (const page of ['/admin-login.html', '/admin-login']) {
         assert.strictEqual(await ask(started.port, page), 404, page + ' is not there');
     }
+
+    // The dashboard answers, and answering is all it does: it asks the
+    // database who is reading it and sends everybody else away, and every
+    // write it could attempt is refused by the policies on the tables. What
+    // does not answer is the half below - there is no privileged route here at
+    // all, for an administrator or for anybody else.
+    assert.strictEqual(await ask(started.port, '/admin-dashboard.html'), 200, 'the dashboard is served');
 
     // Every write to the shared catalogue, and the rescan.
     const writes = [

@@ -17,10 +17,15 @@
  *
  * What comes out is a directory that runs the user-facing application on its
  * own: the pages, the assets, the server, and the shared half of the library
- * and catalogue code. What is left behind has no route to reach - the admin
- * modules are absent, so the server has no privileged endpoints to expose, and
- * the admin pages are absent, so their addresses answer 404 like any other
- * path that names nothing.
+ * and catalogue code. What is left behind has no route to reach - the server
+ * modules that check administrators and perform privileged writes are absent,
+ * so the released server has no privileged endpoints to expose at all.
+ *
+ * The dashboard page and its script are included, and grant nothing by being
+ * there: both ask the database whether the account reading them is an
+ * administrator, and every write they attempt is refused again by the
+ * row-level policies. The administrator sign-in page is not included - it
+ * belongs to a copy somebody runs themselves.
  *
  * Run it with: npm run build:public
  * Then check it with: npm run release:check
@@ -44,9 +49,23 @@ const OUT = process.env.SPOTIFIE_RELEASE_OUT
 /**
  * Pages a visitor can open.
  *
- * admin-dashboard.html and admin-login.html are deliberately not here, and
- * this being a list of what to include is what makes that a fact rather than
- * something to remember.
+ * admin-login.html is deliberately not here: it belongs to a copy somebody
+ * runs themselves, and this being a list of what to include is what makes that
+ * a fact rather than something to remember.
+ *
+ * The dashboard is here, and is not an exception to that.
+ *
+ * It grants nothing. Opening it asks the database whether this account is an
+ * administrator and sends anybody else away; every action inside it is refused
+ * again by the row-level policies, which read the same table and do not care
+ * what page asked. Publishing it is publishing an interface that is useless to
+ * everybody except the accounts the database already trusts - and leaving it
+ * out was why an administrator signing in to the published copy had a link to
+ * a page that was not there.
+ *
+ * What stays out is what actually decides anything: the server modules that
+ * check administrators and perform privileged writes. They are absent, so the
+ * released server has no privileged endpoints at all.
  */
 const PAGES = [
     'index.html',
@@ -55,11 +74,17 @@ const PAGES = [
     'signin.html',
     'signup.html',
     'forgot-password.html',
-    'reset-password.html'
+    'reset-password.html',
+    'admin-dashboard.html'
 ];
 
-/** Browser code the pages load. js/admin.js is not part of the application. */
+/** Browser code the pages load. */
 const BROWSER_SCRIPTS = [
+    // The dashboard's own script, which is what asks the database whether the
+    // account reading it is an administrator and sends everybody else away. It
+    // decides nothing: the row-level policies refuse every write it attempts
+    // on behalf of an account the database does not trust.
+    'js/admin.js',
     // What this copy is - a checkout, or something published. Read before
     // anything asks an origin for an API it may not have.
     'js/deployment.js',
@@ -80,6 +105,15 @@ const BROWSER_SCRIPTS = [
     'js/libraryClient.js',
     'js/libraryDB.js'
 ];
+
+/**
+ * The dashboard, and the script that decides who may see it.
+ *
+ * Published together or not at all, and only when this working copy has them:
+ * they live in the private half of the project, so a checkout without them
+ * builds a release without them and without the link to them.
+ */
+const ADMIN_FILES = ['admin-dashboard.html', 'js/admin.js'];
 
 const STYLES = ['css/style.css', 'css/auth.css', 'css/utlity.css'];
 
@@ -180,13 +214,13 @@ function copyDirectory(relative) {
 /**
  * Take the dashboard link out of the page.
  *
- * It is hidden until an account proves it is an administrator, and it grants
- * nothing by itself - every privileged endpoint checks for itself. But a
- * release with no dashboard should not carry a link to one, so the whole
- * element goes rather than being left to hide itself.
+ * Only when the dashboard itself is not being published - a checkout that does
+ * not carry the private half of the project. A link to a page that is not
+ * there is worse than no link: it is hidden until the database says the
+ * account is an administrator, and then it leads nowhere.
  */
 function stripDashboardLink(html) {
-    const start = html.indexOf('<!-- Dashboard link - only shown for admin -->');
+    const start = html.indexOf('<!-- The dashboard, shown only once the database');
     if (start === -1) return html;
 
     const closing = html.indexOf('</a>', start);
@@ -199,6 +233,7 @@ function stripDashboardLink(html) {
 
     return html.slice(0, lineStart) + html.slice(lineEnd + 1);
 }
+
 
 /**
  * Point the release at nothing in particular.
@@ -539,11 +574,22 @@ function build() {
     fs.rmSync(OUT, { recursive: true, force: true });
     ensureDirectory(OUT);
 
+    // The dashboard and its script are part of the private half of the working
+    // copy: a checkout that does not have them builds a release without them,
+    // rather than failing. When they are absent the page must not link to
+    // them either, so the link goes with them - a release that named a page it
+    // did not have would be the same fault in the other direction.
+    const dashboard = ADMIN_FILES.every((file) => fs.existsSync(path.join(ROOT, file)));
+
     for (const page of PAGES) {
-        copyFile(page, { transform: page === 'index.html' ? stripDashboardLink : null });
+        if (ADMIN_FILES.indexOf(page) !== -1 && !dashboard) continue;
+        copyFile(page, { transform: page === 'index.html' && !dashboard ? stripDashboardLink : null });
     }
 
-    for (const script of BROWSER_SCRIPTS) copyFile(script);
+    for (const script of BROWSER_SCRIPTS) {
+        if (ADMIN_FILES.indexOf(script) !== -1 && !dashboard) continue;
+        copyFile(script);
+    }
     for (const style of STYLES) copyFile(style);
     for (const directory of ASSET_DIRECTORIES) copyDirectory(directory);
 
@@ -654,9 +700,10 @@ function report() {
     console.log('Public release built in ' + path.relative(ROOT, OUT));
     console.log('  ' + files.length + ' files, ' + Math.round(bytes / 1024) + ' KB');
     console.log('');
-    console.log('Left out by design: the admin pages and their script, the admin');
-    console.log('server modules, the tests, the working data, and this project\'s own');
-    console.log('Supabase settings.');
+    console.log('Left out by design: the administrator sign-in page, the admin server');
+    console.log('modules, the tests, the working data, and this project\'s own Supabase');
+    console.log('settings. The dashboard is included and grants nothing: the database');
+    console.log('decides who may use it.');
     console.log('');
     console.log('Check it before publishing:  npm run release:check');
 }

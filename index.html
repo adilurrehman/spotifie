@@ -455,16 +455,6 @@
                                 </svg>
                                 Profile
                             </a>
-                            <!-- Dashboard link - only shown for admin -->
-                            <a href="admin-dashboard.html" class="dropdown-item admin-link" id="dashboardLink" style="display: none;">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
-                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
-                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
-                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
-                                </svg>
-                                Dashboard
-                            </a>
                             <button class="dropdown-item" id="manageLocalLink">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M3 6h18M3 12h18M3 18h12"/>
@@ -479,6 +469,19 @@
                                 </svg>
                                 <span id="scanDeviceLabel">Scan device for music</span>
                             </button>
+                            <!-- The dashboard, shown only once the database has said this
+                                 account is an administrator. It grants nothing by being
+                                 here: the dashboard asks the same question again, and every
+                                 privileged action is refused by the policies on the tables. -->
+                            <a href="/admin-dashboard.html" class="dropdown-item admin-link" id="dashboardLink" style="display: none;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="3" width="7" height="7" rx="1"/>
+                                    <rect x="3" y="14" width="7" height="7" rx="1"/>
+                                    <rect x="14" y="14" width="7" height="7" rx="1"/>
+                                </svg>
+                                Admin Dashboard
+                            </a>
                             <hr class="dropdown-divider">
                             <button class="dropdown-item logout-btn" id="logoutBtn">
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -100,7 +100,21 @@ test('the release is an application, and holds nobody library', () => {
     assert.deepStrictEqual(personal, [], 'no library state is packaged');
 
     // And nothing of the private half of the project.
-    const privateHalf = files.filter((name) => /admin/i.test(name) || /(^|\/)test(\/|$)/.test(name) || /CLAUDE\.md$/.test(name));
+    //
+    // The dashboard and its script are not that half. Both ask the database
+    // whether the account reading them is an administrator and send everybody
+    // else away, and every write they attempt is refused again by the
+    // row-level policies - so publishing them hands nobody anything. What must
+    // never be here is what actually decides: the server modules that verify
+    // administrators, and the sign-in page that belongs to a copy somebody
+    // runs themselves.
+    const allowed = ['admin-dashboard.html', 'js/admin.js'];
+    const privateHalf = files.filter(
+        (name) =>
+            (/admin/i.test(name) && allowed.indexOf(name) === -1) ||
+            /(^|\/)test(\/|$)/.test(name) ||
+            /CLAUDE\.md$/.test(name)
+    );
     assert.deepStrictEqual(privateHalf, [], 'no administrator tooling is packaged');
 });
 
@@ -133,7 +147,12 @@ test('every address a visitor can reach resolves to a file', () => {
 
     assert.ok(referenced.length > 5, 'the page does name its own files');
     referenced.forEach((name) => {
-        assert.ok(files.has(name.replace(/^\.\//, '')), 'index.html names ' + name + ', which is published');
+        // Named from the root or named from beside the page: the same file
+        // either way, and either way it has to be in the release.
+        const file = name.replace(/^\.\//, '').replace(/^\//, '');
+        if (!file) return;
+
+        assert.ok(files.has(file), 'index.html names ' + name + ', which is published');
     });
 });
 
@@ -342,13 +361,12 @@ test('the worker keeps the application and nothing belonging to anybody', () => 
 test('the check refuses every shape of private thing', () => {
     const checker = fs.readFileSync(path.join(ROOT, 'tools', 'releaseCheck.js'), 'utf8');
 
-    // The administrator half, by file name.
-    ['admin-dashboard', 'admin-login', 'adminAuth', 'adminCatalogRoutes', 'adminAlbumRoutes'].forEach((name) => {
+    // The half that decides anything, by file name: the modules a server would
+    // check an administrator with, and the sign-in page that belongs to a copy
+    // somebody runs themselves.
+    ['admin-login', 'adminAuth', 'adminCatalogRoutes', 'adminAlbumRoutes'].forEach((name) => {
         assert.ok(checker.indexOf(name) !== -1, 'a release carrying ' + name + ' is refused');
     });
-
-    // The dashboard's own script, named as the checker names it.
-    assert.match(checker, /admin\\\.js\$/);
 
     // Anything belonging to a person or a machine.
     ['\\.env', '\\.spotifie', 'scan-state', 'playback', 'users', 'node_modules', 'CLAUDE'].forEach((name) => {

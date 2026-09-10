@@ -354,6 +354,10 @@
         currentSession = session || null;
         const userId = currentSession && currentSession.user ? currentSession.user.id : null;
 
+        // Whether the last account was an administrator says nothing about
+        // this one, so the answer goes with the account it was about.
+        if (userId !== previousUserId) adminAnswer = { userId: null, verified: null };
+
         // A different user (or no user) must never inherit cached UI state.
         if (!userId) {
             clearProfileCache();
@@ -489,24 +493,84 @@
      * Row Level Security limits this query to the caller's own row, and the
      * table grants no insert/update/delete to ordinary users.
      */
-    async function isAdmin() {
+    /**
+     * Is the account signed in here an administrator?
+     *
+     * The database decides, and it decides from the account's id: there is a
+     * row in app_admins or there is not. No email is compared here, nothing
+     * the browser can write takes part, and a "yes" from this changes nothing
+     * about what the account may do - every privileged action is checked again
+     * where it happens, against the same table.
+     *
+     * Asked two ways, in this order. The function the database already has,
+     * which answers the question directly and is the same one every admin-only
+     * policy calls; and, if that is not reachable, the account's own row,
+     * which the policy on that table lets it read and nobody else's.
+     *
+     * The answer is kept for the account it was asked about and dropped the
+     * moment that account changes. A failure is never kept: an answer that
+     * could not be obtained is not the same as "no", and remembering it as one
+     * would hide the dashboard from an administrator for the whole visit.
+     */
+    let adminAnswer = { userId: null, verified: null };
+
+    async function isAdmin(options) {
+        const settings = options || {};
         const session = await getSession();
-        if (!session || !session.user) return false;
+        if (!session || !session.user) {
+            adminAnswer = { userId: null, verified: null };
+            return false;
+        }
+
+        const userId = session.user.id;
+        if (!settings.refresh && adminAnswer.userId === userId && adminAnswer.verified !== null) {
+            return adminAnswer.verified;
+        }
 
         const client = await tryGetClient();
         if (!client) return false;
 
-        const { data, error } = await client
-            .from('app_admins')
-            .select('user_id')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
+        const verified = await askDatabaseAboutAdmin(client, userId);
 
-        if (error) {
-            console.error('Admin lookup failed:', error);
-            return false;
+        // Only a real answer is remembered. A session that was still settling
+        // when this was asked gets one more chance rather than a permanent no.
+        if (verified === null) {
+            if (settings.retried) return false;
+            await new Promise((resolve) => setTimeout(resolve, 400));
+            return isAdmin({ refresh: true, retried: true });
         }
-        return Boolean(data);
+
+        adminAnswer = { userId: userId, verified: verified };
+        return verified;
+    }
+
+    /** True, false, or null when the question could not be put. */
+    async function askDatabaseAboutAdmin(client, userId) {
+        try {
+            const { data, error } = await client.rpc('is_admin', { uid: userId });
+            if (!error) return Boolean(data);
+
+            console.warn('Admin check by function failed, asking the table instead:', error.message);
+        } catch (err) {
+            console.warn('Admin check by function failed, asking the table instead:', err && err.message);
+        }
+
+        try {
+            const { data, error } = await client
+                .from('app_admins')
+                .select('user_id')
+                .eq('user_id', userId)
+                .maybeSingle();
+
+            if (error) {
+                console.error('Admin lookup failed:', error.message);
+                return null;
+            }
+            return Boolean(data);
+        } catch (err) {
+            console.error('Admin lookup failed:', err && err.message);
+            return null;
+        }
     }
 
     // ============================================
@@ -740,10 +804,24 @@
 
         // The dashboard link is a convenience only: the dashboard and every
         // privileged endpoint verify admin rights independently.
+        //
+        // The menu is drawn before this is known - it has to be, or signing in
+        // would leave somebody looking at nothing while a question went to the
+        // database and came back. So the answer arrives afterwards and the
+        // menu is corrected in place, without a refresh and without the item
+        // ever appearing for an account it does not belong to: an answer about
+        // somebody who has since signed out, or been replaced, is discarded.
         if (dashboardLink) {
-            isAdmin().then((admin) => {
-                setDisplay(dashboardLink, admin ? 'flex' : 'none');
-            });
+            setDisplay(dashboardLink, 'none');
+
+            isAdmin()
+                .then((admin) => {
+                    if (!currentSession || !currentSession.user || currentSession.user.id !== user.id) return;
+                    setDisplay(dashboardLink, admin ? 'flex' : 'none');
+                })
+                .catch((error) => {
+                    console.warn('Could not decide whether this account is an administrator:', error && error.message);
+                });
         }
     }
 
