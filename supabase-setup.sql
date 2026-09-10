@@ -156,6 +156,26 @@ $$;
 REVOKE ALL ON FUNCTION public.is_admin(UUID) FROM public;
 GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;
 
+-- The same question asked about whoever is calling.
+--
+-- The browser needs this one. It takes no argument, so a caller cannot ask
+-- about anybody but themselves: the answer is about auth.uid() and nothing
+-- else, and it is a single true or false - the administrator list itself is
+-- never readable through it. Nothing here writes, so it cannot be used to make
+-- anybody an administrator; that remains a database-side action only.
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT EXISTS (SELECT 1 FROM public.app_admins a WHERE a.user_id = auth.uid());
+$$;
+
+REVOKE ALL ON FUNCTION public.is_admin() FROM public;
+GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
+
 
 -- =============================================
 -- 4. ONE-TIME INITIAL ADMIN BOOTSTRAP

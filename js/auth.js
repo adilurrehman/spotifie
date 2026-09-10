@@ -544,33 +544,76 @@
         return verified;
     }
 
-    /** True, false, or null when the question could not be put. */
+    /**
+     * True, false, or null when the question could not be put.
+     *
+     * Three ways of asking the same database the same thing, in the order that
+     * asks the least. The function that takes no argument answers about
+     * whoever is calling, which is the narrowest question there is and the one
+     * a browser should be asking. The same function by id is what older
+     * projects have. The account's own row is the last resort, and the policy
+     * on that table lets an account read exactly one row: its own.
+     *
+     * Every one of them returns a plain true or false, so none of them can be
+     * used to read the administrator list, and none of them writes anything.
+     */
     async function askDatabaseAboutAdmin(client, userId) {
-        try {
-            const { data, error } = await client.rpc('is_admin', { uid: userId });
-            if (!error) return Boolean(data);
-
-            console.warn('Admin check by function failed, asking the table instead:', error.message);
-        } catch (err) {
-            console.warn('Admin check by function failed, asking the table instead:', err && err.message);
-        }
-
-        try {
-            const { data, error } = await client
-                .from('app_admins')
-                .select('user_id')
-                .eq('user_id', userId)
-                .maybeSingle();
-
-            if (error) {
-                console.error('Admin lookup failed:', error.message);
-                return null;
+        const attempts = [
+            { name: 'is_admin()', ask: () => client.rpc('is_admin') },
+            { name: 'is_admin(uid)', ask: () => client.rpc('is_admin', { uid: userId }) },
+            {
+                name: 'app_admins row',
+                ask: () => client.from('app_admins').select('user_id').eq('user_id', userId).maybeSingle()
             }
-            return Boolean(data);
-        } catch (err) {
-            console.error('Admin lookup failed:', err && err.message);
-            return null;
+        ];
+
+        let lastProblem = null;
+
+        for (const attempt of attempts) {
+            try {
+                const { data, error } = await attempt.ask();
+
+                if (!error) {
+                    // A function answers with the boolean itself; a row answers
+                    // with the row, or with nothing when there is none.
+                    const verified = typeof data === 'boolean' ? data : Boolean(data);
+                    adminDiagnostic(userId, attempt.name, verified, null);
+                    return verified;
+                }
+
+                lastProblem = error.message || String(error);
+                adminDiagnostic(userId, attempt.name, null, lastProblem);
+            } catch (err) {
+                lastProblem = (err && err.message) || String(err);
+                adminDiagnostic(userId, attempt.name, null, lastProblem);
+            }
         }
+
+        console.error('Could not find out whether this account is an administrator:', lastProblem);
+        return null;
+    }
+
+    /**
+     * What was asked, and what came back.
+     *
+     * Said once per account, because this is the part that is impossible to
+     * diagnose from the outside: whether the question reached the database at
+     * all, which way of asking answered, and what it said. The account id is
+     * in it because that is what the answer is about; nothing else is - no
+     * token, no key, no session.
+     */
+    let adminDiagnosticFor = null;
+
+    function adminDiagnostic(userId, how, verified, problem) {
+        if (adminDiagnosticFor === userId && verified === null) return;
+        if (verified !== null) adminDiagnosticFor = userId;
+
+        if (problem) {
+            console.info('Spotifie admin check: ' + how + ' could not answer for ' + userId + ': ' + problem);
+            return;
+        }
+
+        console.info('Spotifie admin check: ' + how + ' says ' + verified + ' for ' + userId);
     }
 
     // ============================================
@@ -811,18 +854,48 @@
         // menu is corrected in place, without a refresh and without the item
         // ever appearing for an account it does not belong to: an answer about
         // somebody who has since signed out, or been replaced, is discarded.
-        if (dashboardLink) {
-            setDisplay(dashboardLink, 'none');
+        // What is already known goes up with the rest of the menu, so a render
+        // that happens after the answer arrived - opening the menu, a profile
+        // name coming back, signing in again in another tab - does not hide
+        // the item and ask all over again.
+        applyAdminUI();
 
+        if (adminAnswer.userId !== user.id || adminAnswer.verified === null) {
             isAdmin()
-                .then((admin) => {
-                    if (!currentSession || !currentSession.user || currentSession.user.id !== user.id) return;
-                    setDisplay(dashboardLink, admin ? 'flex' : 'none');
+                .then(() => {
+                    // The menu is drawn again rather than poked at, so whatever
+                    // it looks like by then is what gets the item - and an
+                    // answer about somebody who has since signed out, or been
+                    // replaced, changes nothing.
+                    applyAdminUI();
                 })
                 .catch((error) => {
                     console.warn('Could not decide whether this account is an administrator:', error && error.message);
                 });
         }
+    }
+
+    /**
+     * Show or hide the one thing an administrator has that nobody else does.
+     *
+     * Read from the answer this session has, about the account this session
+     * has. Called when the header is drawn and again the moment the answer
+     * arrives, which is what makes the item appear without a refresh.
+     *
+     * It grants nothing either way: the dashboard asks the database the same
+     * question again when it opens, and every privileged action is refused by
+     * the policies on the tables regardless of what any menu shows.
+     */
+    function applyAdminUI() {
+        if (typeof document === 'undefined') return;
+
+        const dashboardLink = document.getElementById('dashboardLink');
+        if (!dashboardLink) return;
+
+        const user = currentSession ? currentSession.user : null;
+        const verified = Boolean(user && adminAnswer.userId === user.id && adminAnswer.verified === true);
+
+        setDisplay(dashboardLink, verified ? 'flex' : 'none');
     }
 
     /**

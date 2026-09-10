@@ -1125,14 +1125,19 @@ test('an answer that never arrived is not remembered as a no', () => {
 test('the menu corrects itself when the answer arrives', () => {
     const render = AUTH.slice(AUTH.indexOf('async function renderAuthUI()'), AUTH.indexOf('function initAuthUI()'));
 
-    // Drawn hidden, shown when the database says so - no refresh, and no
-    // waiting on a question before anything appears at all.
-    assert.match(render, /setDisplay\(dashboardLink, 'none'\);/);
-    assert.match(render, /isAdmin\(\)[\s\S]{0,400}setDisplay\(dashboardLink, admin \? 'flex' : 'none'\)/);
+    // What is known goes up with the rest of the menu, and the menu is drawn
+    // again when the answer arrives - no refresh, and nothing waiting on a
+    // question before anything appears at all.
+    assert.match(render, /applyAdminUI\(\);/);
+    assert.match(render, /isAdmin\(\)[\s\S]{0,400}applyAdminUI\(\);/);
 
-    // An answer about somebody who has since signed out, or been replaced,
-    // is discarded rather than painted over the menu of whoever is there.
-    assert.match(render, /currentSession\.user\.id !== user\.id\) return;/);
+    // The item follows the answer this session has about the account this
+    // session has, so an answer about somebody who has since signed out, or
+    // been replaced, cannot put it on anybody else's menu.
+    assert.match(
+        AUTH,
+        /const verified = Boolean\(user && adminAnswer\.userId === user\.id && adminAnswer\.verified === true\);/
+    );
 
     // And the whole header is drawn again whenever the session changes, so
     // signing in and signing out both recalculate this.
@@ -1170,4 +1175,320 @@ test('the dashboard decides nothing on its own', () => {
 
     // And it names no page that a published copy does not have.
     assert.ok(!/admin-login\.html/.test(admin), 'nothing points at a page that is not published');
+});
+
+
+/**
+ * The session code, running, with a database that answers.
+ *
+ * The parts of this that could go wrong are all timing and all invisible from
+ * the outside: an answer that arrives after the menu is drawn, an answer about
+ * an account that has since been replaced, a question asked again on every
+ * render. So it is run rather than read - a real session, a real answer, and
+ * the menu inspected afterwards.
+ */
+
+/** A page with the few elements the header touches. */
+function fakeHeaderPage() {
+    const made = new Map();
+
+    const element = (id) => ({
+        id: id,
+        style: { display: '' },
+        textContent: '',
+        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        setAttribute() {},
+        removeAttribute() {},
+        addEventListener() {},
+        contains: () => false,
+        querySelectorAll: () => [],
+        appendChild() {},
+        append() {},
+        replaceChildren() {}
+    });
+
+    ['dashboardLink', 'userMenuBtn', 'userDropdown', 'authSkeleton', 'userName', 'libraryTitle'].forEach((id) => {
+        made.set(id, element(id));
+    });
+
+    return {
+        elements: made,
+        createElement: (tag) => element(tag),
+        createTextNode: (text) => ({ text: text }),
+        getElementById: (id) => made.get(id) || null,
+        querySelector: (selector) => {
+            const match = /#([A-Za-z]+)/.exec(selector);
+            return match ? made.get(match[1]) || null : null;
+        },
+        querySelectorAll: () => [],
+        addEventListener() {},
+        removeEventListener() {}
+    };
+}
+
+/** Supabase, as far as this file is concerned. */
+function fakeSessionDatabase(options) {
+    const settings = options || {};
+    const asked = [];
+    let listener = null;
+
+    const answer = (value) => Promise.resolve(value);
+
+    const client = {
+        asked: asked,
+        currentUserId: () => (settings.session && settings.session.user ? settings.session.user.id : null),
+        signIn(session) {
+            settings.session = session;
+            if (listener) listener(session ? 'SIGNED_IN' : 'SIGNED_OUT', session);
+        },
+        auth: {
+            getSession: () => answer({ data: { session: settings.session || null } }),
+            onAuthStateChange(handler) {
+                listener = handler;
+                return { data: { subscription: { unsubscribe() {} } } };
+            }
+        },
+        rpc(name, args) {
+            asked.push(name + (args ? '(' + Object.keys(args).join(',') + ')' : '()'));
+            const reply = settings.rpc ? settings.rpc(name, args) : null;
+            if (reply) return answer(reply);
+            return answer({ data: null, error: { message: 'Could not find the function' } });
+        },
+        from(table) {
+            const query = {
+                select() {
+                    return query;
+                },
+                eq() {
+                    return query;
+                },
+                upsert() {
+                    return query;
+                },
+                insert() {
+                    return query;
+                },
+                update() {
+                    return query;
+                },
+                then(resolve) {
+                    return Promise.resolve({ data: null, error: null }).then(resolve);
+                },
+                maybeSingle() {
+                    asked.push(table + ' row');
+                    if (table === 'app_admins') {
+                        return answer(settings.row || { data: null, error: null });
+                    }
+                    return answer({ data: null, error: null });
+                }
+            };
+            return query;
+        }
+    };
+
+    return client;
+}
+
+/** The session module, running against that. */
+function loadAuth(options) {
+    const settings = options || {};
+    const client = settings.client || fakeSessionDatabase({});
+    const logs = [];
+
+    const sandbox = {
+        console: {
+            info: (...parts) => logs.push(parts.join(' ')),
+            warn: () => {},
+            error: () => {},
+            log: () => {}
+        },
+        setTimeout: (fn) => setTimeout(fn, 0),
+        clearTimeout: clearTimeout,
+        Promise: Promise,
+        Object: Object,
+        JSON: JSON,
+        Set: Set,
+        Map: Map,
+        Boolean: Boolean,
+        String: String,
+        Error: Error,
+        Date: Date,
+        URL: URL,
+        localStorage: {
+            store: new Map(),
+            getItem(key) {
+                return this.store.has(key) ? this.store.get(key) : null;
+            },
+            setItem(key, value) {
+                this.store.set(key, value);
+            },
+            removeItem(key) {
+                this.store.delete(key);
+            }
+        },
+        document: settings.document,
+        supabase: { createClient: () => client },
+        __SPOTIFIE_CONFIG__: publishedSettings()
+    };
+
+    sandbox.sessionStorage = sandbox.localStorage;
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+    sandbox.location = { origin: 'https://spotifie.example', href: 'https://spotifie.example/' };
+
+    vm.createContext(sandbox);
+    vm.runInContext(DEPLOYMENT, sandbox);
+    vm.runInContext(AUTH, sandbox);
+
+    return { auth: sandbox.spotifieAuth, client: client, logs: logs, sandbox: sandbox };
+}
+
+const ADMIN_SESSION = { user: { id: 'admin-0001', email: 'someone@example.test', user_metadata: { username: 'Someone' } } };
+const LISTENER_SESSION = { user: { id: 'listener-0002', email: 'other@example.test', user_metadata: { username: 'Other' } } };
+
+test('an administrator gets the item, and it does not wait for a refresh', async () => {
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex', 'the item is there');
+
+    // Asked the narrowest question there is: about whoever is calling, with no
+    // id to ask about anybody else and nothing but true or false coming back.
+    assert.ok(client.asked.indexOf('is_admin()') !== -1, 'the narrowest question was the one asked');
+    assert.ok(client.asked.indexOf('is_admin(uid)') === -1, 'and once it answered, nothing else was');
+
+    // And said what happened, once, naming the account and nothing else.
+    assert.ok(
+        loaded.logs.some((line) => line.indexOf('is_admin() says true for admin-0001') !== -1),
+        'the answer is reported'
+    );
+    assert.ok(!loaded.logs.some((line) => /token|apikey|Bearer|eyJ/i.test(line)), 'and nothing that could be used');
+});
+
+test('an ordinary account never sees it', async () => {
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: LISTENER_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: false, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'none');
+    assert.strictEqual(await loaded.auth.isAdmin(), false);
+});
+
+test('a project without the newer function is asked the older way', async () => {
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        // The function that takes no argument does not exist here yet.
+        rpc: (name, args) => (args && args.uid === 'admin-0001' ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const admin = client.asked.filter((what) => what.indexOf('is_admin') === 0);
+    assert.deepStrictEqual(admin, ['is_admin()', 'is_admin(uid)']);
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex', 'and the answer is the same');
+});
+
+test('a project with neither is asked for the one row it may read', async () => {
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: () => null,
+        row: { data: { user_id: 'admin-0001' }, error: null }
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const tried = client.asked.filter((what) => what.indexOf('is_admin') === 0 || what === 'app_admins row');
+    assert.deepStrictEqual(tried, ['is_admin()', 'is_admin(uid)', 'app_admins row']);
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex');
+});
+
+test('the answer is asked once, and again for the next account', async () => {
+    const page = fakeHeaderPage();
+
+    // A database that answers about whoever is asking, which is the whole
+    // point of the question having no argument.
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => {
+            if (name !== 'is_admin' || args) return null;
+            return { data: client.currentUserId() === ADMIN_SESSION.user.id, error: null };
+        }
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const asked = client.asked.filter((what) => what.indexOf('is_admin') === 0).length;
+
+    // Drawing the header again reads what is known rather than asking again.
+    await loaded.auth.renderAuthUI();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.strictEqual(client.asked.filter((what) => what.indexOf('is_admin') === 0).length, asked, 'nothing is asked twice');
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex');
+
+    // Somebody else signing in is a different question, and the item goes
+    // until the database says otherwise about them.
+    client.signIn(LISTENER_SESSION);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.ok(client.asked.filter((what) => what.indexOf('is_admin') === 0).length > asked, 'the new account is asked about');
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'none');
+});
+
+test('signing out takes it away', async () => {
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex');
+
+    client.signIn(null);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'none');
+    assert.strictEqual(await loaded.auth.isAdmin(), false);
+});
+
+test('the database answers this about the caller, and says nothing else', () => {
+    const sql = source('supabase-setup.sql');
+
+    // No argument, so nobody can ask about anybody but themselves, and the
+    // answer is one boolean - the administrator list is not readable through
+    // it in any shape.
+    assert.match(sql, /CREATE OR REPLACE FUNCTION public\.is_admin\(\)\s*\nRETURNS BOOLEAN/);
+    assert.match(sql, /SELECT EXISTS \(SELECT 1 FROM public\.app_admins a WHERE a\.user_id = auth\.uid\(\)\);/);
+
+    // Callable by a signed-in account, and by nobody else.
+    assert.match(sql, /REVOKE ALL ON FUNCTION public\.is_admin\(\) FROM public;/);
+    assert.match(sql, /GRANT EXECUTE ON FUNCTION public\.is_admin\(\) TO authenticated;/);
+
+    // The table underneath is untouched: one row readable by the account it
+    // belongs to, and no write of any kind from a browser.
+    assert.match(sql, /USING \(auth\.uid\(\) = user_id\);/);
+    assert.match(sql, /REVOKE INSERT, UPDATE, DELETE ON public\.app_admins FROM anon, authenticated;/);
 });
