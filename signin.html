@@ -398,7 +398,7 @@
 
     <!-- Header -->
     <header class="auth-header">
-        <a href="index.html" class="auth-logo">
+        <a href="/" class="auth-logo">
             <img src="img/logo.webp" alt="Spotifie">
             <span>Spotifie</span>
         </a>
@@ -556,7 +556,7 @@
                 if (result.success) {
                     showAlert('Sign in successful! Redirecting...', 'success');
                     setTimeout(() => {
-                        window.location.href = 'index.html';
+                        window.location.replace(window.spotifieAuth.homeUrl());
                     }, 1000);
                 } else {
                     showAlert(result.error || 'Invalid email or password', 'error');
@@ -593,7 +593,7 @@
 
             const session = await window.spotifieAuth.getSession();
             if (session) {
-                window.location.href = 'index.html';
+                window.location.replace(window.spotifieAuth.homeUrl());
             }
         });
     </script>

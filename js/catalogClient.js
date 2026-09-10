@@ -372,6 +372,28 @@
         return Boolean(deployment && deployment.isPublished());
     };
 
+    /**
+     * The music this browser itself can read, or nothing.
+     *
+     * A copy with no server still has a device under it, and a browser that
+     * can be handed one folder of it. Whatever was handed over before is here
+     * without anybody being asked again: it was written down when it was
+     * chosen, and reading that back needs no permission.
+     */
+    CatalogClient.prototype._browserLibrary = function () {
+        var library = typeof window !== 'undefined' ? window.spotifieBrowserLibrary : null;
+        if (!library || !library.supported()) return Promise.resolve(null);
+
+        return library
+            .load()
+            .then(function () {
+                return library;
+            })
+            .catch(function () {
+                return null;
+            });
+    };
+
     /** Everything published, read from Supabase and shaped as a server would. */
     CatalogClient.prototype._fromCloud = function (kind) {
         var self = this;
@@ -383,15 +405,26 @@
                 throw missing;
             }
 
-            return catalogue.read().then(function (answer) {
-                var items = kind === 'albums' ? answer.albums : answer.tracks;
+            return Promise.all([catalogue.read(), self._browserLibrary()]).then(function (answers) {
+                var answer = answers[0];
+                var library = answers[1];
                 self._cloud = catalogue;
+
+                // The two halves, joined here exactly as a server joins them:
+                // what an administrator published, and what is on the machine
+                // this is being read on.
+                var here = library ? library.catalogue() : { albums: [], tracks: [] };
+                var items = kind === 'albums' ? here.albums.concat(answer.albums) : here.tracks.concat(answer.tracks);
 
                 return {
                     total: items.length,
                     items: items,
                     sources: {
-                        local: { available: false, trackCount: 0, error: null },
+                        local: {
+                            available: Boolean(library),
+                            trackCount: here.tracks.length,
+                            error: null
+                        },
                         global: { available: true, trackCount: answer.tracks.length, error: null }
                     }
                 };
@@ -460,23 +493,28 @@
         var url = this.baseUrl + '/local';
         var self = this;
 
-        // The music on a device is answered by the helper on that device. A
-        // published copy has none on its own origin, so it answers for itself:
-        // nothing here, and the local half of the library is empty rather than
-        // pending. The platform looks for a helper separately, and this
-        // becomes real the moment one is found.
+        // The music on a device is answered by whatever can read that device.
+        // A published copy has no server on its own origin to ask, so it asks
+        // the browser: whatever folder somebody handed over is written down
+        // here, and reading that back needs nobody's permission and no
+        // network. A browser that was never handed one answers with an empty
+        // library rather than with a failure, and the card stays where it is.
         if (this._published()) {
-            return Promise.resolve({
-                total: 0,
-                albums: [],
-                tracks: [],
-                sources: {
-                    local: { available: false, trackCount: 0, error: null },
-                    global: { available: null, skipped: true, trackCount: 0, error: null }
-                },
-                overrides: {},
-                addedToGlobalAlbums: {},
-                hidden: { globalTracks: [], globalAlbums: [], localTracks: [] }
+            return this._browserLibrary().then(function (library) {
+                var here = library ? library.catalogue() : { albums: [], tracks: [] };
+
+                return {
+                    total: here.albums.length,
+                    albums: here.albums,
+                    tracks: here.tracks,
+                    sources: {
+                        local: { available: Boolean(library), trackCount: here.tracks.length, error: null },
+                        global: { available: null, skipped: true, trackCount: 0, error: null }
+                    },
+                    overrides: {},
+                    addedToGlobalAlbums: {},
+                    hidden: { globalTracks: [], globalAlbums: [], localTracks: [] }
+                };
             });
         }
 

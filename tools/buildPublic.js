@@ -69,6 +69,9 @@ const BROWSER_SCRIPTS = [
     // The published catalogue, read straight from Supabase by a copy that has
     // no server to assemble it.
     'js/cloudCatalog.js',
+    // The music on this device, read by the browser when somebody hands it
+    // a folder. The only way to it in a copy with no server.
+    'js/browserLibrary.js',
     'js/script.js',
     'js/auth.js',
     'js/catalogClient.js',

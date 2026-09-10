@@ -23,13 +23,34 @@
  * The cache is named with a version. Changing that name is what retires the
  * previous one: the new worker takes over, deletes what it does not recognise,
  * and there is never a half-old shell made of files from two releases.
+ *
+ * One rule matters more than every optimisation in here: a page must open.
+ *
+ * A worker answers navigation, and a worker that answers a navigation badly
+ * takes the whole site down for the people who have it installed - the browser
+ * shows its own failure page, and the application is unreachable until they
+ * think to go back. That happened here: a request the network could not answer
+ * and the cache did not hold ended as a rejected response, which Chrome
+ * reports as ERR_FAILED. So navigation is handled first, separately, and every
+ * path through it ends in a real Response.
  */
 
 'use strict';
 
 /** Raise this to retire every previous cache. */
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const SHELL_CACHE = 'spotifie-shell-' + CACHE_VERSION;
+
+/**
+ * The one address the application is at.
+ *
+ * Every navigation this worker cannot answer from the network is answered with
+ * this, and this is what an installed copy launches into. index.html is the
+ * same document, and opening it directly still works - but nothing inside the
+ * application sends anybody there, so there is one page in the cache and one
+ * page in the history rather than two of each.
+ */
+const APP_SHELL = '/';
 
 /**
  * What the interface needs before it can draw anything.
@@ -39,14 +60,16 @@ const SHELL_CACHE = 'spotifie-shell-' + CACHE_VERSION;
  * request that will ever be made.
  */
 const SHELL_ASSETS = [
-    '/',
-    '/index.html',
+    APP_SHELL,
     '/css/style.css',
     '/css/utlity.css',
     '/js/script.js',
     '/js/auth.js',
+    '/js/deployment.js',
+    '/js/platform.js',
     '/js/catalogClient.js',
     '/js/catalogCache.js',
+    '/js/browserLibrary.js',
     '/js/personalClient.js',
     '/js/libraryClient.js',
     '/js/libraryDB.js',
@@ -85,6 +108,32 @@ function isAudio(url, request) {
     return /\.(mp3|m4a|aac|flac|wav|ogg|opus|webm|mp4)$/i.test(url.pathname);
 }
 
+/**
+ * The last answer a navigation can be given.
+ *
+ * Only reached when the network failed and the shell was never cached - a
+ * first visit that lost its connection halfway through. A page saying so is a
+ * far better answer than a rejected response, which the browser turns into its
+ * own error page and which leaves people pressing Back to get the application
+ * to appear again.
+ */
+function offlinePage() {
+    return new Response(
+        '<!doctype html><meta charset="utf-8">' +
+            '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+            '<title>Spotifie is offline</title>' +
+            '<body style="margin:0;display:grid;place-items:center;min-height:100vh;' +
+            'background:#121212;color:#fff;font:16px system-ui,sans-serif;text-align:center">' +
+            '<div><h1 style="font-size:1.25rem">Spotifie cannot be reached</h1>' +
+            '<p style="opacity:.7">This device is offline and Spotifie has not been saved here yet.</p>' +
+            '<p><a href="/" style="color:#1db954">Try again</a></p></div>',
+        {
+            status: 503,
+            headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }
+        }
+    );
+}
+
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches
@@ -100,6 +149,9 @@ self.addEventListener('install', (event) => {
                     )
                 )
             )
+            .catch(() => {
+                /* no cache is a slower Spotifie, not a broken one */
+            })
             .then(() => self.skipWaiting())
     );
 });
@@ -110,57 +162,108 @@ self.addEventListener('activate', (event) => {
             .keys()
             .then((names) =>
                 Promise.all(
-                    names.filter((name) => name.startsWith('spotifie-shell-') && name !== SHELL_CACHE).map((name) => caches.delete(name))
+                    names
+                        .filter((name) => name.startsWith('spotifie-shell-') && name !== SHELL_CACHE)
+                        .map((name) => caches.delete(name))
                 )
             )
+            .catch(() => {
+                /* an old cache that will not go is not worth failing over */
+            })
             .then(() => self.clients.claim())
     );
 });
 
 /**
+ * Open the application, whatever state the network is in.
+ *
+ * The network first, so a deploy is seen on the next visit rather than after a
+ * cache decides it has waited long enough - and because a stale document is
+ * how an application ends up loading scripts that are no longer there. What
+ * comes back is kept, so the visit after this one opens with no network at
+ * all.
+ *
+ * Then, in order: the copy of this exact page, the copy of the application's
+ * one address, and a page saying Spotifie is offline. Never a rejected
+ * response, and never undefined.
+ */
+function openApplication(request) {
+    return caches.open(SHELL_CACHE).then((cache) =>
+        fetch(request)
+            .then((response) => {
+                if (response && response.ok && response.type === 'basic') {
+                    cache.put(request, response.clone()).catch(() => {
+                        /* a full cache is not a failed request */
+                    });
+                }
+
+                // A 404 or a 500 is the site's own answer and belongs to the
+                // visitor; only a network that did not answer falls through.
+                return response;
+            })
+            .catch(() =>
+                cache
+                    .match(request)
+                    .then((cached) => cached || cache.match(APP_SHELL))
+                    .then((cached) => cached || offlinePage())
+                    .catch(() => offlinePage())
+            )
+    );
+}
+
+/**
  * Answer from the cache and check afterwards.
  *
- * The page opens at once from what is held, and what is held is replaced by
- * whatever the network says a moment later - so the next launch is current
- * without this one having waited. A request the network cannot answer falls
- * back to the cached copy, which is the whole point of keeping one.
+ * For everything that is not a page: what is held goes up at once, and what is
+ * held is replaced by whatever the network says a moment later - so the next
+ * launch is current without this one having waited.
  */
+function openAsset(request) {
+    return caches.open(SHELL_CACHE).then((cache) =>
+        cache.match(request).then((cached) => {
+            const live = fetch(request)
+                .then((response) => {
+                    if (response && response.ok && response.type === 'basic') {
+                        cache.put(request, response.clone()).catch(() => {
+                            /* a full cache is not a failed request */
+                        });
+                    }
+                    return response;
+                })
+                .catch(() => null);
+
+            if (cached) return cached;
+
+            return live.then((response) => response || Response.error());
+        })
+    );
+}
+
 self.addEventListener('fetch', (event) => {
     const request = event.request;
     if (request.method !== 'GET') return;
 
-    const url = new URL(request.url);
+    let url;
+    try {
+        url = new URL(request.url);
+    } catch (e) {
+        return;
+    }
 
-    // Somebody else's origin is somebody else's business.
+    // Somebody else's origin is somebody else's business: Supabase, the fonts,
+    // the helper on this machine at its own address. None of it is this
+    // worker's to answer, and a worker that answered it would be the reason
+    // signing in stopped working.
     if (url.origin !== self.location.origin) return;
+
+    // A page. Handled first and on its own, because getting this wrong is the
+    // difference between a slow Spotifie and no Spotifie.
+    if (request.mode === 'navigate') {
+        event.respondWith(openApplication(request));
+        return;
+    }
 
     if (isAlwaysLive(url) || isAudio(url, request)) return;
 
-    event.respondWith(
-        caches.open(SHELL_CACHE).then((cache) =>
-            cache.match(request).then((cached) => {
-                const live = fetch(request)
-                    .then((response) => {
-                        if (response && response.ok && response.type === 'basic') {
-                            cache.put(request, response.clone()).catch(() => {
-                                /* a full cache is not a failed request */
-                            });
-                        }
-                        return response;
-                    })
-                    .catch(() => cached);
-
-                // Held copy first when there is one; otherwise wait for the
-                // network, and fall back to the page itself for a navigation
-                // so an offline launch still opens Spotifie.
-                if (cached) return cached;
-
-                return live.then((response) => {
-                    if (response) return response;
-                    if (request.mode === 'navigate') return cache.match('/index.html');
-                    return Response.error();
-                });
-            })
-        )
-    );
+    event.respondWith(openAsset(request));
 });

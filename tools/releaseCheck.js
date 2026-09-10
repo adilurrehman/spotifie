@@ -148,6 +148,9 @@ function checkExpectedShape(files, failures) {
         'js/script.js',
         'js/auth.js',
         'js/platform.js',
+        // The only way a copy with no server reaches the music on the device
+        // it is being read on.
+        'js/browserLibrary.js',
         'css/style.css',
         'lib/sessionAuth.js',
         'lib/catalogRoutes.js',

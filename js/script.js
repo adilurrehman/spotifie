@@ -973,6 +973,40 @@ async function initDeviceMusicScan() {
     // Agreed to. The collection exists from this moment, whatever answers.
     if (published && ensureLocalMusicCollection()) await refreshAlbumCards();
 
+    // A folder handed over on an earlier visit.
+    //
+    // Whatever is in it is already on screen: it was written down when it was
+    // chosen and read back with the rest of the library. What happens here is
+    // the check for what has moved since - and only for folders the browser
+    // still lets Spotifie read without asking. One that would need somebody to
+    // say yes again is left alone: the songs stay listed, and the question is
+    // put when they next ask for their music rather than on every page load.
+    if (published) {
+        const library = getBrowserLibrary();
+        if (library) {
+            updateScanMenuLabel();
+
+            if (library.folders().length) {
+                if (platformSaysLocalMusic('available')) markLocalMusicAvailable();
+
+                library
+                    .refresh()
+                    .then((summary) => {
+                        if (summary && summary.scanned) return refreshAfterDeviceChange();
+                        return null;
+                    })
+                    .catch(() => {
+                        /* what was written down is still on screen */
+                    });
+            }
+
+            // A browser that can read a folder needs no helper at all, and
+            // asking for one would be a request to a machine that is usually
+            // not there.
+            return;
+        }
+    }
+
     // Is there a helper on this machine at all?
     //
     // Spotifie runs in two places now. Opened from the server somebody started
@@ -1051,17 +1085,13 @@ function initDeviceScanControls() {
         // find nothing or may not be able to run at all.
         if (ensureLocalMusicCollection()) await refreshAlbumCards();
 
-        const platform = getPlatform();
-        if (platform && isPublishedCopy()) {
-            const here = await platform.requestLocalMusic();
-            if (!here) {
-                // Nothing on this machine is listening. Said once, plainly,
-                // and the rest of Spotifie carries on exactly as it was.
-                platform.setLocalMusic('unavailable');
-                markLocalMusicUnavailable();
-                showToast('Local Music helper is not available on this device');
-                return;
-            }
+        // This is a click, which is the only moment a browser will open a
+        // folder picker at all - so if this browser can read a folder, it is
+        // asked for one here rather than after a detour through a helper that
+        // is not running.
+        if (isPublishedCopy()) {
+            await chooseMusicFolder();
+            return;
         }
 
         await startDeviceScan();
@@ -1077,6 +1107,16 @@ function initDeviceScanControls() {
 
     document.getElementById('scanDeviceLink')?.addEventListener('click', async () => {
         document.getElementById('userDropdown')?.classList.remove('show');
+
+        // The same click, and the same reason: a folder picker opens from
+        // something somebody did or it does not open at all.
+        if (isPublishedCopy()) {
+            rememberLocalMusicPermission();
+            if (ensureLocalMusicCollection()) await refreshAlbumCards();
+            await chooseMusicFolder();
+            return;
+        }
+
         // Asked for by hand: read everything again, rather than trusting what
         // the index says about files that look unchanged.
         const searchedBefore = Boolean(deviceScanReport && deviceScanReport.lastSuccessfulScanAt);
@@ -1101,10 +1141,98 @@ function initDeviceScanControls() {
     });
 }
 
+/** Tell the platform what the music on this device is doing, if it is listening. */
+function platformSaysLocalMusic(state) {
+    const platform = getPlatform();
+    if (!platform) return false;
+
+    platform.setLocalMusic(state);
+    return true;
+}
+
+/** The browser's own reader for the music on this device, when there is one. */
+function getBrowserLibrary() {
+    const library = window.spotifieBrowserLibrary;
+    return library && library.supported() ? library : null;
+}
+
+/**
+ * Ask for a folder of music, and read it.
+ *
+ * What a browser can do and what a machine running Spotifie can do are not the
+ * same thing, and this is the honest version of the smaller one: a person
+ * chooses one folder, from the browser's own picker, and Spotifie reads what
+ * is in it. Nothing outside it is reachable and nothing is read until they
+ * choose.
+ *
+ * Only ever from a click. A picker opened any other way is refused by the
+ * browser, and should be.
+ */
+async function chooseMusicFolder() {
+    const library = getBrowserLibrary();
+    const platform = getPlatform();
+
+    if (!library) {
+        // No picker here. A helper on this machine can still do it, and is
+        // asked for exactly once - no timers, no retries.
+        if (platform) {
+            const here = await platform.requestLocalMusic();
+            if (here) {
+                await startDeviceScan();
+                return true;
+            }
+
+            platform.setLocalMusic('unavailable');
+        }
+
+        markLocalMusicUnavailable();
+        showToast('Local folder scanning is not supported by this browser yet');
+        return false;
+    }
+
+    try {
+        showToast('Choose the folder your music is in');
+        const summary = await library.chooseFolder();
+
+        await refreshAfterDeviceChange();
+        if (platform) platform.setLocalMusic('available');
+        markLocalMusicAvailable();
+        updateScanMenuLabel();
+
+        showToast(
+            summary.trackCount
+                ? summary.trackCount + (summary.trackCount === 1 ? ' song added from ' : ' songs added from ') + summary.folder
+                : 'No music was found in ' + summary.folder
+        );
+        return true;
+    } catch (error) {
+        // Closing the picker is an answer, not a fault.
+        if (error && (error.name === 'AbortError' || error.name === 'NotAllowedError')) return false;
+
+        console.warn('That folder could not be read:', error && error.message);
+        showToast('That folder could not be read');
+        return false;
+    }
+}
+
 /** Say when this device was last searched. */
 function updateScanMenuLabel() {
     const label = document.getElementById('scanDeviceLabel');
     if (!label) return;
+
+    // What a browser can honestly offer: one folder, chosen by the person
+    // reading. Saying "scan this device" there would promise something no page
+    // can do, and something Spotifie is not trying to do.
+    if (isPublishedCopy()) {
+        const library = getBrowserLibrary();
+        const chosen = library ? library.folders().length : 0;
+
+        label.textContent = chosen ? 'Choose another music folder' : 'Choose music folder';
+        label.title = chosen
+            ? 'Add another folder of music from this device'
+            : 'Choose a folder on this device for Spotifie to read';
+        return;
+    }
 
     const lastScanAt = deviceScanReport ? deviceScanReport.lastScanAt : null;
     if (lastScanAt) {
@@ -2242,6 +2370,30 @@ function playGlobalTrack(trackId, pause, isRetry) {
         });
 }
 
+/**
+ * Play a song out of a folder the browser was handed.
+ *
+ * The file has to be opened before there is anything to play, which takes a
+ * moment. If somebody has moved on by the time it opens, the address is
+ * dropped rather than played over whatever they chose instead.
+ */
+function playDeviceTrack(trackId, opening, pause) {
+    return Promise.resolve(opening)
+        .then((url) => {
+            if (!url || window.currentPlayingTrack !== trackId) return;
+
+            currentsong.src = url;
+            if (pause) {
+                syncPlaybackUI();
+                return;
+            }
+            return startAudioPlayback();
+        })
+        .catch(() => {
+            showToast('That file could not be opened. Choose the folder again to reconnect it.');
+        });
+}
+
 /** A failed global source is usually an expired URL: resolve it again once. */
 function handleGlobalPlaybackError() {
     const trackId = window.currentPlayingTrack;
@@ -2310,7 +2462,17 @@ function playmusic(trackEncoded, libButton = null, pause = false, sourceFolder =
     } else {
         // This device's own music, read by whatever can read this device.
         // Never through Supabase, so it plays with or without the internet.
-        currentsong.src = resolveLocalStreamUrl(track);
+        const local = resolveLocalStreamUrl(track);
+
+        if (local && typeof local.then === 'function') {
+            // A file the browser has to open first. The address arrives a
+            // moment later, and is used only if this is still the song
+            // somebody asked for.
+            currentsong.removeAttribute('src');
+            playDeviceTrack(trackEncoded, local, pause);
+        } else {
+            currentsong.src = local;
+        }
     }
 
     renderPlaybarTrack(trackEncoded, track);
@@ -2332,7 +2494,10 @@ function playmusic(trackEncoded, libButton = null, pause = false, sourceFolder =
     // track that is loading and again when playback actually starts or fails.
     // A global track is already on its way through playGlobalTrack().
     syncPlaybackUI();
-    if (!pause && track.source !== 'global') {
+    // A global track is on its way through playGlobalTrack, and a file the
+    // browser is opening is on its way through playDeviceTrack. Both start
+    // themselves once they have an address.
+    if (!pause && track.source !== 'global' && currentsong.getAttribute('src')) {
         startAudioPlayback();
     }
     
@@ -2586,6 +2751,15 @@ function resolveLocalStreamUrl(track) {
     if (adapter && typeof adapter.resolveStreamUrl === 'function') {
         const url = adapter.resolveStreamUrl(track);
         if (url) return url;
+    }
+
+    // A song out of a folder somebody handed to the browser. It has no address
+    // until it is opened, so one is made from the file itself when it is
+    // played and dropped when the next song starts. Nothing here is written
+    // down: an address into this page's memory means nothing in the next one.
+    const library = window.spotifieBrowserLibrary;
+    if (!track || !track.streamUrl) {
+        if (library && library.supported() && track && track.id) return library.trackUrl(track.id);
     }
 
     return track ? track.streamUrl : null;

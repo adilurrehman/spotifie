@@ -663,7 +663,14 @@ test('a song on this device is played from this device', () => {
     // reads the file is replaceable without the player knowing.
     assert.match(PLAYER_SOURCE, /function resolveLocalStreamUrl\(track\)/);
     assert.match(PLAYER_SOURCE, /window\.spotifieMediaAdapter/);
-    assert.match(PLAYER_SOURCE, /currentsong\.src = resolveLocalStreamUrl\(track\);/);
+    assert.match(PLAYER_SOURCE, /const local = resolveLocalStreamUrl\(track\);/);
+
+    // A file the browser has to open first arrives a moment later than an
+    // address a server already knows. Both go through the same seam, and the
+    // one that takes a moment is only used if it is still the song somebody
+    // asked for.
+    assert.match(PLAYER_SOURCE, /if \(local && typeof local\.then === 'function'\)/);
+    assert.match(PLAYER_SOURCE, /window\.currentPlayingTrack !== trackId\) return;/);
 
     const section = PLAYER_SOURCE.slice(
         PLAYER_SOURCE.indexOf('function resolveLocalStreamUrl(track)'),
@@ -762,10 +769,12 @@ test('the app shell is kept, and no audio is', () => {
     // Versioned, so a new release retires the old copy outright.
     assert.match(worker, /const CACHE_VERSION = '/);
     assert.match(worker, /const SHELL_CACHE = 'spotifie-shell-' \+ CACHE_VERSION;/);
-    assert.match(worker, /names\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
+    assert.match(worker, /\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
 
-    // The interface, and only the interface.
-    ['/index.html', '/css/style.css', '/js/script.js', '/img/music.svg'].forEach((asset) => {
+    // The interface, and only the interface - under the one address the
+    // application has, rather than under both of the two it answers at.
+    assert.match(worker, /const APP_SHELL = '\/';/);
+    ['/css/style.css', '/js/script.js', '/img/music.svg'].forEach((asset) => {
         assert.ok(worker.includes("'" + asset + "'"), asset + ' is kept');
     });
 
@@ -784,6 +793,21 @@ test('the app shell is kept, and no audio is', () => {
 
     // An offline launch still opens Spotifie.
     assert.match(worker, /request\.mode === 'navigate'/);
+
+    // And a page always gets a page.
+    //
+    // A worker answers navigation, so a worker that answers one badly is the
+    // whole site failing to open - the browser shows ERR_FAILED and somebody
+    // has to press Back to get Spotifie to appear again. Every path through
+    // opening a page ends in a real response: the network, then the copy of
+    // that page, then the copy of the application, then a page saying it is
+    // offline. Never a rejection, and never nothing at all.
+    const opening = worker.slice(worker.indexOf('function openApplication'), worker.indexOf('function openAsset'));
+    assert.match(opening, /cached \|\| cache\.match\(APP_SHELL\)/);
+    assert.match(opening, /cached \|\| offlinePage\(\)/);
+    assert.ok(!/Response\.error\(\)/.test(opening), 'a page is never answered with a failure');
+    assert.match(worker, /function offlinePage\(\)/);
+    assert.match(worker, /status: 503/);
 });
 
 test('the worker is served from the root, where it can do its job', () => {

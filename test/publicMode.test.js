@@ -676,3 +676,239 @@ test('the music on a device is asked of that device, never of the host', async (
     assert.strictEqual(loaded.fetched.length, 1);
     assert.strictEqual(loaded.fetched[0], 'http://127.0.0.1:3000/api/library/scan', 'the machine, not the host');
 });
+
+// ============================================
+// A page always opens
+// ============================================
+
+/**
+ * The worst thing a published copy did.
+ *
+ * A service worker answers navigation, and this one answered it from the
+ * cache first and, when the cache had nothing and the network did not reply,
+ * with a rejected response. Chrome renders that as ERR_FAILED: the site is
+ * simply gone, and the way back is the Back button, which reaches the copy of
+ * the page that is still in memory and makes the whole thing look intermittent.
+ *
+ * Two rules fix it and both are held here. A page is fetched before it is
+ * remembered, and every path through opening a page ends in a real response.
+ */
+
+const WORKER = source('sw.js');
+
+test('a page is asked of the network first, and answered whatever happens', () => {
+    const opening = WORKER.slice(WORKER.indexOf('function openApplication'), WORKER.indexOf('function openAsset'));
+
+    // The network first. A document answered from a cache is how an
+    // application ends up asking for scripts that a deploy has replaced.
+    assert.ok(
+        opening.indexOf('fetch(request)') < opening.indexOf('.match(request)'),
+        'the network is asked before the cache'
+    );
+
+    // Then, in order, three answers - and all three are answers.
+    assert.match(opening, /cached \|\| cache\.match\(APP_SHELL\)/);
+    assert.match(opening, /cached \|\| offlinePage\(\)/);
+    assert.ok(!/Response\.error\(\)/.test(opening), 'a page is never answered with a failure');
+    assert.ok(!/return undefined|return null/.test(opening), 'nor with nothing at all');
+
+    // A page, with a status that says what happened.
+    assert.match(WORKER, /function offlinePage\(\)/);
+    assert.match(WORKER, /status: 503/);
+    assert.match(WORKER, /'Content-Type': 'text\/html; charset=utf-8'/);
+});
+
+test('navigation is handled before anything else the worker does', () => {
+    const handler = WORKER.slice(WORKER.indexOf("self.addEventListener('fetch'"));
+
+    // Before the rules about what may be cached, so no rule about assets can
+    // ever decide how a page is answered.
+    const navigation = handler.indexOf("request.mode === 'navigate'");
+    const assets = handler.indexOf('isAlwaysLive(url)');
+    assert.ok(navigation !== -1 && assets !== -1 && navigation < assets, 'pages come first');
+
+    // And nothing that belongs to somebody else is touched: Supabase, the
+    // fonts, the helper at its own address. A worker that answered those is a
+    // worker that breaks signing in.
+    assert.match(handler, /if \(url\.origin !== self\.location\.origin\) return;/);
+    assert.match(WORKER, /url\.pathname\.startsWith\('\/api\/'\)/);
+});
+
+test('a new worker retires what the old one kept', () => {
+    // The broken cache is on the machines of everybody who has opened the
+    // site. Retiring it is the version, and taking over at once is what stops
+    // a page from being answered by the old worker one more time.
+    assert.match(WORKER, /const CACHE_VERSION = 'v3';/);
+    assert.match(WORKER, /\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
+    assert.match(WORKER, /self\.skipWaiting\(\)/);
+    assert.match(WORKER, /self\.clients\.claim\(\)/);
+
+    // Neither install nor activate can fail in a way that leaves a worker
+    // that never starts.
+    const install = WORKER.slice(WORKER.indexOf("addEventListener('install'"), WORKER.indexOf("addEventListener('activate'"));
+    const activate = WORKER.slice(WORKER.indexOf("addEventListener('activate'"), WORKER.indexOf('function openApplication'));
+    assert.match(install, /\.catch\(/, 'a cache that will not open is not a worker that will not install');
+    assert.match(activate, /\.catch\(/);
+});
+
+test('the application has one address, and it is the root', () => {
+    const auth = source('js', 'auth.js');
+
+    // Everything that sends somebody back into Spotifie sends them to the
+    // same place. Two addresses for one page is two entries in a cache, two
+    // in the history, and a Back button that lands on whichever was used.
+    assert.match(auth, /function homeUrl\(\)/);
+    assert.match(auth, /return siteUrlFor\('\/'\);/);
+    assert.ok(!/'index\.html'/.test(auth), 'nothing in the session code names the file');
+
+    // A published copy knows where it was published, so a link Supabase
+    // sends by email comes back to the site rather than to the machine the
+    // build happened on.
+    assert.match(auth, /function siteOrigin\(\)/);
+    assert.match(auth, /deployment\.siteUrl\(\)/);
+    assert.match(auth, /emailRedirectTo: siteUrlFor\('\/signin\.html'\)/);
+    assert.match(auth, /redirectTo: siteUrlFor\('\/reset-password\.html'\)/);
+});
+
+test('signing in and out lands on the application, not on a second copy of it', () => {
+    ['signin.html', 'signup.html'].forEach((page) => {
+        const text = source(page);
+        assert.match(text, /window\.location\.replace\(window\.spotifieAuth\.homeUrl\(\)\)/, page + ' goes home');
+        assert.ok(!/location\.href = 'index\.html'/.test(text), page + ' does not name the file');
+    });
+
+    // Replaced rather than pushed: the page somebody has just signed in from
+    // is not somewhere Back should take them, and it is the intermediate page
+    // that made this look broken.
+    const auth = source('js', 'auth.js');
+    assert.match(auth, /global\.location\.replace\(homeUrl\(\)\)/);
+
+    const manifest = JSON.parse(source('manifest.webmanifest'));
+    assert.strictEqual(manifest.start_url, '/');
+    assert.strictEqual(manifest.scope, '/');
+});
+
+// ============================================
+// The music on this device, read by the browser
+// ============================================
+
+/**
+ * The other half of what was broken: a published copy could not reach anybody's
+ * own music at all.
+ *
+ * It looked for a Spotifie running on the machine, which almost nobody reading
+ * a website has. What their browser does have - Chrome and Edge - is a picker
+ * that hands a page one folder, chosen by the person reading, and that is what
+ * this reads now.
+ *
+ * The line these hold: one folder somebody chose, never a device; the file
+ * itself opened only to play it; and nothing about it sent anywhere.
+ */
+
+const LIBRARY = source('js', 'browserLibrary.js');
+
+test('a folder is read only after somebody chooses it', () => {
+    // The picker, and nothing that opens it on its own. A browser refuses any
+    // other way, and the interface should not be trying.
+    assert.match(LIBRARY, /\.showDirectoryPicker\(\{ id: 'spotifie-music', mode: 'read', startIn: 'music' \}\)/);
+
+    const player = source('js', 'script.js');
+    const opens = player.slice(player.indexOf('async function chooseMusicFolder()'), player.indexOf('/** Say when this device was last searched. */'));
+    assert.match(opens, /library\.chooseFolder\(\)/);
+
+    // Both ways of asking are clicks, and neither spends the click on
+    // anything else first.
+    const controls = player.slice(player.indexOf('function initDeviceScanControls()'), player.indexOf('/** Tell the platform what the music'));
+    assert.match(controls, /deviceScanStart[\s\S]{0,1400}chooseMusicFolder\(\)/);
+    assert.match(controls, /scanDeviceLink[\s\S]{0,1400}chooseMusicFolder\(\)/);
+});
+
+test('what a browser can do is what the interface offers', () => {
+    const player = source('js', 'script.js');
+    const label = player.slice(player.indexOf('function updateScanMenuLabel()'), player.indexOf('function updateScanMenuLabel()') + 1400);
+
+    // A page cannot look through a device and this does not say it can.
+    assert.match(label, /'Choose music folder'/);
+    assert.match(label, /'Choose another music folder'/);
+    assert.ok(
+        label.indexOf('Choose music folder') < label.indexOf('Scan device for music'),
+        'the honest wording is what a published copy shows'
+    );
+});
+
+test('nothing is kept but a reference and a few words about each song', () => {
+    // The handle the browser gave, which is worthless without the permission
+    // that goes with it, and a short row per song. Never audio, never a
+    // picture, and never an address that means something only in this page.
+    assert.match(LIBRARY, /var DB_NAME = 'spotifie-device-library';/);
+    assert.ok(!/base64|btoa|arrayBuffer\(\)\.then[\s\S]{0,80}put\(/.test(LIBRARY), 'no audio is written down');
+    assert.ok(!/createObjectURL[\s\S]{0,200}(put|setItem)\(/.test(LIBRARY), 'and no address into memory is either');
+
+    // An address for a song exists while it plays and is dropped when the
+    // next one starts.
+    assert.match(LIBRARY, /function releasePlaying\(\)/);
+    assert.match(LIBRARY, /global\.URL\.revokeObjectURL\(playing\.url\)/);
+
+    // And none of it goes anywhere: no upload, no Supabase, no network at all.
+    // Read as code: the comments there say what this must never do, and
+    // searching the prose for those words would find the promise rather than a
+    // breach of it.
+    const code = LIBRARY.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    assert.ok(!/supabase|fetch\(|XMLHttpRequest|upload/i.test(code), 'nothing leaves this machine');
+});
+
+test('a song keeps its name between visits, and an unchanged one is not read again', () => {
+    // The id is made of where the file is and how big it is, so a like or a
+    // place in a playlist still points at the same song tomorrow. It is not a
+    // fingerprint of the audio: reading every byte of a thousand files on
+    // every refresh is minutes nobody has.
+    assert.match(LIBRARY, /function trackIdFor\(folderId, path, size\)/);
+    assert.match(LIBRARY, /return 'local:' \+ out;/);
+
+    // A song whose name, size and modified time have not moved is the same
+    // song, kept exactly as it was.
+    assert.match(
+        LIBRARY,
+        /known\.size === real\.size &&\s*known\.lastModified === real\.lastModified/,
+        'unchanged files are not opened again'
+    );
+
+    // And what is no longer in the folder is no longer in the library.
+    assert.match(LIBRARY, /function writeFolder\(folder, rows\)/);
+});
+
+test('a folder that would need asking again is left alone, and its songs stay', () => {
+    // Permission belongs to the browser and can be taken back at any time.
+    // When it has been, the songs stay listed from what was written down and
+    // the question waits for somebody to ask for their music - rather than a
+    // prompt on every page load, or a library that empties itself.
+    assert.match(LIBRARY, /function permissionFor\(folder\)/);
+    assert.match(LIBRARY, /queryPermission\(\{ mode: 'read' \}\)/);
+
+    const refresh = LIBRARY.slice(LIBRARY.indexOf('function refresh()'), LIBRARY.indexOf('function reconnect()'));
+    assert.match(refresh, /if \(permission !== 'granted'\) \{[\s\S]{0,120}needsPermission \+= 1;/);
+    assert.ok(!/requestPermission/.test(refresh), 'nothing asks by itself');
+
+    const reconnect = LIBRARY.slice(LIBRARY.indexOf('function reconnect()'), LIBRARY.indexOf('function forget('));
+    assert.match(reconnect, /requestPermission/);
+});
+
+test('a copy with no server reaches its own device without asking any host', () => {
+    const client = source('js', 'catalogClient.js');
+
+    // The local half of the library comes from the browser itself. No
+    // request to the host the page came from, and none to a helper that is
+    // usually not running.
+    assert.match(client, /CatalogClient\.prototype\._browserLibrary = function/);
+    assert.match(client, /window\.spotifieBrowserLibrary/);
+
+    const local = client.slice(client.indexOf('CatalogClient.prototype.getLocalCatalog'), client.indexOf('CatalogClient.prototype.getArtists'));
+    assert.match(local, /this\._browserLibrary\(\)/);
+    assert.ok(!/fetch\(|_request\(url\)[\s\S]{0,40}published/.test(local.slice(0, local.indexOf('return this._shared'))), 'nothing is fetched for it');
+
+    // And the two halves are joined the way a server joins them, so
+    // everything that draws a library works the same either way.
+    const cloud = client.slice(client.indexOf('CatalogClient.prototype._fromCloud'), client.indexOf('CatalogClient.prototype._cloudCatalogue'));
+    assert.match(cloud, /here\.albums\.concat\(answer\.albums\)/);
+    assert.match(cloud, /here\.tracks\.concat\(answer\.tracks\)/);
+});

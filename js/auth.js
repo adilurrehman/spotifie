@@ -39,6 +39,50 @@
         'address it prints - http://127.0.0.1:3000 by default.';
     const CONFIG_UNAVAILABLE = 'Authentication is unavailable: the app configuration could not be loaded. ' + START_HINT;
 
+    /**
+     * Where Spotifie is, said one way.
+     *
+     * The application has one address - the root - and every page that sends
+     * somebody back into it sends them there. index.html is the same document
+     * and opening it by hand still works, but nothing here points at it: two
+     * addresses for one page means two entries in a cache, two entries in the
+     * history, and a Back button that goes to whichever of them somebody
+     * happened to arrive by.
+     *
+     * A published copy knows the address it was published at and says so, so a
+     * link Supabase sends by email comes back to the site rather than to the
+     * machine a build happened on. A copy somebody is running says nothing,
+     * and the address the page is open at is the right answer.
+     */
+    function siteOrigin() {
+        const deployment = global.spotifieDeployment;
+        const published = deployment && deployment.siteUrl ? deployment.siteUrl() : null;
+
+        if (published) {
+            try {
+                return new URL(published).origin;
+            } catch (e) {
+                /* a setting that is not an address is no address at all */
+            }
+        }
+
+        return global.location ? global.location.origin : '';
+    }
+
+    /** An address inside Spotifie, from the one place that knows where it is. */
+    function siteUrlFor(path) {
+        try {
+            return new URL(path, siteOrigin() + '/').toString();
+        } catch (e) {
+            return path;
+        }
+    }
+
+    /** The application itself. Never index.html: one page, one address. */
+    function homeUrl() {
+        return siteUrlFor('/');
+    }
+
     let configError = null;
 
     let clientPromise = null;
@@ -486,7 +530,7 @@
                 password: password,
                 options: {
                     data: { username: username },
-                    emailRedirectTo: global.location.origin + '/signin.html'
+                    emailRedirectTo: siteUrlFor('/signin.html')
                 }
             });
 
@@ -559,7 +603,7 @@
             if (!client) return configFailure();
 
             const { error } = await client.auth.resetPasswordForEmail(email, {
-                redirectTo: global.location.origin + '/reset-password.html'
+                redirectTo: siteUrlFor('/reset-password.html')
             });
             if (error) {
                 return { success: false, error: error.message };
@@ -730,7 +774,8 @@
             btn.addEventListener('click', async (e) => {
                 e.preventDefault();
                 await signOut();
-                global.location.href = 'index.html';
+                // Back to the application, at the address the application has.
+                global.location.replace(homeUrl());
             });
         });
 
@@ -759,14 +804,14 @@
         const session = await getSession();
 
         if (!session) {
-            global.location.href = settings.redirectTo || 'signin.html';
+            global.location.replace(settings.redirectTo || siteUrlFor('/signin.html'));
             return null;
         }
 
         if (settings.admin) {
             const admin = await isAdmin();
             if (!admin) {
-                global.location.href = settings.deniedRedirectTo || 'index.html';
+                global.location.replace(settings.deniedRedirectTo || homeUrl());
                 return null;
             }
         }
@@ -806,6 +851,9 @@
         requireSession,
         renderAuthUI,
         initAuthUI,
-        clearProfileCache
+        clearProfileCache,
+        // Where the application is, for the pages that send people back to it.
+        homeUrl,
+        siteUrlFor
     };
 })(typeof window !== 'undefined' ? window : globalThis);

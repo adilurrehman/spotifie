@@ -428,7 +428,7 @@
 
     <!-- Header -->
     <header class="auth-header">
-        <a href="index.html" class="auth-logo">
+        <a href="/" class="auth-logo">
             <img src="img/logo.webp" alt="Spotifie">
             <span>Spotifie</span>
         </a>
@@ -738,7 +738,7 @@
                 } else if (result.success) {
                     showAlert('Account created successfully! Redirecting...', 'success');
                     setTimeout(() => {
-                        window.location.href = 'index.html';
+                        window.location.replace(window.spotifieAuth.homeUrl());
                     }, 1500);
                 } else {
                     showAlert(result.error || 'Failed to create account. Please try again.', 'error');
@@ -764,7 +764,7 @@
 
             const session = await window.spotifieAuth.getSession();
             if (session) {
-                window.location.href = 'index.html';
+                window.location.replace(window.spotifieAuth.homeUrl());
             }
         });
     </script>

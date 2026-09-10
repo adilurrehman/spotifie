@@ -806,15 +806,26 @@ test('agreeing makes the collection exist, before anything has been found', () =
     // every machine with no helper on it.
     const remembered = allow.indexOf('rememberLocalMusicPermission()');
     const created = allow.indexOf('ensureLocalMusicCollection()');
-    const looked = allow.indexOf('requestLocalMusic()');
+    const looked = allow.indexOf('chooseMusicFolder()');
 
     assert.ok(remembered !== -1 && created !== -1 && looked !== -1);
     assert.ok(remembered < created, 'the answer is kept first');
     assert.ok(created < looked, 'and the collection exists before anything is asked');
 
-    // Nothing answering is one sentence, not a broken application.
-    assert.match(allow, /showToast\('Local Music helper is not available on this device'\)/);
-    assert.match(allow, /markLocalMusicUnavailable\(\);/);
+    // This is a click, and a browser opens a folder picker from a click or not
+    // at all. Anything that happened first - looking for a helper that is
+    // usually not running, waiting on a session - would spend the gesture and
+    // leave the picker unable to open.
+    const asking = PLAYER.slice(
+        PLAYER.indexOf('async function chooseMusicFolder()'),
+        PLAYER.indexOf('/** Say when this device was last searched. */')
+    );
+    assert.match(asking, /library\.chooseFolder\(\)/);
+
+    // Nothing that can read a folder here is one sentence, not a broken
+    // application.
+    assert.match(asking, /showToast\('Local folder scanning is not supported by this browser yet'\)/);
+    assert.match(asking, /markLocalMusicUnavailable\(\);/);
 });
 
 test('a device that agreed keeps its collection through every redraw', () => {

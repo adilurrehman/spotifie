@@ -308,14 +308,21 @@ test('the worker keeps the application and nothing belonging to anybody', () => 
     // Versioned, so an update replaces what came before rather than living
     // beside it forever.
     assert.match(worker, /const CACHE_VERSION = '[^']+'/);
-    assert.match(worker, /names\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
+    assert.match(worker, /\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
 
     // What it keeps is the application: pages, styles, scripts, icons. No
     // audio, nothing signed, nothing from an account.
     const shell = worker.slice(worker.indexOf('const SHELL_ASSETS'), worker.indexOf('];', worker.indexOf('const SHELL_ASSETS')));
     assert.ok(!/\.mp3|\/api\/library\/tracks|\/api\/catalog\/tracks|token|signed/i.test(shell), 'nothing private is kept');
-    assert.match(shell, /'\/index\.html'/);
     assert.match(shell, /'\/manifest\.webmanifest'/);
+
+    // The application is kept under the one address it has. Keeping the same
+    // document twice, at "/" and at "/index.html", is two entries in the
+    // cache, two in the history, and two chances for a page to be answered
+    // from the older of them.
+    assert.match(worker, /const APP_SHELL = '\/';/);
+    assert.match(shell, /^\s*APP_SHELL,/m);
+    assert.ok(!/'\/index\.html'/.test(shell), 'and not a second time under another name');
 });
 
 // ============================================
