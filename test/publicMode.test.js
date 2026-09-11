@@ -1201,11 +1201,12 @@ test('the worker gates the dashboard and holds no secret of its own', () => {
     assert.match(dashboard, /supabaseUser\(config, token\)/);
     assert.match(dashboard, /supabaseIsAdmin\(config, token, user\.id\)/);
 
-    // The cookie it sets is not readable by script, is confined to the
-    // dashboard route, and is short-lived.
+    // The cookie it sets is not readable by script, does not travel to other
+    // sites, and is short-lived; its path is broad enough to be delivered on
+    // the navigation to the dashboard that entry leads to.
     assert.match(worker, /HttpOnly/);
     assert.match(worker, /SameSite=Strict/);
-    assert.match(worker, /Path=\/admin-dashboard/);
+    assert.match(worker, /'Path=\/'/);
     assert.match(worker, /ENTRY_MAX_AGE/);
 
     // No secret of its own: it reads the two public Supabase values from the

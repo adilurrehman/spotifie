@@ -469,13 +469,24 @@
         }
 
         try {
+            // Same origin, and with the session's own access token, so the
+            // worker sets its entry cookie on this origin - the one the
+            // navigation that follows will send it back to.
             const response = await authorizedFetch('/api/admin/enter', { method: 'POST' });
+            console.info('[admin-enter] POST status: ' + (response ? response.status : 'no response'));
+            console.info('[admin-enter] response ok: ' + Boolean(response && response.ok));
+
             if (response && response.ok) {
+                // Only after the response - and its Set-Cookie - is in hand.
                 global.location.assign('/admin-dashboard');
                 return true;
             }
+
+            // Signed in but not allowed, or the session has lapsed. Stay put;
+            // the item only shows for administrators, so this is rare.
+            console.warn('Could not open the admin dashboard: entry was not granted.');
         } catch (e) {
-            /* offline, or the worker refused: there is nothing to open */
+            console.warn('Could not open the admin dashboard:', e && e.message);
         }
 
         return false;

@@ -103,17 +103,31 @@ async function route(request, env, document) {
  */
 async function handleEnter(request, env, url) {
     const token = bearerToken(request.headers.get('Authorization'));
-    if (!token) return json({ error: 'not-signed-in' }, 401);
+    if (!token) {
+        note('[admin-enter] denied: no bearer token');
+        return json({ error: 'not-signed-in' }, 401);
+    }
 
     const config = await publicConfig(env, url);
-    if (!config) return json({ error: 'unconfigured' }, 503);
+    if (!config) {
+        note('[admin-enter] denied: settings unavailable');
+        return json({ error: 'unconfigured' }, 503);
+    }
 
     const user = await supabaseUser(config, token);
-    if (!user) return json({ error: 'not-signed-in' }, 401);
+    if (!user) {
+        note('[admin-enter] denied: token not valid');
+        return json({ error: 'not-signed-in' }, 401);
+    }
 
     const admin = await supabaseIsAdmin(config, token, user.id);
-    if (!admin) return json({ error: 'not-an-administrator' }, 403);
+    note('[admin-enter] is_admin: ' + admin);
+    if (!admin) {
+        note('[admin-enter] denied: not an administrator');
+        return json({ error: 'not-an-administrator' }, 403);
+    }
 
+    note('[admin-enter] allowed: cookie issued');
     return new Response(null, {
         status: 204,
         headers: {
@@ -129,22 +143,26 @@ async function handleEnter(request, env, url) {
 
 async function handleDashboard(request, env, url, document) {
     // A checkout built without the private half carries no dashboard to serve.
-    if (!document) return backToApp(url);
+    if (!document) return backToApp(url, 'no dashboard here');
 
     const token = cookieValue(request.headers.get('Cookie'), ENTRY_COOKIE);
-    if (!token) return backToApp(url);
+    note('[admin-route] cookie present: ' + Boolean(token));
+    if (!token) return backToApp(url, 'no entry cookie');
 
     const config = await publicConfig(env, url);
-    if (!config) return backToApp(url);
+    if (!config) return backToApp(url, 'settings unavailable');
 
     // Re-derived live, every time: an entry cookie is only ever as good as the
     // account it still belongs to.
     const user = await supabaseUser(config, token);
-    if (!user) return backToApp(url);
+    note('[admin-route] user valid: ' + Boolean(user));
+    if (!user) return backToApp(url, 'token not valid');
 
     const admin = await supabaseIsAdmin(config, token, user.id);
-    if (!admin) return backToApp(url);
+    note('[admin-route] is_admin: ' + admin);
+    if (!admin) return backToApp(url, 'not an administrator');
 
+    note('[admin-route] allowed');
     return new Response(document, {
         status: 200,
         headers: {
@@ -168,7 +186,8 @@ async function handleDashboard(request, env, url, document) {
  * cookie, and clearing it here means an expired one does not sit in the browser
  * being re-checked on every navigation.
  */
-function backToApp(url) {
+function backToApp(url, reason) {
+    note('[admin-route] denied: ' + (reason || 'not allowed'));
     return new Response(null, {
         status: 302,
         headers: {
@@ -177,6 +196,19 @@ function backToApp(url) {
             'Cache-Control': 'no-store'
         }
     });
+}
+
+/**
+ * A safe line for the log. What was asked and what was decided - never a
+ * token, never a cookie value, never a secret. Visible with `wrangler tail`
+ * and in the observability that wrangler.jsonc turns on.
+ */
+function note(message) {
+    try {
+        console.log(message);
+    } catch (e) {
+        /* a worker that cannot log still answers */
+    }
 }
 
 // ============================================
@@ -204,10 +236,13 @@ async function supabaseUser(config, token) {
 /**
  * Whether that account is an administrator.
  *
- * The database function first - the same one every admin-only policy calls -
- * and the account's own row as the fallback, which its policy lets it read and
- * nobody else's. Both answer with a plain yes or no; neither can read the list
- * of administrators, and neither writes anything.
+ * The zero-argument function first, called under the account's own token: it
+ * answers about auth.uid() - the caller - so nothing the request carries is
+ * trusted to say who is being asked about, and the narrowest question there is
+ * gets asked. The same function by id is the fallback for a project that has
+ * only that one, and the account's own row is the last resort, which its policy
+ * lets it read and nobody else's. Each answers with a plain yes or no; none can
+ * read the list of administrators, and none writes anything.
  */
 async function supabaseIsAdmin(config, token, uid) {
     const headers = {
@@ -216,19 +251,11 @@ async function supabaseIsAdmin(config, token, uid) {
         'Content-Type': 'application/json'
     };
 
-    try {
-        const rpc = await fetch(config.supabaseUrl + '/rest/v1/rpc/is_admin', {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify({ uid: uid })
-        });
-        if (rpc.ok) {
-            const answer = await rpc.json();
-            return answer === true;
-        }
-    } catch (e) {
-        /* fall through to the table */
-    }
+    const zero = await rpcBoolean(config.supabaseUrl + '/rest/v1/rpc/is_admin', headers, {});
+    if (zero !== null) return zero;
+
+    const byId = await rpcBoolean(config.supabaseUrl + '/rest/v1/rpc/is_admin', headers, { uid: uid });
+    if (byId !== null) return byId;
 
     try {
         const row = await fetch(
@@ -241,6 +268,23 @@ async function supabaseIsAdmin(config, token, uid) {
         return Array.isArray(rows) && rows.length > 0;
     } catch (e) {
         return false;
+    }
+}
+
+/** Call an is_admin RPC and read a plain boolean, or null when it could not. */
+async function rpcBoolean(endpoint, headers, body) {
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) return null;
+
+        const answer = await response.json();
+        return answer === true;
+    } catch (e) {
+        return null;
     }
 }
 
@@ -336,9 +380,15 @@ function entryCookie(token, url) {
         ENTRY_COOKIE + '=' + encodeURIComponent(token),
         'HttpOnly',
         'SameSite=Strict',
-        // Only for the dashboard route, so it is not carried on ordinary
-        // requests to the application at all.
-        'Path=/admin-dashboard',
+        // Path=/, on purpose, so it is unambiguously sent on the navigation to
+        // /admin-dashboard that follows entry. Scoping it to /admin-dashboard
+        // read cleanly but left the cookie's delivery to that one route as the
+        // last untested link, and the symptom - a verified administrator sent
+        // straight back to / - is exactly what a cookie that did not arrive
+        // produces. It stays HttpOnly, so no script reads it, and only the
+        // dashboard route ever looks at it; being sent on other requests costs
+        // a header and grants nothing.
+        'Path=/',
         'Max-Age=' + ENTRY_MAX_AGE
     ];
     // Secure everywhere it can be honoured. `wrangler dev` serves over http on
@@ -350,7 +400,7 @@ function entryCookie(token, url) {
 }
 
 function clearedCookie(url) {
-    const attributes = [ENTRY_COOKIE + '=', 'HttpOnly', 'SameSite=Strict', 'Path=/admin-dashboard', 'Max-Age=0'];
+    const attributes = [ENTRY_COOKIE + '=', 'HttpOnly', 'SameSite=Strict', 'Path=/', 'Max-Age=0'];
     if (url.protocol === 'https:') attributes.push('Secure');
     return attributes.join('; ');
 }

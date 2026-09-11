@@ -39,12 +39,12 @@ function fakeSupabase(options) {
     const settings = options || {};
     const calls = [];
 
-    return async function (input, init) {
+    const impl = async function (input, init) {
         const url = String(typeof input === 'string' ? input : input.url);
         const headers = (init && init.headers) || {};
         const auth = headers.Authorization || headers.authorization || '';
         const token = /^Bearer\s+(.+)$/i.test(auth) ? auth.replace(/^Bearer\s+/i, '') : '';
-        calls.push({ url: url, token: token });
+        calls.push({ url: url, token: token, body: (init && init.body) || null });
 
         const identity = { admin: 'admin-uid', user: 'user-uid' };
 
@@ -57,7 +57,11 @@ function fakeSupabase(options) {
         if (url.indexOf('/rest/v1/rpc/is_admin') !== -1) {
             if (settings.rpcBroken) return new Response('no such function', { status: 404 });
             const body = JSON.parse((init && init.body) || '{}');
-            return new Response(JSON.stringify(body.uid === 'admin-uid'), { status: 200 });
+            // The zero-argument call answers about the caller - the token -
+            // exactly as the real is_admin() does through auth.uid(). The
+            // id-argument call answers about the id it is given.
+            const admin = 'uid' in body ? body.uid === 'admin-uid' : token === 'admin';
+            return new Response(JSON.stringify(admin), { status: 200 });
         }
 
         if (url.indexOf('/rest/v1/app_admins') !== -1) {
@@ -67,6 +71,9 @@ function fakeSupabase(options) {
 
         return new Response('', { status: 500 });
     };
+
+    impl.calls = calls;
+    return impl;
 }
 
 /** The assets binding: the config the build wrote, and a stand-in for the rest. */
@@ -182,7 +189,11 @@ test('an administrator is granted a confined, script-proof, short-lived cookie',
         assert.match(cookie, /spotifie_admin_entry=/);
         assert.match(cookie, /HttpOnly/, 'script cannot read it');
         assert.match(cookie, /SameSite=Strict/);
-        assert.match(cookie, /Path=\/admin-dashboard/, 'confined to the dashboard route');
+        // Path=/, so it is unambiguously sent on the navigation to
+        // /admin-dashboard that follows - a narrower path was the one link
+        // never tested through a real set-then-navigate, and a cookie that did
+        // not arrive is exactly what sent a verified administrator back to /.
+        assert.match(cookie, /Path=\//, 'delivered to the dashboard route');
         assert.match(cookie, /Max-Age=\d+/, 'and short-lived');
         assert.match(cookie, /Secure/, 'and only over https');
     });
@@ -193,7 +204,7 @@ test('an administrator is granted a confined, script-proof, short-lived cookie',
 // ============================================
 
 test('an administrator who entered is served the dashboard', async () => {
-    await withWorker(async ({ worker, env }) => {
+    await withWorker(async ({ worker, env, supabase }) => {
         const response = await worker.fetch(
             request(host(), '/admin-dashboard', { headers: { Cookie: 'spotifie_admin_entry=admin' } }),
             env
@@ -202,6 +213,13 @@ test('an administrator who entered is served the dashboard', async () => {
         assert.match(response.headers.get('Content-Type'), /text\/html/);
         assert.strictEqual(response.headers.get('Cache-Control'), 'no-store', 'never cached for the next visitor');
         assert.match(await response.text(), /DASHBOARD/);
+
+        // The first administrator question asked is the zero-argument one -
+        // about the caller, carrying no id from the request - as the spec
+        // requires.
+        const firstRpc = supabase.calls.filter((c) => c.url.indexOf('/rpc/is_admin') !== -1)[0];
+        assert.ok(firstRpc, 'the database was asked');
+        assert.deepStrictEqual(JSON.parse(firstRpc.body || '{}'), {}, 'and asked the zero-argument way first');
     });
 });
 
