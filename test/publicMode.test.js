@@ -748,7 +748,7 @@ test('a new worker retires what the old one kept', () => {
     // The broken cache is on the machines of everybody who has opened the
     // site. Retiring it is the version, and taking over at once is what stops
     // a page from being answered by the old worker one more time.
-    assert.match(WORKER, /const CACHE_VERSION = 'v5';/);
+    assert.match(WORKER, /const CACHE_VERSION = 'v6';/);
     assert.match(WORKER, /\.filter\(\(name\) => name\.startsWith\('spotifie-shell-'\) && name !== SHELL_CACHE\)/);
     assert.match(WORKER, /self\.skipWaiting\(\)/);
     assert.match(WORKER, /self\.clients\.claim\(\)/);
@@ -976,7 +976,7 @@ test('a page and the code it loads come from the same release', () => {
     assert.ok(code.indexOf('fetch(request)') < code.indexOf('cache.match(request)'), 'the network first');
 
     // And a version that retires what the broken one kept.
-    assert.match(WORKER, /const CACHE_VERSION = 'v5';/);
+    assert.match(WORKER, /const CACHE_VERSION = 'v6';/);
 });
 
 // ============================================
@@ -1590,6 +1590,61 @@ test('the diagnostics say what happened and never a token', async () => {
     assert.ok(!loaded.logs.some((line) => /token|apikey|Bearer|eyJ|access_token/i.test(line)), 'never a token');
 
     assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex');
+});
+
+test('the menu item is the Admin Dashboard, in order, opened through enterAdmin', () => {
+    const index = source('index.html');
+    const auth = source('js', 'auth.js');
+
+    // The item exists in the menu markup, named as it should be, hidden until
+    // the database says the account is an administrator.
+    const link = /<a[^>]*id="dashboardLink"[^>]*>[\s\S]*?<\/a>/.exec(index);
+    assert.ok(link, 'the item is in the menu');
+    assert.match(link[0], /class="[^"]*admin-link/);
+    assert.match(link[0], /style="display: none;"/);
+    assert.match(link[0], /Admin Dashboard/);
+
+    // In order: after the account's own things, before Log out.
+    const dashboardAt = index.indexOf('id="dashboardLink"');
+    const logoutAt = index.indexOf('id="logoutBtn"');
+    assert.ok(dashboardAt !== -1 && logoutAt !== -1 && dashboardAt < logoutAt, 'the item sits above Log out');
+
+    // Opened through the entry flow, never a raw navigation: the click is
+    // intercepted and handed to enterAdmin, so a plain link to the page - which
+    // the worker would only bounce - is never followed.
+    assert.match(auth, /dashboardLink\.addEventListener\('click', \(e\) => \{[\s\S]{0,200}e\.preventDefault\(\);[\s\S]{0,200}enterAdmin\(\);/);
+});
+
+test('the built release carries the current admin JS, byte for byte', () => {
+    // The failure this rules out: a release that shipped an older auth.js than
+    // the working copy, so the fix was in the source and never in production.
+    const out = path.join(os.tmpdir(), 'spotifie-release-admin-js-test');
+
+    execFileSync(process.execPath, [path.join(ROOT, 'tools', 'buildPublic.js')], {
+        cwd: ROOT,
+        stdio: 'ignore',
+        env: Object.assign({}, process.env, {
+            SPOTIFIE_RELEASE_OUT: out,
+            SUPABASE_URL: 'https://example.supabase.co',
+            SUPABASE_ANON_KEY: 'public-anon-placeholder',
+            PUBLIC_SITE_URL: 'https://spotifie.example'
+        })
+    });
+
+    const builtAuth = fs.readFileSync(path.join(out, 'js', 'auth.js'), 'utf8');
+    assert.strictEqual(builtAuth, source('js', 'auth.js'), 'the release ships this auth.js, not an older one');
+
+    // And it is the code that decides and shows the item.
+    assert.match(builtAuth, /client\.rpc\('is_admin'\)/, 'the admin RPC is in the release');
+    assert.match(builtAuth, /function enterAdmin\(\)/, 'the entry flow is in the release');
+    assert.match(builtAuth, /function applyAdminUI\(\)/, 'the menu update is in the release');
+    assert.match(builtAuth, /\[admin\] verifiedAdmin/, 'the diagnostics are in the release');
+
+    const builtIndex = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
+    assert.match(builtIndex, /id="dashboardLink"/);
+    assert.match(builtIndex, /Admin Dashboard/);
+
+    fs.rmSync(out, { recursive: true, force: true });
 });
 
 test('the database answers this about the caller, and says nothing else', () => {

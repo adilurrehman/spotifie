@@ -38,7 +38,7 @@
 'use strict';
 
 /** Raise this to retire every previous cache. */
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const SHELL_CACHE = 'spotifie-shell-' + CACHE_VERSION;
 
 /**
