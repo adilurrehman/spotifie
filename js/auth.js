@@ -865,7 +865,6 @@
         const userNameDisplay = document.querySelector('#userName, .user-name, [data-auth="username"]');
         const libraryTitle = document.querySelector('#libraryTitle, .library-title, [data-auth="library-title"]');
         const authSkeleton = document.getElementById('authSkeleton');
-        const dashboardLink = document.getElementById('dashboardLink');
 
         const session = currentSession;
         const user = session ? session.user : null;
@@ -876,7 +875,9 @@
             setDisplay(signInBtn, '');
             setDisplay(signUpBtn, '');
             setDisplay(userMenu, 'none');
-            setDisplay(dashboardLink, 'none');
+            // A guest never has the item made; one left over from a previous
+            // account is hidden.
+            setDisplay(findDashboardItem(), 'none');
             if (libraryTitle) writeLibraryTitle(libraryTitle, 'Spotifie');
             return;
         }
@@ -932,12 +933,99 @@
         }
     }
 
+    /** The icon the item carries, matching the other menu items. */
+    const DASHBOARD_ICON =
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+        '<rect x="3" y="3" width="7" height="7" rx="1"/>' +
+        '<rect x="14" y="3" width="7" height="7" rx="1"/>' +
+        '<rect x="3" y="14" width="7" height="7" rx="1"/>' +
+        '<rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+
+    /** The admin item in the menu, whichever way it got there, or null. */
+    function findDashboardItem() {
+        if (typeof document === 'undefined') return null;
+        return document.getElementById('dashboardLink') || document.querySelector('[data-action="admin-dashboard"]');
+    }
+
     /**
-     * Show or hide the one thing an administrator has that nobody else does.
+     * The admin item, made if it is not already there.
+     *
+     * The menu the visitor actually sees is the source of truth, not a static
+     * element that a stale page might be missing or a rebuild might drop. So
+     * this puts the item into that menu - the real one, #userDropdown - when it
+     * is not present, in its usual place above Log out, and returns it either
+     * way. Only ever called for a verified administrator, so a menu that has no
+     * item is a menu that should not have one.
+     */
+    function ensureDashboardItem() {
+        const existing = findDashboardItem();
+        if (existing) {
+            wireDashboardItem(existing);
+            return existing;
+        }
+
+        if (typeof document === 'undefined') return null;
+        const dropdown = document.getElementById('userDropdown');
+        if (!dropdown || typeof document.createElement !== 'function') return null;
+
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.id = 'dashboardLink';
+        item.className = 'dropdown-item admin-link';
+        item.setAttribute('data-action', 'admin-dashboard');
+        item.style.display = 'none';
+        // A constant string of trusted markup: an icon and a label, nothing
+        // from anybody's input.
+        item.innerHTML = DASHBOARD_ICON + '<span>Admin Dashboard</span>';
+
+        // Above Log out, and above the divider that sits before it, so the
+        // order reads Profile, the device items, Admin Dashboard, Log out.
+        let before = document.getElementById('logoutBtn');
+        if (
+            before &&
+            before.previousElementSibling &&
+            before.previousElementSibling.classList &&
+            before.previousElementSibling.classList.contains('dropdown-divider')
+        ) {
+            before = before.previousElementSibling;
+        }
+
+        if (before && before.parentNode === dropdown) dropdown.insertBefore(item, before);
+        else dropdown.appendChild(item);
+
+        wireDashboardItem(item);
+        return item;
+    }
+
+    /**
+     * The item opens the dashboard through enterAdmin, never by navigating to
+     * its address - the worker would only send a plain navigation back. Wired
+     * once, whether the item came from the page or was made here.
+     */
+    function wireDashboardItem(item) {
+        if (!item) return;
+        if (item.dataset && item.dataset.adminWired === 'yes') return;
+        if (item.dataset) item.dataset.adminWired = 'yes';
+
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const menu = document.getElementById('userMenu');
+            if (menu && menu.classList) menu.classList.remove('open');
+            const dropdown = document.getElementById('userDropdown');
+            if (dropdown && dropdown.classList) dropdown.classList.remove('active');
+            enterAdmin();
+        });
+    }
+
+    /**
+     * Put the one thing an administrator has that nobody else does into the
+     * visible menu, or take it out.
      *
      * Read from the answer this session has, about the account this session
      * has. Called when the header is drawn and again the moment the answer
-     * arrives, which is what makes the item appear without a refresh.
+     * arrives, which is what makes the item appear without a refresh - and,
+     * because it works on the menu the visitor is actually looking at, an item
+     * a stale page never carried is created rather than merely un-hidden.
      *
      * It grants nothing either way: the dashboard asks the database the same
      * question again when it opens, and every privileged action is refused by
@@ -946,13 +1034,15 @@
     function applyAdminUI() {
         if (typeof document === 'undefined') return;
 
-        const dashboardLink = document.getElementById('dashboardLink');
-        if (!dashboardLink) return;
-
         const user = currentSession ? currentSession.user : null;
         const verified = Boolean(user && adminAnswer.userId === user.id && adminAnswer.verified === true);
 
-        setDisplay(dashboardLink, verified ? 'flex' : 'none');
+        // Made only for an account that has proven itself; anyone else who has
+        // an item has it hidden, and nobody else has one made.
+        const item = verified ? ensureDashboardItem() : findDashboardItem();
+        if (!item) return;
+
+        setDisplay(item, verified ? 'flex' : 'none');
     }
 
     /**
@@ -987,18 +1077,12 @@
             });
         });
 
-        // The dashboard link never simply navigates. On a published copy the
-        // page is behind the worker's gate, so opening it means asking the
-        // worker for entry first; a plain navigation to its address would only
-        // be sent back. enterAdmin does the asking and the opening.
-        const dashboardLink = document.getElementById('dashboardLink');
-        if (dashboardLink) {
-            dashboardLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (userDropdown) userDropdown.classList.remove('active');
-                enterAdmin();
-            });
-        }
+        // The dashboard item, if the page already carries one, is wired to open
+        // through enterAdmin here; one that has to be made is wired when it is
+        // made. Either way the click never simply navigates - a plain visit to
+        // the dashboard address is only sent back by the worker.
+        const dashboardItem = findDashboardItem();
+        if (dashboardItem) wireDashboardItem(dashboardItem);
 
         renderAuthUI();
     }

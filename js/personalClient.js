@@ -46,8 +46,34 @@
         this.pending = null;
     }
 
+    /**
+     * Is this a copy published to a static host, with no server of its own?
+     *
+     * A published copy has no /api/catalog to answer for a person's library:
+     * liked songs, playlists and history are kept by the local server from that
+     * account's own state file, and there is no such server here. So it never
+     * asks - a request to /api/catalog/me would only be a 404 on every load and
+     * a warning that reads like a fault. The catalogue and signing in still
+     * work; the personal library is simply empty until this copy is opened
+     * where a server holds it.
+     */
+    PersonalClient.prototype._published = function () {
+        var deployment = global.spotifieDeployment;
+        return Boolean(deployment && deployment.isPublished());
+    };
+
     /** How a request is actually made. The catalogue client carries the session. */
     PersonalClient.prototype._send = function (path, init) {
+        // Nothing on this origin answers for a person's library, so nothing is
+        // asked of it. Callers already treat a rejection as "leave what is held
+        // alone", which for a published copy means the empty state it started
+        // with.
+        if (this._published()) {
+            var unavailable = new Error('This copy has no personal-library server.');
+            unavailable.published = true;
+            return Promise.reject(unavailable);
+        }
+
         if (this.request) return this.request(this.baseUrl + path, init);
 
         var catalog = global.spotifieCatalog;
@@ -89,6 +115,15 @@
         var settings = options || {};
 
         if (this.pending && !settings.force) return this.pending;
+
+        // A published copy has no server to read from, so it reads nothing and
+        // starts from the empty, signed-out library rather than asking an
+        // origin that answers 404. The account is still signed in for
+        // everything else; only its device-held library is out of reach here.
+        if (this._published()) {
+            this._apply({ signedIn: false });
+            return Promise.resolve(this);
+        }
 
         this.pending = this._send('/me')
             .then(function (state) {

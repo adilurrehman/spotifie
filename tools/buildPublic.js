@@ -225,10 +225,10 @@ function stripDashboardLink(html) {
     const start = html.indexOf('<!-- The dashboard, shown only once the database');
     if (start === -1) return html;
 
-    const closing = html.indexOf('</a>', start);
+    const closing = html.indexOf('</button>', start);
     if (closing === -1) return html;
 
-    const end = closing + '</a>'.length;
+    const end = closing + '</button>'.length;
     const lineStart = html.lastIndexOf('\n', start) + 1;
     let lineEnd = html.indexOf('\n', end);
     if (lineEnd === -1) lineEnd = html.length;

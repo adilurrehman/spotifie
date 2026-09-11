@@ -1596,23 +1596,54 @@ test('the menu item is the Admin Dashboard, in order, opened through enterAdmin'
     const index = source('index.html');
     const auth = source('js', 'auth.js');
 
-    // The item exists in the menu markup, named as it should be, hidden until
+    // The item is a menu button - the same kind as its neighbours, not a link -
+    // named as it should be, marked with a stable action hook, and hidden until
     // the database says the account is an administrator.
-    const link = /<a[^>]*id="dashboardLink"[^>]*>[\s\S]*?<\/a>/.exec(index);
-    assert.ok(link, 'the item is in the menu');
-    assert.match(link[0], /class="[^"]*admin-link/);
-    assert.match(link[0], /style="display: none;"/);
-    assert.match(link[0], /Admin Dashboard/);
+    const button = /<button[^>]*id="dashboardLink"[^>]*>[\s\S]*?<\/button>/.exec(index);
+    assert.ok(button, 'the item is in the menu');
+    assert.match(button[0], /class="[^"]*admin-link/);
+    assert.match(button[0], /data-action="admin-dashboard"/);
+    assert.match(button[0], /style="display: none;"/);
+    assert.match(button[0], /Admin Dashboard/);
+
+    // Never a raw navigation: no href to the dashboard address, which the
+    // worker would only bounce.
+    assert.ok(!/id="dashboardLink"[^>]*href=/.test(index), 'the item is not a link');
 
     // In order: after the account's own things, before Log out.
     const dashboardAt = index.indexOf('id="dashboardLink"');
     const logoutAt = index.indexOf('id="logoutBtn"');
     assert.ok(dashboardAt !== -1 && logoutAt !== -1 && dashboardAt < logoutAt, 'the item sits above Log out');
 
-    // Opened through the entry flow, never a raw navigation: the click is
-    // intercepted and handed to enterAdmin, so a plain link to the page - which
-    // the worker would only bounce - is never followed.
-    assert.match(auth, /dashboardLink\.addEventListener\('click', \(e\) => \{[\s\S]{0,200}e\.preventDefault\(\);[\s\S]{0,200}enterAdmin\(\);/);
+    // The click is handed to enterAdmin - the entry flow - wherever the item
+    // came from: the static one is wired, and one the code has to create is
+    // wired when it is made.
+    assert.match(auth, /function wireDashboardItem\(item\)/);
+    assert.match(auth, /function ensureDashboardItem\(\)/);
+
+    const wire = auth.slice(auth.indexOf('function wireDashboardItem'), auth.indexOf('function applyAdminUI'));
+    assert.match(wire, /addEventListener\('click'/);
+    assert.match(wire, /e\.preventDefault\(\);/);
+    assert.match(wire, /enterAdmin\(\);/);
+});
+
+test('the item is put into the visible menu, not just shown or hidden', () => {
+    const auth = source('js', 'auth.js');
+
+    // The bug this closes: showing a static element that a stale page never
+    // carried, so nothing appeared. Now the item is ensured inside the real
+    // dropdown for a verified administrator, created there if it is missing.
+    const apply = auth.slice(auth.indexOf('function applyAdminUI()'), auth.indexOf('function initAuthUI()'));
+    assert.match(apply, /const item = verified \? ensureDashboardItem\(\) : findDashboardItem\(\);/);
+
+    const ensure = auth.slice(auth.indexOf('function ensureDashboardItem()'), auth.indexOf('function wireDashboardItem'));
+    assert.match(ensure, /document\.getElementById\('userDropdown'\)/, 'into the visible dropdown');
+    assert.match(ensure, /document\.createElement\('button'\)/, 'made when it is missing');
+    assert.match(ensure, /data-action', 'admin-dashboard'/);
+    assert.match(ensure, /getElementById\('logoutBtn'\)/, 'placed above Log out');
+
+    // Driven by the one canonical answer, not a second admin flag.
+    assert.match(apply, /adminAnswer\.userId === user\.id && adminAnswer\.verified === true/);
 });
 
 test('the built release carries the current admin JS, byte for byte', () => {
@@ -1645,6 +1676,180 @@ test('the built release carries the current admin JS, byte for byte', () => {
     assert.match(builtIndex, /Admin Dashboard/);
 
     fs.rmSync(out, { recursive: true, force: true });
+});
+
+/** A menu with no admin item in it yet, rich enough for one to be made. */
+function menuDocument() {
+    const all = [];
+
+    function element(tag) {
+        const el = {
+            tagName: String(tag || '').toUpperCase(),
+            style: { display: '' },
+            dataset: {},
+            children: [],
+            parentNode: null,
+            previousElementSibling: null,
+            _attrs: {},
+            classList: {
+                _set: new Set(),
+                add(name) {
+                    this._set.add(name);
+                },
+                remove(name) {
+                    this._set.delete(name);
+                },
+                contains(name) {
+                    return this._set.has(name);
+                },
+                toggle(name) {
+                    if (this._set.has(name)) this._set.delete(name);
+                    else this._set.add(name);
+                    return this._set.has(name);
+                }
+            },
+            setAttribute(name, value) {
+                this._attrs[name] = value;
+                if (name === 'class') {
+                    String(value)
+                        .split(/\s+/)
+                        .forEach((c) => c && this.classList.add(c));
+                }
+            },
+            getAttribute(name) {
+                return name in this._attrs ? this._attrs[name] : null;
+            },
+            addEventListener() {},
+            insertBefore(node, before) {
+                node.parentNode = this;
+                const at = this.children.indexOf(before);
+                if (at === -1) this.children.push(node);
+                else this.children.splice(at, 0, node);
+                return node;
+            },
+            appendChild(node) {
+                node.parentNode = this;
+                this.children.push(node);
+                return node;
+            },
+            set className(value) {
+                this._attrs.class = value;
+                String(value)
+                    .split(/\s+/)
+                    .forEach((c) => c && this.classList.add(c));
+            },
+            get className() {
+                return this._attrs.class || '';
+            }
+        };
+        all.push(el);
+        return el;
+    }
+
+    const made = new Map();
+    ['userMenu', 'userDropdown', 'userMenuBtn', 'userName', 'libraryTitle', 'authSkeleton', 'logoutBtn'].forEach(
+        (id) => {
+            const el = element('div');
+            el.id = id;
+            made.set(id, el);
+            all.push(el);
+        }
+    );
+
+    // The logout button sits inside the dropdown; the item must land above it.
+    made.get('logoutBtn').parentNode = made.get('userDropdown');
+    made.get('userDropdown').children.push(made.get('logoutBtn'));
+
+    return {
+        elements: made,
+        createElement: element,
+        getElementById: (id) => made.get(id) || all.filter((el) => el.id === id)[0] || null,
+        querySelector: (selector) => {
+            const byId = /#([A-Za-z][\w-]*)/.exec(selector);
+            if (byId) return made.get(byId[1]) || null;
+            const byAction = /\[data-action="([^"]+)"\]/.exec(selector);
+            if (byAction) return all.filter((el) => el.getAttribute('data-action') === byAction[1])[0] || null;
+            return null;
+        },
+        querySelectorAll: () => [],
+        addEventListener() {},
+        removeEventListener() {}
+    };
+}
+
+test('a verified administrator has the item made inside the visible dropdown', async () => {
+    const page = menuDocument();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const item = page.getElementById('dashboardLink');
+    assert.ok(item, 'the item was created');
+    assert.strictEqual(item.parentNode, page.getElementById('userDropdown'), 'inside the real dropdown');
+    assert.strictEqual(item.getAttribute('data-action'), 'admin-dashboard');
+    assert.strictEqual(item.style.display, 'flex', 'and shown');
+
+    // Above Log out.
+    const children = page.getElementById('userDropdown').children;
+    assert.ok(children.indexOf(item) < children.indexOf(page.getElementById('logoutBtn')), 'above Log out');
+});
+
+test('an ordinary account has no item made in the visible dropdown', async () => {
+    const page = menuDocument();
+    const client = fakeSessionDatabase({
+        session: LISTENER_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: false, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.getElementById('dashboardLink'), null, 'nothing was created for a non-administrator');
+});
+
+test('a published copy reads no personal library over the network', () => {
+    const fetched = [];
+    const sandbox = {
+        console: { warn() {}, log() {}, info() {}, error() {} },
+        Promise: Promise,
+        Object: Object,
+        Set: Set,
+        Array: Array,
+        Boolean: Boolean,
+        JSON: JSON,
+        Error: Error,
+        fetch: (url) => {
+            fetched.push(String(url));
+            return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) });
+        },
+        __SPOTIFIE_CONFIG__: publishedSettings()
+    };
+    sandbox.window = sandbox;
+    sandbox.globalThis = sandbox;
+
+    vm.createContext(sandbox);
+    vm.runInContext(DEPLOYMENT, sandbox);
+    vm.runInContext(source('js', 'personalClient.js'), sandbox);
+
+    const personal = new sandbox.PersonalClient();
+
+    return personal.load().then((result) => {
+        assert.strictEqual(result, personal, 'load resolves rather than rejecting');
+        assert.strictEqual(personal.loaded, true, 'and settles into a state');
+        assert.strictEqual(personal.signedIn, false, 'the empty, signed-out library');
+        assert.deepStrictEqual(fetched, [], 'and asked the origin for nothing - no /api/catalog/me');
+
+        // A like on a published copy touches no network either, so nothing 404s.
+        return personal.toggleLike('global:track').catch(() => {}).then(() => {
+            assert.deepStrictEqual(fetched, [], 'a like asked the origin for nothing');
+        });
+    });
 });
 
 test('the database answers this about the caller, and says nothing else', () => {
