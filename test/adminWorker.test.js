@@ -223,6 +223,55 @@ test('an administrator who entered is served the dashboard', async () => {
     });
 });
 
+test('the cookie a real POST sets opens the real GET, through the real handler', async () => {
+    // The whole chain, end to end, on the actual worker: a POST that grants
+    // entry, the Set-Cookie it returns replayed exactly as a browser would send
+    // it, and the GET that serves the dashboard because of it. This is the test
+    // the redirect-to-/ bug would have failed.
+    await withWorker(async ({ worker, env }) => {
+        const enter = await worker.fetch(
+            request(host(), '/api/admin/enter', { method: 'POST', headers: { Authorization: 'Bearer admin' } }),
+            env
+        );
+        assert.strictEqual(enter.status, 204, 'entry is granted');
+
+        const setCookie = enter.headers.get('Set-Cookie');
+        assert.ok(setCookie, 'a Set-Cookie header is returned');
+
+        // What a browser stores and sends back is the name=value pair; the
+        // attributes (HttpOnly, Path, Max-Age, ...) are for the browser, not the
+        // server, and are not sent on the next request.
+        const pair = setCookie.split(';')[0].trim();
+        assert.match(pair, /^spotifie_admin_entry=/);
+
+        const get = await worker.fetch(request(host(), '/admin-dashboard', { headers: { Cookie: pair } }), env);
+        assert.strictEqual(get.status, 200, 'the dashboard opens with the cookie the POST set');
+        assert.match(get.headers.get('Content-Type'), /text\/html/);
+        assert.match(await get.text(), /DASHBOARD/);
+    });
+});
+
+test('the entry cookie is found among others, comma or semicolon apart', async () => {
+    // A real Cookie header carries more than one cookie. The one that matters
+    // must be found whatever sits beside it.
+    await withWorker(async ({ worker, env }) => {
+        const header = 'theme=dark; other=1; spotifie_admin_entry=admin; last=2';
+        const get = await worker.fetch(request(host(), '/admin-dashboard', { headers: { Cookie: header } }), env);
+        assert.strictEqual(get.status, 200, 'the entry cookie is read from among the rest');
+    });
+});
+
+test('a normal user is granted no entry cookie at all', async () => {
+    await withWorker(async ({ worker, env }) => {
+        const enter = await worker.fetch(
+            request(host(), '/api/admin/enter', { method: 'POST', headers: { Authorization: 'Bearer user' } }),
+            env
+        );
+        assert.strictEqual(enter.status, 403);
+        assert.strictEqual(enter.headers.get('Set-Cookie'), null, 'so there is nothing to replay');
+    });
+});
+
 test('a cookie forged with an ordinary account fails the live check', async () => {
     // Exactly the tampering the gate exists to stop: a non-administrator sets a
     // cookie of the right name carrying their own valid token. The worker asks

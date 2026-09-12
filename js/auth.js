@@ -455,41 +455,59 @@
      * Answers whether entry was granted, so a caller can say when it was not.
      */
     async function enterAdmin() {
+        // The very first thing, before any await: if this line is not in the
+        // console when the item is clicked, the item is not wired to this
+        // function and nothing else here is the problem.
+        console.info('[admin-enter] click');
+
         const deployment = global.spotifieDeployment;
         const published = Boolean(deployment && deployment.isPublished());
 
-        // Same-origin, deliberately: the worker that grants entry and serves
-        // the dashboard is whatever origin served this page, which is not
-        // always the canonical publicSiteUrl - a preview build, or the site
-        // reached by another name, is served and gated by its own origin. The
-        // entry cookie is set there and must be sent back there.
+        // On a local checkout there is no worker and no gate: the server serves
+        // the page and admin.js guards it, so this simply opens it.
         if (!published) {
             global.location.assign('/admin-dashboard.html');
             return true;
         }
 
-        try {
-            // Same origin, and with the session's own access token, so the
-            // worker sets its entry cookie on this origin - the one the
-            // navigation that follows will send it back to.
-            const response = await authorizedFetch('/api/admin/enter', { method: 'POST' });
-            console.info('[admin-enter] POST status: ' + (response ? response.status : 'no response'));
-            console.info('[admin-enter] response ok: ' + Boolean(response && response.ok));
-
-            if (response && response.ok) {
-                // Only after the response - and its Set-Cookie - is in hand.
-                global.location.assign('/admin-dashboard');
-                return true;
-            }
-
-            // Signed in but not allowed, or the session has lapsed. Stay put;
-            // the item only shows for administrators, so this is rare.
-            console.warn('Could not open the admin dashboard: entry was not granted.');
-        } catch (e) {
-            console.warn('Could not open the admin dashboard:', e && e.message);
+        // The session's own access token is what the worker verifies. No token,
+        // no session - there is nothing to ask entry with.
+        const token = await getAccessToken();
+        console.info('[admin-enter] session: ' + (token ? 'yes' : 'no'));
+        if (!token) {
+            console.warn('Could not open the admin dashboard: no active session.');
+            return false;
         }
 
-        return false;
+        try {
+            // Same origin, and carrying the bearer token explicitly, so the
+            // worker sets its entry cookie on this origin - the one the
+            // navigation that follows sends it back to. credentials keeps that
+            // Set-Cookie.
+            console.info('[admin-enter] POST starting');
+            const response = await fetch('/api/admin/enter', {
+                method: 'POST',
+                headers: { Authorization: 'Bearer ' + token },
+                credentials: 'same-origin'
+            });
+            console.info('[admin-enter] POST status: ' + response.status);
+            console.info('[admin-enter] POST ok: ' + response.ok);
+
+            if (!response.ok) {
+                // Signed in but not granted entry. Stay put; the item only
+                // shows for administrators, so this is rare.
+                console.warn('Could not open the admin dashboard: entry was not granted.');
+                return false;
+            }
+
+            // Only after the response - and its Set-Cookie - is in hand.
+            console.info('[admin-enter] navigating: /admin-dashboard');
+            window.location.assign('/admin-dashboard');
+            return true;
+        } catch (e) {
+            console.warn('Could not open the admin dashboard:', e && e.message);
+            return false;
+        }
     }
 
     // ============================================

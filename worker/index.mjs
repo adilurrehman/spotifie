@@ -102,32 +102,31 @@ async function route(request, env, document) {
  * can set for itself.
  */
 async function handleEnter(request, env, url) {
+    note('[admin-worker] enter request');
+
     const token = bearerToken(request.headers.get('Authorization'));
-    if (!token) {
-        note('[admin-enter] denied: no bearer token');
-        return json({ error: 'not-signed-in' }, 401);
-    }
+    note('[admin-worker] bearer present: ' + (token ? 'yes' : 'no'));
+    if (!token) return json({ error: 'not-signed-in' }, 401);
 
     const config = await publicConfig(env, url);
     if (!config) {
-        note('[admin-enter] denied: settings unavailable');
+        note('[admin-worker] denied: settings unavailable');
         return json({ error: 'unconfigured' }, 503);
     }
 
     const user = await supabaseUser(config, token);
-    if (!user) {
-        note('[admin-enter] denied: token not valid');
-        return json({ error: 'not-signed-in' }, 401);
-    }
+    note('[admin-worker] user verified: ' + (user ? 'yes' : 'no'));
+    if (!user) return json({ error: 'not-signed-in' }, 401);
 
     const admin = await supabaseIsAdmin(config, token, user.id);
-    note('[admin-enter] is_admin: ' + admin);
+    note('[admin-worker] is_admin: ' + admin);
     if (!admin) {
-        note('[admin-enter] denied: not an administrator');
+        note('[admin-worker] denied: not an administrator');
         return json({ error: 'not-an-administrator' }, 403);
     }
 
-    note('[admin-enter] allowed: cookie issued');
+    note('[admin-worker] issuing cookie');
+    note('[admin-worker] response status: 204');
     return new Response(null, {
         status: 204,
         headers: {
@@ -142,11 +141,13 @@ async function handleEnter(request, env, url) {
 // ============================================
 
 async function handleDashboard(request, env, url, document) {
+    note('[admin-route] request');
+
     // A checkout built without the private half carries no dashboard to serve.
     if (!document) return backToApp(url, 'no dashboard here');
 
     const token = cookieValue(request.headers.get('Cookie'), ENTRY_COOKIE);
-    note('[admin-route] cookie present: ' + Boolean(token));
+    note('[admin-route] entry cookie present: ' + (token ? 'yes' : 'no'));
     if (!token) return backToApp(url, 'no entry cookie');
 
     const config = await publicConfig(env, url);
@@ -155,14 +156,14 @@ async function handleDashboard(request, env, url, document) {
     // Re-derived live, every time: an entry cookie is only ever as good as the
     // account it still belongs to.
     const user = await supabaseUser(config, token);
-    note('[admin-route] user valid: ' + Boolean(user));
+    note('[admin-route] token valid: ' + (user ? 'yes' : 'no'));
     if (!user) return backToApp(url, 'token not valid');
 
     const admin = await supabaseIsAdmin(config, token, user.id);
     note('[admin-route] is_admin: ' + admin);
     if (!admin) return backToApp(url, 'not an administrator');
 
-    note('[admin-route] allowed');
+    note('[admin-route] serving dashboard');
     return new Response(document, {
         status: 200,
         headers: {

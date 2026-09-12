@@ -1666,11 +1666,18 @@ test('the built release carries the current admin JS, byte for byte', () => {
     const builtAuth = fs.readFileSync(path.join(out, 'js', 'auth.js'), 'utf8');
     assert.strictEqual(builtAuth, source('js', 'auth.js'), 'the release ships this auth.js, not an older one');
 
-    // And it is the code that decides and shows the item.
+    // And it is the code that decides and shows the item, and opens it.
     assert.match(builtAuth, /client\.rpc\('is_admin'\)/, 'the admin RPC is in the release');
     assert.match(builtAuth, /function enterAdmin\(\)/, 'the entry flow is in the release');
     assert.match(builtAuth, /function applyAdminUI\(\)/, 'the menu update is in the release');
     assert.match(builtAuth, /\[admin\] verifiedAdmin/, 'the diagnostics are in the release');
+
+    // The exact strings that prove the click chain shipped, not an older one:
+    // the first thing the handler logs, the endpoint it posts to, and the one
+    // address it navigates to on success.
+    assert.match(builtAuth, /\[admin-enter\] click/, 'the click diagnostic shipped');
+    assert.match(builtAuth, /'\/api\/admin\/enter'/, 'the enter endpoint shipped');
+    assert.match(builtAuth, /window\.location\.assign\('\/admin-dashboard'\)/, 'the navigation shipped');
 
     const builtIndex = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
     assert.match(builtIndex, /id="dashboardLink"/);
