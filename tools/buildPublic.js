@@ -389,8 +389,58 @@ function readPublicSettings() {
  * while it has not arrived. A copy that has these knows what it is; a copy
  * that does not is a local checkout, and says so.
  */
+/**
+ * Which build this is: a short commit and a timestamp, both public.
+ *
+ * The point of it is to prove which code a host is actually serving. When the
+ * page loads it says so in the console, and the same values sit in
+ * build-info.json - so "did the deploy take" stops being a guess. The commit
+ * comes from whatever the builder knows: Cloudflare and GitHub both put it in
+ * the environment, and a build run by hand reads it from git. Nothing here is
+ * secret; a commit hash is already public the moment it is pushed.
+ */
+let buildInfoCached = null;
+
+function buildInfo() {
+    if (buildInfoCached) return buildInfoCached;
+
+    let version = '0.0.0';
+    try {
+        version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || version;
+    } catch (e) {
+        /* the version is a convenience, not a requirement */
+    }
+
+    let commit = (
+        process.env.CF_PAGES_COMMIT_SHA ||
+        process.env.WORKERS_CI_COMMIT_SHA ||
+        process.env.CI_COMMIT_SHA ||
+        process.env.GITHUB_SHA ||
+        ''
+    ).trim();
+
+    if (!commit) {
+        try {
+            commit = require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {
+                cwd: ROOT,
+                encoding: 'utf8'
+            }).trim();
+        } catch (e) {
+            commit = '';
+        }
+    }
+
+    buildInfoCached = {
+        commit: commit ? commit.slice(0, 7) : 'unknown',
+        builtAt: new Date().toISOString(),
+        version: version
+    };
+    return buildInfoCached;
+}
+
 function publicRuntimeScript() {
     const settings = publicSettings();
+    const build = buildInfo();
 
     return (
         [
@@ -417,6 +467,11 @@ function publicRuntimeScript() {
                     4
                 ) +
                 ';',
+            '',
+            '// Which build this is - said in the console so it is plain which code',
+            '// the host is serving. A commit hash and a timestamp, both public.',
+            'window.__SPOTIFIE_BUILD__ = ' + JSON.stringify(build, null, 4) + ';',
+            "try { console.info('[spotifie-build] ' + window.__SPOTIFIE_BUILD__.commit); } catch (e) {}",
             ''
         ].join('\n')
     );
@@ -511,10 +566,22 @@ function publicHeaders() {
         '  Cache-Control: public, max-age=0, must-revalidate',
         '',
         '# The worker decides what the application caches, so it must never be',
-        '# the stale thing deciding. Same for the settings a copy is built with.',
+        '# the stale thing deciding. Same for the settings a copy is built with,',
+        '# and the line that says which build this is.',
         '/sw.js',
         '  Cache-Control: no-cache',
         '/config.json',
+        '  Cache-Control: no-cache',
+        '/build-info.json',
+        '  Cache-Control: no-cache',
+        '',
+        '# The two scripts a stale copy of would strand the whole application on',
+        '# old code: the settings/build script, and the one that signs people in',
+        '# and opens the dashboard. Revalidated every load - still cached, still',
+        '# a 304 when unchanged, but never served old after a deploy.',
+        '/js/config.js',
+        '  Cache-Control: no-cache',
+        '/js/auth.js',
         '  Cache-Control: no-cache',
         '',
         '# Files that change only when the application does.',
@@ -673,6 +740,10 @@ function build() {
     fs.writeFileSync(path.join(OUT, 'js', 'config.js'), publicRuntimeScript());
     fs.writeFileSync(path.join(OUT, 'config.json'), publicRuntimeConfig());
 
+    // Which build this is, as data anyone or anything can read to prove which
+    // code the host is serving.
+    fs.writeFileSync(path.join(OUT, 'build-info.json'), JSON.stringify(buildInfo(), null, 2) + '\n');
+
     // What a static host should send with each kind of file.
     fs.writeFileSync(path.join(OUT, '_headers'), publicHeaders());
 
@@ -687,7 +758,45 @@ function build() {
     // Last, because it reads what is already in the release.
     copyFile('package.json', { transform: publicPackageJson });
 
+    // A build is only worth anything if it shipped the current code. This is
+    // the guard against the one failure this whole change exists to catch: a
+    // release that looks built but carries a stale js/auth.js.
+    assertFreshness();
+
     report();
+}
+
+/**
+ * Refuse a build whose js/auth.js is not the current source.
+ *
+ * Copied, not transformed, so the two must be identical - and identical is
+ * checked, byte for byte. The named markers are checked on top of that, so the
+ * failure names what a stale copy is missing rather than only that it differs:
+ * the click log, the enterAdmin log, the endpoint entry posts to, and the
+ * address it opens.
+ */
+function assertFreshness() {
+    const builtPath = path.join(OUT, 'js', 'auth.js');
+    if (!fs.existsSync(builtPath)) {
+        throw new Error('The release is missing js/auth.js.');
+    }
+
+    const built = fs.readFileSync(builtPath, 'utf8');
+    const markers = ['[admin-enter] click', '[admin-enter] function', '/api/admin/enter', '/admin-dashboard'];
+    const missing = markers.filter((marker) => built.indexOf(marker) === -1);
+
+    if (missing.length) {
+        throw new Error(
+            'The built js/auth.js is missing current markers (' +
+                missing.join(', ') +
+                '). The build copied a stale source; there is nothing to publish.'
+        );
+    }
+
+    const source = fs.readFileSync(path.join(ROOT, 'js', 'auth.js'), 'utf8');
+    if (built !== source) {
+        throw new Error('The built js/auth.js does not match the source js/auth.js.');
+    }
 }
 
 /** The public README, which is a separate document from the working one. */
@@ -755,8 +864,10 @@ function report() {
     const files = walk(OUT);
     const bytes = files.reduce((total, file) => total + fs.statSync(file).size, 0);
 
+    const build = buildInfo();
     console.log('Public release built in ' + path.relative(ROOT, OUT));
     console.log('  ' + files.length + ' files, ' + Math.round(bytes / 1024) + ' KB');
+    console.log('  build ' + build.commit + ' at ' + build.builtAt);
     console.log('');
     console.log('Left out by design: the administrator sign-in page, the admin server');
     console.log('modules, the tests, the working data, and this project\'s own Supabase');

@@ -1691,7 +1691,40 @@ test('the built release carries the current admin JS, byte for byte', () => {
     assert.match(builtIndex, /id="dashboardLink"/);
     assert.match(builtIndex, /Admin Dashboard/);
 
+    // Which build this is, so a stale deploy stops being a guess: a data file
+    // with a commit, the same values in the page, and a line in the console.
+    const info = JSON.parse(fs.readFileSync(path.join(out, 'build-info.json'), 'utf8'));
+    assert.ok(info.commit && info.commit.length >= 4, 'build-info.json names a commit');
+    assert.ok(info.builtAt, 'and when it was built');
+
+    const config = fs.readFileSync(path.join(out, 'js', 'config.js'), 'utf8');
+    assert.match(config, /window\.__SPOTIFIE_BUILD__ = \{/, 'the page carries the build id');
+    assert.match(config, /\[spotifie-build\] /, 'and says it in the console');
+
+    // The two scripts that would strand a deploy on old code are revalidated
+    // every load, and so is the build line.
+    const headers = fs.readFileSync(path.join(out, '_headers'), 'utf8');
+    ['/js/auth.js', '/js/config.js', '/build-info.json'].forEach((entry) => {
+        const at = headers.indexOf(entry);
+        assert.ok(at !== -1, entry + ' has a cache rule');
+        assert.match(headers.slice(at, at + 80), /Cache-Control: no-cache/, entry + ' is revalidated');
+    });
+
     fs.rmSync(out, { recursive: true, force: true });
+});
+
+test('the build refuses to publish a stale auth.js', () => {
+    // The guard, in the build source: the markers it demands, and that it
+    // compares the built file to the source rather than trusting the copy.
+    const build = source('tools', 'buildPublic.js');
+
+    assert.match(build, /function assertFreshness\(\)/);
+    assert.match(build, /assertFreshness\(\);/, 'and it is actually called');
+    ['\\[admin-enter\\] click', '\\[admin-enter\\] function', '/api/admin/enter', '/admin-dashboard'].forEach((marker) => {
+        assert.ok(new RegExp(marker).test(build), 'the guard checks for ' + marker);
+    });
+    assert.match(build, /if \(built !== source\)/, 'built auth.js must match the source');
+    assert.match(build, /missing current markers/);
 });
 
 /** A menu with no admin item in it yet, rich enough for one to be made. */
