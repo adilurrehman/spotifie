@@ -114,13 +114,10 @@ async function handleEnter(request, env, url) {
         return json({ error: 'unconfigured' }, 503);
     }
 
-    const user = await supabaseUser(config, token);
-    note('[admin-worker] user verified: ' + (user ? 'yes' : 'no'));
-    if (!user) return json({ error: 'not-signed-in' }, 401);
-
-    const admin = await supabaseIsAdmin(config, token, user.id);
+    const admin = await adminFromToken(config, token);
     note('[admin-worker] is_admin: ' + admin);
-    if (!admin) {
+    if (admin === null) return json({ error: 'not-signed-in' }, 401);
+    if (admin !== true) {
         note('[admin-worker] denied: not an administrator');
         return json({ error: 'not-an-administrator' }, 403);
     }
@@ -154,14 +151,12 @@ async function handleDashboard(request, env, url, document) {
     if (!config) return backToApp(url, 'settings unavailable');
 
     // Re-derived live, every time: an entry cookie is only ever as good as the
-    // account it still belongs to.
-    const user = await supabaseUser(config, token);
-    note('[admin-route] token valid: ' + (user ? 'yes' : 'no'));
-    if (!user) return backToApp(url, 'token not valid');
-
-    const admin = await supabaseIsAdmin(config, token, user.id);
+    // account it still belongs to. One question - the database verifies the
+    // token and answers whether it is an administrator's.
+    const admin = await adminFromToken(config, token);
     note('[admin-route] is_admin: ' + admin);
-    if (!admin) return backToApp(url, 'not an administrator');
+    if (admin === null) return backToApp(url, 'token not valid');
+    if (admin !== true) return backToApp(url, 'not an administrator');
 
     note('[admin-route] serving dashboard');
     return new Response(document, {
@@ -189,10 +184,18 @@ async function handleDashboard(request, env, url, document) {
  */
 function backToApp(url, reason) {
     note('[admin-route] denied: ' + (reason || 'not allowed'));
+
+    // The reason travels back in the address as a plain slug - no token, no
+    // secret - so the application can say in the console why the dashboard did
+    // not open, rather than the visitor only finding themselves back at the
+    // start with no explanation.
+    const home = new URL('/', url);
+    if (reason) home.searchParams.set('ad', String(reason).replace(/[^a-z0-9 ]/gi, '').trim().replace(/\s+/g, '-').slice(0, 40));
+
     return new Response(null, {
         status: 302,
         headers: {
-            Location: new URL('/', url).toString(),
+            Location: home.toString(),
             'Set-Cookie': clearedCookie(url),
             'Cache-Control': 'no-store'
         }
@@ -213,47 +216,47 @@ function note(message) {
 }
 
 // ============================================
-// Asking Supabase the two questions
+// Asking Supabase the one question that matters
 // ============================================
 
-/** Who this token belongs to, or null when it belongs to nobody valid. */
-async function supabaseUser(config, token) {
-    try {
-        const response = await fetch(config.supabaseUrl + '/auth/v1/user', {
-            headers: {
-                apikey: config.supabaseAnonKey,
-                Authorization: 'Bearer ' + token
-            }
-        });
-        if (!response.ok) return null;
-
-        const user = await response.json();
-        return user && user.id ? user : null;
-    } catch (e) {
-        return null;
-    }
-}
-
 /**
- * Whether that account is an administrator.
+ * Is the account this token belongs to an administrator? true, false, or null.
  *
- * The zero-argument function first, called under the account's own token: it
- * answers about auth.uid() - the caller - so nothing the request carries is
- * trusted to say who is being asked about, and the narrowest question there is
- * gets asked. The same function by id is the fallback for a project that has
- * only that one, and the account's own row is the last resort, which its policy
- * lets it read and nobody else's. Each answers with a plain yes or no; none can
- * read the list of administrators, and none writes anything.
+ * One question, asked of the one thing that both proves who the caller is and
+ * whether they are an administrator: the database, under the caller's own
+ * token. PostgREST verifies that token's signature and expiry itself and sets
+ * auth.uid() from it, so is_admin() - which reads auth.uid() - is asked about a
+ * proven identity, not one this worker took on trust.
+ *
+ * There is deliberately no separate call to the auth user endpoint. That
+ * endpoint reads differently under the newer publishable keys, and a worker
+ * that gated on it would turn away an administrator whose token it could not
+ * read there even though the same token authorises everything at PostgREST.
+ * The authorisation lives where it is enforced.
+ *
+ *   true  - a valid token belonging to an administrator.
+ *   false - a valid token belonging to somebody who is not one.
+ *   null  - no usable answer: the token was rejected, or the database could not
+ *           be reached. Treated as "not allowed", and, for entry, as "sign in".
  */
-async function supabaseIsAdmin(config, token, uid) {
+async function adminFromToken(config, token) {
     const headers = {
         apikey: config.supabaseAnonKey,
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json'
     };
 
-    const zero = await rpcBoolean(config.supabaseUrl + '/rest/v1/rpc/is_admin', headers, {});
-    if (zero !== null) return zero;
+    // is_admin() - about auth.uid(), so nothing the request carries says who is
+    // being asked about.
+    const viaFunction = await rpcBoolean(config.supabaseUrl + '/rest/v1/rpc/is_admin', headers, {});
+    if (viaFunction !== null) return viaFunction;
+
+    // Fallback for a project that only has the older is_admin(uid): the id from
+    // the token, and the account's own row, which its policy lets it read and
+    // nobody else's. The read is still authenticated by the same token, so an
+    // id the token does not own reads nothing.
+    const uid = jwtSubject(token);
+    if (!uid) return null;
 
     const byId = await rpcBoolean(config.supabaseUrl + '/rest/v1/rpc/is_admin', headers, { uid: uid });
     if (byId !== null) return byId;
@@ -263,12 +266,12 @@ async function supabaseIsAdmin(config, token, uid) {
             config.supabaseUrl + '/rest/v1/app_admins?select=user_id&user_id=eq.' + encodeURIComponent(uid),
             { headers: headers }
         );
-        if (!row.ok) return false;
+        if (!row.ok) return null;
 
         const rows = await row.json();
         return Array.isArray(rows) && rows.length > 0;
     } catch (e) {
-        return false;
+        return null;
     }
 }
 
@@ -284,6 +287,26 @@ async function rpcBoolean(endpoint, headers, body) {
 
         const answer = await response.json();
         return answer === true;
+    } catch (e) {
+        return null;
+    }
+}
+
+/**
+ * The account id inside a Supabase token, read without trusting it.
+ *
+ * Only used to name the row the account then reads for itself - a read the
+ * token still has to authenticate at PostgREST, which is where the signature is
+ * checked. So this reads the claim, it does not rely on it: a forged id names a
+ * row the forger cannot read.
+ */
+function jwtSubject(token) {
+    try {
+        const payload = String(token).split('.')[1];
+        if (!payload) return null;
+        const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+        const claims = JSON.parse(json);
+        return claims && claims.sub ? String(claims.sub) : null;
     } catch (e) {
         return null;
     }

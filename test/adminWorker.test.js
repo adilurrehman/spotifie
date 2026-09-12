@@ -35,6 +35,26 @@ const ANON_KEY = 'anon-public-key';
  *   'user'  -> a signed-in account that is not an administrator
  *   anything else -> a token that belongs to nobody valid
  */
+/** A minimal signed-shape token carrying a subject the worker can decode. */
+function tokenFor(sub) {
+    const payload = Buffer.from(JSON.stringify({ sub: sub }), 'utf8').toString('base64url');
+    return 'header.' + payload + '.signature';
+}
+
+/** Which account a token stands for: a plain name, or the subject it carries. */
+function whoIs(token) {
+    if (token === 'admin') return 'admin';
+    if (token === 'user') return 'user';
+    try {
+        const sub = JSON.parse(Buffer.from(String(token).split('.')[1], 'base64url').toString('utf8')).sub;
+        if (sub === 'admin-uid') return 'admin';
+        if (sub === 'user-uid') return 'user';
+    } catch (e) {
+        /* not a token this fake knows */
+    }
+    return null;
+}
+
 function fakeSupabase(options) {
     const settings = options || {};
     const calls = [];
@@ -46,22 +66,20 @@ function fakeSupabase(options) {
         const token = /^Bearer\s+(.+)$/i.test(auth) ? auth.replace(/^Bearer\s+/i, '') : '';
         calls.push({ url: url, token: token, body: (init && init.body) || null });
 
-        const identity = { admin: 'admin-uid', user: 'user-uid' };
-
-        if (url.indexOf('/auth/v1/user') !== -1) {
-            const id = identity[token];
-            if (!id) return new Response('', { status: 401 });
-            return new Response(JSON.stringify({ id: id }), { status: 200 });
-        }
-
         if (url.indexOf('/rest/v1/rpc/is_admin') !== -1) {
             if (settings.rpcBroken) return new Response('no such function', { status: 404 });
+
             const body = JSON.parse((init && init.body) || '{}');
-            // The zero-argument call answers about the caller - the token -
-            // exactly as the real is_admin() does through auth.uid(). The
-            // id-argument call answers about the id it is given.
-            const admin = 'uid' in body ? body.uid === 'admin-uid' : token === 'admin';
-            return new Response(JSON.stringify(admin), { status: 200 });
+            // The id-argument call answers about the id it is given; the
+            // zero-argument call answers about the caller - the token - exactly
+            // as the real is_admin() does through auth.uid(). A token PostgREST
+            // could not verify is a 401, not a false.
+            if ('uid' in body) {
+                return new Response(JSON.stringify(body.uid === 'admin-uid'), { status: 200 });
+            }
+            const identity = whoIs(token);
+            if (!identity) return new Response('invalid token', { status: 401 });
+            return new Response(JSON.stringify(identity === 'admin'), { status: 200 });
         }
 
         if (url.indexOf('/rest/v1/app_admins') !== -1) {
@@ -141,7 +159,10 @@ test('the dashboard with no entry cookie sends the visitor to the application', 
     await withWorker(async ({ worker, env }) => {
         const response = await worker.fetch(request(host(), '/admin-dashboard'), env);
         assert.strictEqual(response.status, 302);
-        assert.match(response.headers.get('Location'), /\/$/);
+        // Back to the application root; the reason rides along as a plain slug.
+        const location = new URL(response.headers.get('Location'));
+        assert.strictEqual(location.pathname, '/');
+        assert.strictEqual(location.searchParams.get('ad'), 'no-entry-cookie', 'and says why');
     });
 });
 
@@ -296,12 +317,16 @@ test('an expired or invalid token is sent back', async () => {
 });
 
 test('the table answers when the function is not there', async () => {
-    // Older projects have is_admin(uid) but not the argumentless one; the worker
-    // falls back to the account's own row, which its policy lets it read.
+    // A project without is_admin at all: the worker reads the account's own
+    // row instead, named by the subject it decodes from the token - a read the
+    // same token still has to authenticate. So the token has to be a real
+    // token-shape carrying that subject.
     await withWorker(
         async ({ worker, env }) => {
             const response = await worker.fetch(
-                request(host(), '/admin-dashboard', { headers: { Cookie: 'spotifie_admin_entry=admin' } }),
+                request(host(), '/admin-dashboard', {
+                    headers: { Cookie: 'spotifie_admin_entry=' + tokenFor('admin-uid') }
+                }),
                 env
             );
             assert.strictEqual(response.status, 200);

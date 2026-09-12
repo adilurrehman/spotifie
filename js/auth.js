@@ -1175,6 +1175,40 @@
     // can be mistaken for a login.
     purgeLegacyAuthStorage();
 
+    /**
+     * Say, in the console, why the dashboard sent the visitor back.
+     *
+     * The worker gate cannot leave a message in the console of the page it
+     * redirected away from - that console is wiped by the navigation - so it
+     * puts the reason in the address it sends the visitor to. This reads it,
+     * reports it, and takes it back out of the address so it does not linger or
+     * get shared.
+     */
+    function reportAdminDenial() {
+        try {
+            if (!global.location || !global.location.search) return;
+            const params = new URLSearchParams(global.location.search);
+            const reason = params.get('ad');
+            if (!reason) return;
+
+            console.warn('[admin-route] denied by server: ' + reason);
+
+            if (global.history && global.history.replaceState) {
+                params.delete('ad');
+                const query = params.toString();
+                global.history.replaceState(
+                    null,
+                    '',
+                    global.location.pathname + (query ? '?' + query : '') + (global.location.hash || '')
+                );
+            }
+        } catch (e) {
+            /* the reason is a convenience; failing to read it changes nothing */
+        }
+    }
+
+    reportAdminDenial();
+
     document.addEventListener('DOMContentLoaded', () => {
         getClient().catch((err) => {
             console.error('Authentication unavailable:', err);

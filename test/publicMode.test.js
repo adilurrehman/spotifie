@@ -1191,15 +1191,20 @@ test('the worker gates the dashboard and holds no secret of its own', () => {
     // The raw file address never opens it.
     assert.match(worker, /pathname === '\/admin-dashboard\.html'[\s\S]{0,120}notFound\(\)/);
 
-    // Entry is granted only after Supabase confirms the caller is an
-    // administrator - never from anything the browser sets for itself.
-    assert.match(worker, /supabaseUser\(config, token\)/);
-    assert.match(worker, /supabaseIsAdmin\(config, token, user\.id\)/);
+    // Entry is granted only after the database confirms the caller is an
+    // administrator - one question, under the caller's own token, which
+    // PostgREST verifies. Never anything the browser sets for itself, and
+    // never a separate /auth/v1/user call that the newer keys answer
+    // differently.
+    assert.match(worker, /adminFromToken\(config, token\)/);
+    assert.ok(!/\/auth\/v1\/user/.test(worker), 'no dependency on the user endpoint');
+    assert.match(worker, /rest\/v1\/rpc\/is_admin/);
 
     // And it is re-checked, live, on every visit to the page.
     const dashboard = worker.slice(worker.indexOf('async function handleDashboard'), worker.indexOf('function backToApp'));
-    assert.match(dashboard, /supabaseUser\(config, token\)/);
-    assert.match(dashboard, /supabaseIsAdmin\(config, token, user\.id\)/);
+    assert.match(dashboard, /adminFromToken\(config, token\)/);
+    assert.match(dashboard, /admin === null/, 'an unverifiable token is turned away');
+    assert.match(dashboard, /admin !== true/, 'and so is a non-administrator');
 
     // The cookie it sets is not readable by script, does not travel to other
     // sites, and is short-lived; its path is broad enough to be delivered on
