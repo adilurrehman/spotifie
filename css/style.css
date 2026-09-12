@@ -791,11 +791,11 @@
     color: var(--text-primary);
 }
 
-[data-theme="light"] .dropdown-item.admin-link {
+[data-theme="light"] .dropdown-item.admin-link.active {
     color: #1db954;
 }
 
-[data-theme="light"] .dropdown-item.admin-link:hover {
+[data-theme="light"] .dropdown-item.admin-link.active:hover {
     background-color: rgba(29, 185, 84, 0.08);
     color: #178c43;
 }
@@ -3039,11 +3039,22 @@ button:focus-visible {
     color: inherit;
 }
 
+/* The admin item reads like every other menu item until the browser is
+   actually on the dashboard route. Being an administrator is why it is shown,
+   not why it is highlighted; only the route makes it active. */
 .dropdown-item.admin-link {
-    color: #1db954;
+    color: inherit;
 }
 
 .dropdown-item.admin-link:hover {
+    background-color: var(--bg-hover);
+}
+
+.dropdown-item.admin-link.active {
+    color: #1db954;
+}
+
+.dropdown-item.admin-link.active:hover {
     background-color: rgba(29, 185, 84, 0.1);
     color: #1ed760;
 }

@@ -460,6 +460,7 @@
         // instant the function it calls actually runs. Seeing the first without
         // the second would mean the handler fired but enterAdmin did not.
         console.info('[admin-enter] function');
+        console.info('[admin-enter] target: /admin-dashboard');
 
         const deployment = global.spotifieDeployment;
         const published = Boolean(deployment && deployment.isPublished());
@@ -1000,6 +1001,10 @@
         item.id = 'dashboardLink';
         item.className = 'dropdown-item admin-link';
         item.setAttribute('data-action', 'admin-dashboard');
+        // The one route this item stands for, named explicitly. Its highlight
+        // is decided from this, not from whether the account is an
+        // administrator.
+        item.setAttribute('data-route', '/admin-dashboard');
         item.style.display = 'none';
         // A constant string of trusted markup: an icon and a label, nothing
         // from anybody's input.
@@ -1093,6 +1098,27 @@
         if (!item) return;
 
         setDisplay(item, verified ? 'flex' : 'none');
+        markAdminRouteActive(item);
+    }
+
+    /**
+     * Highlight the admin item only when the browser is on its route.
+     *
+     * Being an administrator is why the item is shown; it is not why it is
+     * highlighted. The green, active state belongs to /admin-dashboard, so on
+     * the index page - where the visitor is while the item is only offered - it
+     * reads like every other item, and it lights up only once the dashboard is
+     * the page.
+     */
+    function markAdminRouteActive(item) {
+        if (!item || !item.classList) return;
+
+        const route = item.getAttribute ? item.getAttribute('data-route') || '/admin-dashboard' : '/admin-dashboard';
+        const path = typeof window !== 'undefined' && window.location ? window.location.pathname : '';
+        const onRoute = path === route;
+
+        if (onRoute) item.classList.add('active');
+        else item.classList.remove('active');
     }
 
     /**

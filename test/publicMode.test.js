@@ -1389,7 +1389,11 @@ function loadAuth(options) {
     sandbox.sessionStorage = sandbox.localStorage;
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
-    sandbox.location = { origin: 'https://spotifie.example', href: 'https://spotifie.example/' };
+    sandbox.location = {
+        origin: 'https://spotifie.example',
+        href: 'https://spotifie.example' + (settings.pathname || '/'),
+        pathname: settings.pathname || '/'
+    };
 
     vm.createContext(sandbox);
     vm.runInContext(DEPLOYMENT, sandbox);
@@ -1609,6 +1613,7 @@ test('the menu item is the Admin Dashboard, in order, opened through enterAdmin'
     assert.ok(button, 'the item is in the menu');
     assert.match(button[0], /class="[^"]*admin-link/);
     assert.match(button[0], /data-action="admin-dashboard"/);
+    assert.match(button[0], /data-route="\/admin-dashboard"/, 'and names the route it stands for');
     assert.match(button[0], /style="display: none;"/);
     assert.match(button[0], /Admin Dashboard/);
 
@@ -1651,6 +1656,7 @@ test('the item is put into the visible menu, not just shown or hidden', () => {
     assert.match(ensure, /document\.getElementById\('userDropdown'\)/, 'into the visible dropdown');
     assert.match(ensure, /document\.createElement\('button'\)/, 'made when it is missing');
     assert.match(ensure, /data-action', 'admin-dashboard'/);
+    assert.match(ensure, /data-route', '\/admin-dashboard'/, 'and carries its route');
     assert.match(ensure, /getElementById\('logoutBtn'\)/, 'placed above Log out');
 
     // Driven by the one canonical answer, not a second admin flag.
@@ -1891,6 +1897,68 @@ test('an ordinary account has no item made in the visible dropdown', async () =>
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.strictEqual(page.getElementById('dashboardLink'), null, 'nothing was created for a non-administrator');
+});
+
+function adminMenuClient() {
+    return fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+}
+
+async function renderAdminMenu(pathname) {
+    const page = menuDocument();
+    const loaded = loadAuth({ document: page, client: adminMenuClient(), pathname: pathname });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    return { page: page, item: page.getElementById('dashboardLink') };
+}
+
+test('the admin item is highlighted by its route, never by being an administrator', async () => {
+    // On the index page an administrator sees the item, but it is not active:
+    // being an admin is why it is shown, not why it is green.
+    const index = await renderAdminMenu('/');
+    assert.ok(index.item, 'shown to an administrator');
+    assert.strictEqual(index.item.style.display, 'flex');
+    assert.strictEqual(index.item.getAttribute('data-route'), '/admin-dashboard', 'and names its route');
+    assert.ok(!index.item.classList.contains('active'), 'but is not active on the index');
+
+    // The same on /index.html.
+    const indexHtml = await renderAdminMenu('/index.html');
+    assert.ok(indexHtml.item, 'still shown');
+    assert.ok(!indexHtml.item.classList.contains('active'), 'and still not active on /index.html');
+
+    // Only the dashboard route makes it active.
+    const dashboard = await renderAdminMenu('/admin-dashboard');
+    assert.ok(dashboard.item.classList.contains('active'), 'active on /admin-dashboard');
+});
+
+test('the dashboard the worker serves is the admin page, not the library index', () => {
+    // The document held in the worker is admin-dashboard.html, so /admin-dashboard
+    // opens the dashboard - never the library index at that address.
+    const dashboard = source('admin-dashboard.html');
+    const index = source('index.html');
+
+    // Admin-specific markup.
+    assert.match(dashboard, /id="adminEmailDisplay"/, 'the dashboard names its own things');
+    assert.match(dashboard, /js\/admin\.js/, 'and loads the dashboard script');
+
+    // Not the library grid that is the index page's whole point.
+    assert.ok(!/class="cardsarea"/.test(dashboard), 'it is not the library index');
+    assert.match(index, /class="cardsarea"/, 'which the index page is');
+});
+
+test('the highlight is a route class, not a colour the admin link always has', () => {
+    const css = source('css', 'style.css');
+
+    // Green lives on the active state, so the plain item reads like its
+    // neighbours until the browser is on the route.
+    assert.match(css, /\.dropdown-item\.admin-link\.active\s*\{[^}]*#1db954/);
+    assert.match(css, /\.dropdown-item\.admin-link\s*\{[^}]*color:\s*inherit/);
+    assert.ok(
+        !/\.dropdown-item\.admin-link\s*\{[^}]*#1db954/.test(css),
+        'the plain admin link is not coloured green by being an admin'
+    );
 });
 
 test('clicking the visible item runs enterAdmin once, and once more per rerender', async () => {
