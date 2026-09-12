@@ -1616,16 +1616,21 @@ test('the menu item is the Admin Dashboard, in order, opened through enterAdmin'
     const logoutAt = index.indexOf('id="logoutBtn"');
     assert.ok(dashboardAt !== -1 && logoutAt !== -1 && dashboardAt < logoutAt, 'the item sits above Log out');
 
-    // The click is handed to enterAdmin - the entry flow - wherever the item
-    // came from: the static one is wired, and one the code has to create is
-    // wired when it is made.
-    assert.match(auth, /function wireDashboardItem\(item\)/);
+    // The click is handed to enterAdmin through one delegated handler on the
+    // document, matched by data-action - not a listener bound to the item,
+    // which a menu rebuild could drop. Attached once, and it calls enterAdmin.
+    assert.match(auth, /function wireAdminEntry\(\)/);
     assert.match(auth, /function ensureDashboardItem\(\)/);
+    assert.ok(!/function wireDashboardItem/.test(auth), 'no per-element wiring survives');
 
-    const wire = auth.slice(auth.indexOf('function wireDashboardItem'), auth.indexOf('function applyAdminUI'));
-    assert.match(wire, /addEventListener\('click'/);
-    assert.match(wire, /e\.preventDefault\(\);/);
+    const wire = auth.slice(auth.indexOf('function wireAdminEntry'), auth.indexOf('function applyAdminUI'));
+    assert.match(wire, /document\.addEventListener\('click'/, 'delegated on the document');
+    assert.match(wire, /closest\('\[data-action="admin-dashboard"\]'\)/, 'matched by the action hook');
+    assert.match(wire, /event\.preventDefault\(\);/);
+    assert.match(wire, /\[admin-enter\] click/);
     assert.match(wire, /enterAdmin\(\);/);
+    // Attached once, whatever the menu does afterwards.
+    assert.match(wire, /if \(adminClickWired/);
 });
 
 test('the item is put into the visible menu, not just shown or hidden', () => {
@@ -1637,7 +1642,7 @@ test('the item is put into the visible menu, not just shown or hidden', () => {
     const apply = auth.slice(auth.indexOf('function applyAdminUI()'), auth.indexOf('function initAuthUI()'));
     assert.match(apply, /const item = verified \? ensureDashboardItem\(\) : findDashboardItem\(\);/);
 
-    const ensure = auth.slice(auth.indexOf('function ensureDashboardItem()'), auth.indexOf('function wireDashboardItem'));
+    const ensure = auth.slice(auth.indexOf('function ensureDashboardItem()'), auth.indexOf('function wireAdminEntry'));
     assert.match(ensure, /document\.getElementById\('userDropdown'\)/, 'into the visible dropdown');
     assert.match(ensure, /document\.createElement\('button'\)/, 'made when it is missing');
     assert.match(ensure, /data-action', 'admin-dashboard'/);
@@ -1673,9 +1678,12 @@ test('the built release carries the current admin JS, byte for byte', () => {
     assert.match(builtAuth, /\[admin\] verifiedAdmin/, 'the diagnostics are in the release');
 
     // The exact strings that prove the click chain shipped, not an older one:
-    // the first thing the handler logs, the endpoint it posts to, and the one
-    // address it navigates to on success.
+    // the delegated click log, the enterAdmin-ran log, the action hook it
+    // matches on, the endpoint it posts to, and the one address it navigates to.
     assert.match(builtAuth, /\[admin-enter\] click/, 'the click diagnostic shipped');
+    assert.match(builtAuth, /\[admin-enter\] function/, 'the enterAdmin diagnostic shipped');
+    assert.match(builtAuth, /\[data-action="admin-dashboard"\]/, 'the delegation hook shipped');
+    assert.match(builtAuth, /function enterAdmin\b/, 'enterAdmin shipped');
     assert.match(builtAuth, /'\/api\/admin\/enter'/, 'the enter endpoint shipped');
     assert.match(builtAuth, /window\.location\.assign\('\/admin-dashboard'\)/, 'the navigation shipped');
 
@@ -1727,7 +1735,21 @@ function menuDocument() {
             getAttribute(name) {
                 return name in this._attrs ? this._attrs[name] : null;
             },
-            addEventListener() {},
+            _listeners: {},
+            addEventListener(type, fn) {
+                (this._listeners[type] = this._listeners[type] || []).push(fn);
+            },
+            // The item is found by walking up from the click target, exactly as
+            // a delegated handler does.
+            closest(selector) {
+                const wanted = /\[data-action="([^"]+)"\]/.exec(selector);
+                let node = this;
+                while (node) {
+                    if (node.getAttribute && wanted && node.getAttribute('data-action') === wanted[1]) return node;
+                    node = node.parentNode;
+                }
+                return null;
+            },
             insertBefore(node, before) {
                 node.parentNode = this;
                 const at = this.children.indexOf(before);
@@ -1768,6 +1790,8 @@ function menuDocument() {
     made.get('logoutBtn').parentNode = made.get('userDropdown');
     made.get('userDropdown').children.push(made.get('logoutBtn'));
 
+    const documentClickListeners = [];
+
     return {
         elements: made,
         createElement: element,
@@ -1780,8 +1804,18 @@ function menuDocument() {
             return null;
         },
         querySelectorAll: () => [],
-        addEventListener() {},
-        removeEventListener() {}
+        addEventListener(type, fn) {
+            if (type === 'click') documentClickListeners.push(fn);
+        },
+        removeEventListener() {},
+        // How many document click listeners are attached - the guard against a
+        // second listener per menu render.
+        clickListenerCount: () => documentClickListeners.length,
+        // Send a click, as a browser would, bubbling to the document handlers.
+        dispatchClick(target) {
+            const event = { target: target, preventDefault() {}, stopPropagation() {} };
+            documentClickListeners.slice().forEach((fn) => fn(event));
+        }
     };
 }
 
@@ -1819,6 +1853,43 @@ test('an ordinary account has no item made in the visible dropdown', async () =>
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     assert.strictEqual(page.getElementById('dashboardLink'), null, 'nothing was created for a non-administrator');
+});
+
+test('clicking the visible item runs enterAdmin once, and once more per rerender', async () => {
+    // The failure this closes: the item was visible but clicking it produced
+    // nothing, because the handler was bound to an element a rerender had
+    // replaced. Now the handler is on the document, matched by data-action, so
+    // it fires whatever element carries the item at click time.
+    const page = menuDocument();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const item = page.getElementById('dashboardLink');
+    assert.ok(item, 'the item is there to click');
+    assert.strictEqual(page.clickListenerCount(), 1, 'exactly one delegated handler');
+
+    const timesRun = () => loaded.logs.filter((line) => line === '[admin-enter] function').length;
+
+    page.dispatchClick(item);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.ok(loaded.logs.includes('[admin-enter] click'), 'the click is logged');
+    assert.strictEqual(timesRun(), 1, 'enterAdmin ran exactly once');
+
+    // The header renders again - as it does many times - and the item is
+    // clicked again. Still one handler, still one run per click.
+    await loaded.auth.renderAuthUI();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.strictEqual(page.clickListenerCount(), 1, 'no second handler after a rerender');
+
+    page.dispatchClick(page.getElementById('dashboardLink'));
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.strictEqual(timesRun(), 2, 'ran once more, not twice');
 });
 
 test('a published copy reads no personal library over the network', () => {

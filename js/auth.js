@@ -455,10 +455,11 @@
      * Answers whether entry was granted, so a caller can say when it was not.
      */
     async function enterAdmin() {
-        // The very first thing, before any await: if this line is not in the
-        // console when the item is clicked, the item is not wired to this
-        // function and nothing else here is the problem.
-        console.info('[admin-enter] click');
+        // The first thing, before any await. The delegated click handler logs
+        // "[admin-enter] click" the instant the item is pressed; this logs the
+        // instant the function it calls actually runs. Seeing the first without
+        // the second would mean the handler fired but enterAdmin did not.
+        console.info('[admin-enter] function');
 
         const deployment = global.spotifieDeployment;
         const published = Boolean(deployment && deployment.isPublished());
@@ -988,10 +989,7 @@
      */
     function ensureDashboardItem() {
         const existing = findDashboardItem();
-        if (existing) {
-            wireDashboardItem(existing);
-            return existing;
-        }
+        if (existing) return existing;
 
         if (typeof document === 'undefined') return null;
         const dropdown = document.getElementById('userDropdown');
@@ -1022,26 +1020,44 @@
         if (before && before.parentNode === dropdown) dropdown.insertBefore(item, before);
         else dropdown.appendChild(item);
 
-        wireDashboardItem(item);
         return item;
     }
 
     /**
-     * The item opens the dashboard through enterAdmin, never by navigating to
-     * its address - the worker would only send a plain navigation back. Wired
-     * once, whether the item came from the page or was made here.
+     * The one click handler for the admin item, on the document, attached once.
+     *
+     * Delegation, deliberately, and this is the fix for a click that produced
+     * nothing: a handler bound to the item itself is only as durable as that
+     * exact element, and the item is created, hidden, shown and - on a menu
+     * that rebuilds - replaced. A handler on the document survives every one of
+     * those, because it matches the item by its data-action at click time
+     * rather than holding a reference to it. Whatever element carries
+     * data-action="admin-dashboard" when the click happens is the one that
+     * opens the dashboard.
+     *
+     * Attached once. A second call does nothing, so a menu that renders a
+     * hundred times still has exactly one listener and one enterAdmin per click.
      */
-    function wireDashboardItem(item) {
-        if (!item) return;
-        if (item.dataset && item.dataset.adminWired === 'yes') return;
-        if (item.dataset) item.dataset.adminWired = 'yes';
+    let adminClickWired = false;
 
-        item.addEventListener('click', (e) => {
-            e.preventDefault();
+    function wireAdminEntry() {
+        if (adminClickWired || typeof document === 'undefined' || !document.addEventListener) return;
+        adminClickWired = true;
+
+        document.addEventListener('click', (event) => {
+            const target =
+                event.target && event.target.closest ? event.target.closest('[data-action="admin-dashboard"]') : null;
+            if (!target) return;
+
+            event.preventDefault();
+
+            // Close the menu it was in, whichever way this build opens one.
             const menu = document.getElementById('userMenu');
             if (menu && menu.classList) menu.classList.remove('open');
             const dropdown = document.getElementById('userDropdown');
             if (dropdown && dropdown.classList) dropdown.classList.remove('active');
+
+            console.info('[admin-enter] click');
             enterAdmin();
         });
     }
@@ -1062,6 +1078,11 @@
      */
     function applyAdminUI() {
         if (typeof document === 'undefined') return;
+
+        // Idempotent: guarantees the one delegated click handler exists as soon
+        // as anything renders the header, even on a page that never called
+        // initAuthUI.
+        wireAdminEntry();
 
         const user = currentSession ? currentSession.user : null;
         const verified = Boolean(user && adminAnswer.userId === user.id && adminAnswer.verified === true);
@@ -1106,12 +1127,9 @@
             });
         });
 
-        // The dashboard item, if the page already carries one, is wired to open
-        // through enterAdmin here; one that has to be made is wired when it is
-        // made. Either way the click never simply navigates - a plain visit to
-        // the dashboard address is only sent back by the worker.
-        const dashboardItem = findDashboardItem();
-        if (dashboardItem) wireDashboardItem(dashboardItem);
+        // One delegated handler for the admin item, on the document, whatever
+        // the menu does with the item afterwards.
+        wireAdminEntry();
 
         renderAuthUI();
     }
