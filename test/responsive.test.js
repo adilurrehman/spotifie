@@ -161,7 +161,14 @@ test('every screen reserves exactly the room its player takes', () => {
 // ============================================
 
 test('the page never scrolls sideways', () => {
-    assert.strictEqual(valueOf('body', 'overflow-x', 320), 'hidden');
+    // The document as well as the body: the body alone only holds where a
+    // browser passes its overflow up to the viewport. `clip` is the last word
+    // of the two, with `hidden` left before it for an older WebView.
+    [320, 390, 768, 1280].forEach((width) => {
+        assert.strictEqual(valueOf('body', 'overflow-x', width), 'clip', 'the body at ' + width + 'px');
+        assert.strictEqual(valueOf('html', 'overflow-x', width), 'clip', 'the document at ' + width + 'px');
+        assert.strictEqual(valueOf('body', 'max-width', width), '100%');
+    });
     assert.strictEqual(valueOf('.cardsarea', 'overflow-x', 320), 'hidden');
 });
 
@@ -382,7 +389,9 @@ test('the track list is a table on a desktop and a list on a phone', () => {
 });
 
 test('Now Playing takes the whole screen on a phone and a panel on a desktop', () => {
-    assert.strictEqual(valueOf('.now-playing-panel', 'width', 390), '100vw');
+    // The view it sits in is already the whole screen, so it fills that. A
+    // window width takes no notice of what a phone keeps down its sides.
+    assert.strictEqual(valueOf('.now-playing-panel', 'width', 390), '100%');
     assert.match(valueOf('.now-playing-panel', 'width', 1280), /min\(560px, 92vw\)/);
     assert.match(valueOf('.now-playing-artwork', 'width', 320), /min\(\d+px, \d+vw\)/);
 });
@@ -1357,7 +1366,7 @@ test('the drawer covers most of a narrow screen, and never more than the screen'
     [1280, 768, 390, 320].forEach((width) => {
         const drawer = valueOf('.left', 'width', width);
         assert.match(drawer, /min\(86vw, 380px\)/, 'the drawer is one size, said once, at ' + width + 'px');
-        assert.strictEqual(valueOf('.left', 'max-width', width), '100vw', 'and never wider than the window');
+        assert.strictEqual(valueOf('.left', 'max-width', width), '100%', 'and never wider than the screen it covers');
         assert.strictEqual(valueOf('.left', 'position', width), 'fixed', 'it sits over the page rather than in it');
     });
 
@@ -1547,16 +1556,18 @@ test('the three-dot control sits in the corner of the card, and is always reacha
     assert.strictEqual(valueOf('.card-menu', 'top', 1280), '8px');
     assert.strictEqual(valueOf('.card-menu', 'right', 1280), '8px');
 
-    // A finger gets a bigger target, and never has to hover to find it.
+    // A finger gets no circle over the artwork: the same options open with a
+    // long press on the card, and a tap still opens the album.
     const touch = RULES.filter(
         (rule) =>
             rule.selector.split(',').some((part) => part.trim() === '.card-menu-btn') &&
             rule.media.some((query) => /hover:\s*none|pointer:\s*coarse/.test(query))
     );
     assert.ok(touch.length > 0, 'touch is answered');
-    assert.match(touch[0].body, /width:\s*44px/);
-    assert.match(touch[0].body, /height:\s*44px/);
-    assert.match(touch[0].body, /opacity:\s*1/, 'and it is simply there, not faded');
+    assert.match(touch[0].body, /display:\s*none/, 'no button, and no space kept for one');
+
+    const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
+    assert.match(player, /window\.spotifieLongPress\.bind\(cardsArea, \{/, 'reachable by a long press instead');
 });
 
 test('a card menu is placed against the window, so nothing can clip it', () => {
@@ -1569,7 +1580,7 @@ test('a card menu is placed against the window, so nothing can clip it', () => {
 
     const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
     const placing = player.slice(
-        player.indexOf('function placeCardMenu(button, dropdown)'),
+        player.indexOf('function placeCardMenu('),
         player.indexOf('let openCardMenuButton = null;')
     );
     assert.ok(placing.length > 0, 'the menu is placed in code');

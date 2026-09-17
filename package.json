@@ -1,25 +1,47 @@
 {
   "name": "spotifie",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Spotifie - hybrid music player. One local Node server serves the interface, indexes and streams the music on this device, and reads the global catalogue an administrator publishes through Supabase; Supabase also handles authentication, profiles and admin authorization. User audio is never uploaded.",
   "license": "UNLICENSED",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check js/deployment.js && node --check js/platform.js && node --check js/cloudCatalog.js && node --check js/script.js && node --check js/auth.js && node --check js/admin.js && node --check js/libraryDB.js && node --check js/libraryClient.js && node --check js/catalogCache.js && node --check js/personalClient.js && node --check sw.js && node --check lib/sessionAuth.js && node --check lib/config.js && node --check lib/safeFs.js && node --check lib/libraryIndex.js && node --check lib/libraryService.js && node --check lib/libraryRoutes.js && node --check lib/adapters/localFileSystemAdapter.js && node --check lib/publicConfig.js && node --check lib/adminAuth.js && node --check js/catalogClient.js && node --check lib/supabaseRest.js && node --check lib/globalCatalog.js && node --check lib/userState.js && node --check lib/catalogService.js && node --check lib/catalogRoutes.js && node --check lib/userArtwork.js && node --check lib/userMedia.js && node --check lib/mediaTickets.js && node --check lib/deviceScan.js && node --check lib/deviceLibrary.js && node --check lib/deviceWatcher.js && node --check lib/playbackProgress.js && node --check lib/libraryBackup.js && node --check lib/adminCatalogRoutes.js && node --check lib/adminMaintenance.js && node --check lib/adminAlbumRoutes.js && node --check tools/buildPublic.js && node --check tools/releaseCheck.js && node --check worker/index.mjs",
+    "check": "node --check server.js && node --check js/deployment.js && node --check js/platform.js && node --check js/cloudCatalog.js && node --check js/script.js && node --check js/auth.js && node --check js/admin.js && node --check js/libraryDB.js && node --check js/pwa.js && node --check js/desktopNative.js && node --check tools/buildDesktop.js && node --check tools/desktopBuild.js && node --check js/androidPlayback.js && node --check js/nativeLibrary.js && node --check js/androidNative.js && node --check js/iosNative.js && node --check tools/iosBuild.js && node --check tools/androidRelease.js && node --check tools/releaseVersion.js && node --check tools/buildMobile.js && node --check tools/androidBuild.js && node --check js/longPress.js && node --check js/libraryClient.js && node --check js/catalogCache.js && node --check js/personalClient.js && node --check sw.js && node --check lib/sessionAuth.js && node --check lib/config.js && node --check lib/safeFs.js && node --check lib/libraryIndex.js && node --check lib/libraryService.js && node --check lib/libraryRoutes.js && node --check lib/adapters/localFileSystemAdapter.js && node --check lib/publicConfig.js && node --check lib/adminAuth.js && node --check js/catalogClient.js && node --check lib/supabaseRest.js && node --check lib/globalCatalog.js && node --check lib/userState.js && node --check lib/catalogService.js && node --check lib/catalogRoutes.js && node --check lib/userArtwork.js && node --check lib/userMedia.js && node --check lib/mediaTickets.js && node --check lib/deviceScan.js && node --check lib/deviceLibrary.js && node --check lib/deviceWatcher.js && node --check lib/playbackProgress.js && node --check lib/libraryBackup.js && node --check lib/adminCatalogRoutes.js && node --check lib/adminMaintenance.js && node --check lib/adminAlbumRoutes.js && node --check tools/buildPublic.js && node --check tools/releaseCheck.js && node --check worker/index.mjs",
     "test": "node --test \"test/**/*.test.js\"",
     "build:public": "node tools/buildPublic.js",
+    "build:production": "node tools/buildPublic.js --production",
     "release:check": "node tools/releaseCheck.js",
-    "deploy": "npm run build:public && wrangler deploy"
+    "release:check:production": "node tools/releaseCheck.js --production",
+    "deploy": "npm run build:public && wrangler deploy",
+    "deploy:production": "npm run build:production && npm run release:check:production && wrangler deploy",
+    "build:desktop": "node tools/buildDesktop.js",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "node tools/desktopBuild.js",
+    "build:mobile": "node tools/buildMobile.js",
+    "mobile:sync": "npm run build:mobile && cap sync android",
+    "android:dev": "npm run mobile:sync && cap run android",
+    "android:build": "node tools/androidBuild.js",
+    "android:release": "node tools/androidRelease.js",
+    "android:bundle": "node tools/androidRelease.js --bundle",
+    "build:ios": "node tools/iosBuild.js",
+    "ios:sync": "node tools/iosBuild.js --sync",
+    "ios:open": "cap open ios"
   },
   "engines": {
     "node": ">=18"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/inappbrowser": "^4.0.3",
+    "@capacitor/ios": "^8.5.2",
     "music-metadata": "^11.15.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@tauri-apps/cli": "^2.11.4",
     "wrangler": "^4.130.0"
   }
 }

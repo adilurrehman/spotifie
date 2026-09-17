@@ -1652,9 +1652,14 @@ test('the edit modal never leaves a broken image and re-resolves each time', () 
     assert.match(admin, /client\.forgetMedia\(album\.id\)/);
     assert.match(admin, /resolveArtworkUrl\(album\.id, \{ kind: 'album', fallback: DEFAULT_COVER \}\)/);
 
-    // The modal never builds a Storage URL or touches a raw path.
+    // The modal never builds a Storage URL by hand: every picture is resolved
+    // through the catalogue client, which signs on demand.
     assert.ok(!/storage\/v1\/object/.test(admin), 'no hand-made Storage URL');
-    assert.ok(!/artwork_path/.test(admin), 'no raw storage path in the dashboard');
+
+    // A published copy writes catalog columns (artwork_path, audio_path)
+    // straight to Supabase, so it names them - but only ever the stable object
+    // path an upload returned, never a signed URL persisted as if it were one.
+    assert.ok(!/signedUrl/.test(admin), 'no signed URL is ever written back as a path');
 });
 
 test('the album cover preview has room to render', () => {
@@ -1681,12 +1686,11 @@ test('the three-dot album button follows the input device, not the screen width'
     assert.match(css, /\.cardcontainer:hover \.card-menu-btn,[\s\S]{0,160}\.cardcontainer:focus-within \.card-menu-btn/);
     assert.match(css, /\.card-menu\.open \.card-menu-btn/);
 
-    // Touch and hybrid devices keep it at full strength, with a target big
-    // enough to press without aiming. A device that cannot hover has no other
-    // way to reach a card's options at all.
-    assert.match(css, /@media \(hover: none\), \(pointer: coarse\) \{[\s\S]{0,500}opacity: 1;/);
-    assert.match(css, /@media \(hover: none\), \(pointer: coarse\) \{[\s\S]{0,500}width: 44px;/);
-    assert.match(css, /@media \(hover: none\), \(pointer: coarse\) \{[\s\S]{0,500}height: 44px;/);
+    // Touch devices show no button over the artwork at all; a device that
+    // cannot hover reaches the same options with a long press on the card.
+    assert.match(css, /@media \(hover: none\), \(pointer: coarse\) \{[\s\S]{0,500}\.card-menu-btn \{\s*display: none;/);
+    const script = fs.readFileSync(path.join(__dirname, '..', 'js', 'script.js'), 'utf8');
+    assert.match(script, /window\.spotifieLongPress\.bind\(cardsArea, \{/);
 
     // Keyboard focus always reveals it.
     assert.match(css, /\.card-menu-btn:focus,\s*\n\.card-menu-btn:focus-visible \{[\s\S]{0,120}opacity: 1;/);

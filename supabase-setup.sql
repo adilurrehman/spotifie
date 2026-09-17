@@ -176,6 +176,41 @@ $$;
 REVOKE ALL ON FUNCTION public.is_admin() FROM public;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated;
 
+-- How many accounts are registered, for the administrator dashboard.
+--
+-- One number and nothing else: no row, id or email from auth.users ever
+-- leaves this function. It takes no argument, and it answers only a caller
+-- is_admin() trusts - anybody else gets 42501. SECURITY DEFINER is what lets
+-- it count auth.users, which no browser role can read; the empty search_path
+-- means every name in it is written out in full and cannot be shadowed.
+-- Profiles are not counted: their row-level security shows each account only
+-- its own row, which is why a count of them read "1".
+CREATE OR REPLACE FUNCTION public.admin_user_count()
+RETURNS bigint
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    IF NOT public.is_admin() THEN
+        RAISE EXCEPTION 'not authorized'
+            USING ERRCODE = '42501';
+    END IF;
+
+    RETURN (
+        SELECT count(*)
+        FROM auth.users
+    );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_user_count() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_user_count() FROM anon;
+REVOKE ALL ON FUNCTION public.admin_user_count() FROM authenticated;
+
+GRANT EXECUTE ON FUNCTION public.admin_user_count() TO authenticated;
+
 
 -- =============================================
 -- 4. ONE-TIME INITIAL ADMIN BOOTSTRAP

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dark tile behind the adaptive launcher icon, as on the web app's
+         maskable icon. -->
+    <color name="ic_launcher_background">#121212</color>
+    <!-- Spotifie's background, behind the launch splash and the WebView. -->
+    <color name="spotifie_background">#121212</color>
+</resources>

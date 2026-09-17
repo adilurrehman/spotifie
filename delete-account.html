@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="Delete your Spotifie account and the account data held for it. Music stored on your own device is not deleted.">
+    <title>Delete your account - Spotifie</title>
+
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#121212">
+    <meta name="color-scheme" content="dark light">
+    <meta name="application-name" content="Spotifie">
+    <!--site-meta-->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/utlity.css">
+    <link rel="icon" type="image/x-icon" href="favicons/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicons/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="favicons/favicon-512x512.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-title" content="Spotifie">
+    <link rel="manifest" href="manifest.webmanifest">
+
+    <script src="js/config.js"></script>
+    <script src="js/deployment.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        .account-page {
+            max-width: 620px;
+            margin: 0 auto;
+            padding: 32px 16px 64px;
+        }
+
+        .account-card {
+            background: var(--bg-elevated, #181818);
+            border: 1px solid var(--border-color, #2a2a2a);
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 20px;
+        }
+
+        .account-page h1 {
+            font-size: clamp(24px, 4vw, 34px);
+            margin: 0 0 8px;
+            color: var(--text-primary, #fff);
+        }
+
+        .account-page p {
+            color: var(--text-secondary, #b3b3b3);
+            line-height: 1.6;
+        }
+
+        .account-page ul {
+            color: var(--text-secondary, #b3b3b3);
+            line-height: 1.7;
+            padding-left: 20px;
+        }
+
+        .account-page strong {
+            color: var(--text-primary, #fff);
+        }
+
+        .account-field {
+            display: block;
+            margin: 18px 0 6px;
+            color: var(--text-primary, #fff);
+            font-weight: 600;
+        }
+
+        .account-input {
+            width: 100%;
+            max-width: 100%;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-strong, #3a3a3a);
+            background: var(--bg-base, #121212);
+            color: var(--text-primary, #fff);
+            font-size: 16px;
+            letter-spacing: 0.08em;
+        }
+
+        .account-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 22px;
+        }
+
+        /* The destructive action is marked by its words and an icon as well as
+           its colour, so it is still the dangerous one without colour. */
+        .account-danger {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .account-note {
+            border-left: 3px solid var(--border-strong, #3a3a3a);
+            padding-left: 14px;
+            margin: 18px 0;
+        }
+
+        .account-message {
+            margin-top: 18px;
+            padding: 12px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border-strong, #3a3a3a);
+        }
+
+        .account-message[data-tone="error"] {
+            border-color: #e0245e;
+            color: var(--text-primary, #fff);
+        }
+
+        .account-message[data-tone="done"] {
+            border-color: #1db954;
+            color: var(--text-primary, #fff);
+        }
+
+        .account-page a {
+            color: var(--text-primary, #fff);
+        }
+
+        /* Whatever is focused is visibly focused, for anyone moving by keyboard. */
+        .account-page :focus-visible {
+            outline: 2px solid #1db954;
+            outline-offset: 2px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="account-page">
+        <h1>Delete your Spotifie account</h1>
+        <p>
+            This page works whether or not you still have Spotifie installed. You can also delete your
+            account from inside the app, under your profile.
+        </p>
+
+        <!-- Before anything is known: neither state is shown, so the page never
+             flickers between "sign in" and "you are signed in". -->
+        <div id="accountLoading" class="account-card">
+            <p>Checking whether you are signed in…</p>
+        </div>
+
+        <!-- Signed out -->
+        <section id="accountSignedOut" class="account-card hidden" aria-labelledby="signedOutHeading">
+            <h2 id="signedOutHeading">Sign in to delete your account</h2>
+            <p>
+                To delete an account, Spotifie has to know which account is asking. Sign in and you will be
+                brought straight back to this page.
+            </p>
+            <div class="account-actions">
+                <a class="btn-primary" id="signInLink" href="signin.html?next=%2Fdelete-account.html">Sign in</a>
+                <a class="btn-secondary" href="/">Back to Spotifie</a>
+            </div>
+        </section>
+
+        <!-- Signed in -->
+        <section id="accountSignedIn" class="account-card hidden" aria-labelledby="signedInHeading">
+            <h2 id="signedInHeading">Delete this account</h2>
+            <p>You are signed in as <strong id="accountEmail">your account</strong>.</p>
+
+            <div class="account-note">
+                <p><strong>What this deletes</strong></p>
+                <ul>
+                    <li>Your Spotifie account and the sign-in that goes with it.</li>
+                    <li>Your profile — the email address and display name held for the account.</li>
+                    <li>Any administrator rights the account had.</li>
+                </ul>
+                <p><strong>What this does not delete</strong></p>
+                <ul>
+                    <li><strong>Music on your own device is not touched.</strong> Your files, and the folder you
+                        chose in Spotifie, stay exactly as they are.</li>
+                    <li>Playlists, liked songs and listening history are kept on the device you used them on, not
+                        in your account. Clear the app's data to remove those.</li>
+                </ul>
+                <p>Deleting an account cannot be undone, and the same email address can be used to sign up again
+                    later.</p>
+            </div>
+
+            <label class="account-field" for="confirmWord">
+                Type <strong>DELETE</strong> to confirm
+            </label>
+            <input class="account-input" id="confirmWord" name="confirmWord" type="text" autocomplete="off"
+                autocapitalize="characters" spellcheck="false" aria-describedby="confirmHelp"
+                placeholder="DELETE">
+            <p id="confirmHelp">This is deliberate, so an account cannot be deleted by one stray tap.</p>
+
+            <div class="account-actions">
+                <button type="button" id="deleteBtn" class="btn-danger account-danger" disabled>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2" aria-hidden="true" focusable="false">
+                        <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    Permanently delete my account
+                </button>
+                <a class="btn-secondary" href="/">Cancel and go back</a>
+            </div>
+        </section>
+
+        <!-- Done -->
+        <section id="accountDone" class="account-card hidden" aria-labelledby="doneHeading">
+            <h2 id="doneHeading">Your account has been deleted</h2>
+            <p>
+                Your Spotifie account and its account data are gone, and you have been signed out. Music on your
+                own device has not been touched.
+            </p>
+            <div class="account-actions">
+                <a class="btn-primary" href="/">Back to Spotifie</a>
+            </div>
+        </section>
+
+        <p id="accountMessage" class="account-message hidden" role="alert" aria-live="assertive"></p>
+
+        <p style="margin-top:28px">
+            <a href="about.html#privacy">How Spotifie handles your data</a>
+        </p>
+    </main>
+
+    <script src="js/auth.js"></script>
+    <script src="js/deleteAccount.js"></script>
+    <script>
+        (function () {
+            'use strict';
+
+            const loading = document.getElementById('accountLoading');
+            const signedOut = document.getElementById('accountSignedOut');
+            const signedIn = document.getElementById('accountSignedIn');
+            const done = document.getElementById('accountDone');
+            const message = document.getElementById('accountMessage');
+            const email = document.getElementById('accountEmail');
+            const typed = document.getElementById('confirmWord');
+            const deleteBtn = document.getElementById('deleteBtn');
+
+            function show(section) {
+                [loading, signedOut, signedIn, done].forEach((part) => {
+                    if (part) part.classList.toggle('hidden', part !== section);
+                });
+            }
+
+            function say(text, tone) {
+                if (!message) return;
+                message.textContent = text || '';
+                message.dataset.tone = tone || '';
+                message.classList.toggle('hidden', !text);
+            }
+
+            // The button only wakes up once the word is right, and the word is
+            // checked by the one piece of code that defines it.
+            function refreshButton() {
+                const deleter = window.spotifieDeleteAccount;
+                if (!deleteBtn || !deleter) return;
+                deleteBtn.disabled = !deleter.confirms(typed ? typed.value : '');
+            }
+
+            if (typed) typed.addEventListener('input', refreshButton);
+
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', async () => {
+                    const deleter = window.spotifieDeleteAccount;
+                    if (!deleter || !deleter.confirms(typed ? typed.value : '')) return;
+
+                    deleteBtn.disabled = true;
+                    say('', '');
+
+                    const result = await deleter.deleteAccount();
+
+                    if (result && result.success) {
+                        show(done);
+                        say('', '');
+                        return;
+                    }
+
+                    // Still signed in, still here: only a deletion that worked
+                    // ends the session.
+                    say((result && result.error) || 'Your account could not be deleted right now. Please try again.', 'error');
+                    refreshButton();
+                });
+            }
+
+            async function start() {
+                const auth = window.spotifieAuth;
+                if (!auth) {
+                    show(signedOut);
+                    say('Spotifie could not start its account service on this page.', 'error');
+                    return;
+                }
+
+                try {
+                    await auth.ready();
+                    const session = await auth.getSession();
+
+                    if (!session) {
+                        show(signedOut);
+                        return;
+                    }
+
+                    if (email && session.user && session.user.email) email.textContent = session.user.email;
+                    show(signedIn);
+                    refreshButton();
+                } catch (e) {
+                    console.error('Could not read the session:', e);
+                    show(signedOut);
+                    say('Could not check whether you are signed in. Check your connection and try again.', 'error');
+                }
+            }
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', start, { once: true });
+            } else {
+                start();
+            }
+        })();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,13 @@
+{
+    "appId": "app.spotifie.android",
+    "appName": "Spotifie",
+    "webDir": "mobile/www",
+    "server": {
+        "androidScheme": "https",
+        "cleartext": false
+    },
+    "android": {
+        "allowMixedContent": false,
+        "captureInput": false
+    }
+}

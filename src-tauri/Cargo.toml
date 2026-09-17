@@ -1,0 +1,22 @@
+[package]
+name = "spotifie"
+version = "1.0.0-rc.1"
+description = "Spotifie - Hybrid Local & Global Music Player (desktop shell)"
+edition = "2021"
+rust-version = "1.77"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# The shell only: no filesystem, shell, process, HTTP or updater plugin. The
+# application is the web frontend in ../desktop/dist, unchanged.
+tauri = { version = "2", features = [] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

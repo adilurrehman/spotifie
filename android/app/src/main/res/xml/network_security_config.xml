@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    HTTPS only. The app talks to Supabase and the published site over TLS and
+    to its own bundled files through Capacitor's local server; nothing needs
+    plain HTTP, so none is allowed - not for development either.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

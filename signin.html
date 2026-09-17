@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Sign in to Spotifie to reach your playlists, liked songs and listening history.">
     <title>Sign in - Spotifie</title>
 
@@ -527,6 +527,22 @@
          */
         let leavingForApp = false;
 
+        // Where signing in may send somebody other than the application
+        // itself. An allowlist of exactly one page, matched whole: somebody who
+        // came here to delete their account should land back on that page and
+        // not in the library. Anything else in ?next is ignored, so this can
+        // never be talked into forwarding a person somewhere else.
+        const RETURN_PAGES = ['/delete-account.html'];
+
+        function requestedReturn() {
+            try {
+                const asked = new URLSearchParams(window.location.search).get('next');
+                return RETURN_PAGES.indexOf(asked) !== -1 ? asked : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
         function goToApp() {
             if (leavingForApp) return;
             leavingForApp = true;
@@ -535,6 +551,10 @@
             try {
                 const auth = window.spotifieAuth;
                 if (auth && typeof auth.homeUrl === 'function') target = auth.homeUrl() || '/';
+
+                // Asked for by name, and on this same origin.
+                const back = requestedReturn();
+                if (back) target = new URL(back, window.location.origin).toString();
             } catch (e) {
                 target = '/';
             }

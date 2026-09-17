@@ -1,4 +1,16 @@
-console.log('Starting The JS');
+/**
+ * Progress notes about loading the library, off unless this browser asks for
+ * them: localStorage.setItem('spotifie_debug', '1'). Warnings and errors are
+ * not affected, and nothing logged here is a token, a key or a file handle.
+ */
+function debugLog(...parts) {
+    try {
+        if (localStorage.getItem('spotifie_debug') !== '1') return;
+    } catch (e) {
+        return;
+    }
+    console.log(...parts);
+}
 
 // ==================== Theme Toggle System ====================
 function initializeTheme() {
@@ -74,7 +86,22 @@ if (pathParts.length > 1 && pathParts[0] !== 'Spotify---Web-Player-Music-for-eve
     basePath = '/' + pathParts[0] + '/';
 }
 
-let currentsong = new Audio();
+/**
+ * The one thing that plays sound, chosen once for this platform.
+ *
+ * A browser - and the desktop and iOS shells - play through an ordinary audio
+ * element. The Android app hands its audio to Android itself, so the music
+ * keeps playing in the background and appears on the lock screen; the adapter
+ * answers to the same handful of properties and events, so everything below
+ * this line is the same code everywhere. One engine, never two.
+ */
+function createPlaybackEngine() {
+    const native = typeof window !== 'undefined' ? window.spotifieAndroidPlayback : null;
+    if (native && native.available()) return native.create();
+    return new Audio();
+}
+
+let currentsong = createPlaybackEngine();
 let songs = [];
 let currentFolder = '';
 let currentLibButton = null;
@@ -1610,7 +1637,7 @@ async function loadSongsConfig() {
         );
 
         const sources = window.catalogSources || {};
-        console.log(
+        debugLog(
             'Loaded catalogue:',
             Object.keys(predefinedSongs).length,
             'albums,',
@@ -1796,6 +1823,16 @@ function rememberPublishedCatalogue(albums, tracks) {
         tracks: (tracks || []).filter((track) => track.source === 'global')
     };
 
+    // Nothing published is a real state - an administrator can withdraw
+    // everything - but it is also the shape a read that failed takes once its
+    // error has been turned into an empty answer somewhere along the way. It
+    // is only written down when the read positively said the published
+    // catalogue was there, so one bad moment cannot replace a good copy with
+    // nothing.
+    if (!published.albums.length && !published.tracks.length && !(sources.global && sources.global.available === true)) {
+        return;
+    }
+
     renderedCatalogFingerprint = cache.fingerprint(published.albums, published.tracks);
 
     cache.write(published).catch(() => {
@@ -1875,7 +1912,7 @@ async function loadCatalogFromCache() {
     const platform = getPlatform();
     if (platform) platform.setCloudCatalogue('cached');
 
-    console.log(
+    debugLog(
         'Drew the library from this device:',
         Object.keys(predefinedSongs).length,
         'albums (published copy kept',
@@ -2035,6 +2072,11 @@ async function revalidateCatalog() {
         [albums, tracks] = await Promise.all([client.getAlbums(), client.getTracks()]);
     } catch (error) {
         console.warn('Could not check the catalogue; keeping what is on screen:', error.message);
+
+        // A catalogue that could not be fetched at all is the clearest signal
+        // there is that this device is offline, and a better one than the
+        // browser's own: this is a request Spotifie actually needed.
+        if (looksLikeNetworkFailure(error)) noteNetworkOutcome(false);
         return false;
     }
 
@@ -2043,6 +2085,10 @@ async function revalidateCatalog() {
         console.warn('The published catalogue is unavailable; keeping the copy this device has.');
         return false;
     }
+
+    // The catalogue answered, so whatever the browser believes, this device can
+    // reach the internet.
+    noteNetworkOutcome(true);
 
     const publishedAlbums = (albums.items || []).filter((album) => album.source === 'global');
     const publishedTracks = (tracks.items || []).filter((track) => track.source === 'global');
@@ -2108,7 +2154,7 @@ function scheduleCatalogRevalidation() {
                 return false;
             }
 
-            console.log('The published catalogue has changed; redrawing the library.');
+            debugLog('The published catalogue has changed; redrawing the library.');
             await redrawAfterCatalogChange();
             return true;
         })
@@ -2362,10 +2408,21 @@ function playGlobalTrack(trackId, pause, isRetry) {
     const client = getCatalogClient();
     if (!client) return Promise.resolve();
 
+    // A published song is streamed from storage, and its address has to be
+    // signed before it can be fetched. Neither is possible without a
+    // connection, so nothing is attempted: no request that will fail, and no
+    // expired address handed to the player to choke on.
+    if (!isOnline()) {
+        showToast('Connect to the internet to play published songs');
+        syncPlaybackUI();
+        return Promise.resolve();
+    }
+
     return Promise.resolve(client.resolveStreamUrl(trackId, { refresh: Boolean(isRetry) }))
         .then((url) => {
             if (!url || window.currentPlayingTrack !== trackId) return;
 
+            noteNetworkOutcome(true);
             currentsong.src = url;
             if (pause) {
                 syncPlaybackUI();
@@ -2375,6 +2432,16 @@ function playGlobalTrack(trackId, pause, isRetry) {
         })
         .catch((error) => {
             console.error('Could not resolve this track:', error);
+
+            // A signature that could not be fetched at all is the connection
+            // rather than the song, and the retry would fail the same way.
+            if (looksLikeNetworkFailure(error)) {
+                noteNetworkOutcome(false);
+                showToast('Connect to the internet to play published songs');
+                syncPlaybackUI();
+                return;
+            }
+
             if (!isRetry) return playGlobalTrack(trackId, pause, true);
             showToast('This track is not available right now');
         });
@@ -2795,6 +2862,52 @@ function isOnline() {
 }
 
 /**
+ * How the rest of the application says so when it changes.
+ *
+ * Set when the watcher below starts, so there is one place that decides what
+ * changing state looks like - one mark on the page, one message - however the
+ * change was noticed.
+ */
+let announceConnection = null;
+
+/**
+ * What a request that has just finished says about the connection.
+ *
+ * navigator.onLine is a hint and not much more: it is true on a Wi-Fi network
+ * with nothing behind it, true when the name of a host cannot be resolved, and
+ * true when Supabase itself is down. What is actually true is whether the
+ * requests Spotifie depends on are getting through, so the requests that
+ * matter report what happened to them and this is where that is believed.
+ *
+ * Only a failure that could be the network counts. A refusal or a 404 is an
+ * answer - something reached Spotifie to say no - and says the connection is
+ * working, not that it is broken.
+ */
+function noteNetworkOutcome(reachable) {
+    const online = Boolean(reachable);
+
+    // The browser is certain of one direction only: with the radio off there
+    // is no connection, whatever a request happened to do.
+    if (online && typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    if (networkAvailable === online) return;
+
+    if (announceConnection) announceConnection(online);
+    else networkAvailable = online;
+}
+
+/**
+ * Did this failure look like the network, or like an answer?
+ *
+ * An error carrying a status came from a server that was reached. Anything
+ * else - a refused connection, a name that would not resolve, a request that
+ * was abandoned for taking too long - is the connection.
+ */
+function looksLikeNetworkFailure(error) {
+    if (!error) return false;
+    return error.status === undefined || error.status === null;
+}
+
+/**
  * Keep the application itself, so it opens without the network.
  *
  * The worker holds the pages, styles, scripts and icons the interface is drawn
@@ -2810,16 +2923,34 @@ function isOnline() {
 function initAppShellCache() {
     if (!('serviceWorker' in navigator)) return;
 
+    // A native shell (desktop or Android) carries the application on disk
+    // already; a second copy in a browser cache would only be something else
+    // to go stale.
+    if (window.spotifieDesktop && window.spotifieDesktop.isDesktop()) return;
+    if (window.spotifieAndroid && window.spotifieAndroid.isAndroid()) return;
+    if (window.spotifieIOS && window.spotifieIOS.isIOS()) return;
+
     // Secure contexts only, which localhost counts as.
     if (!window.isSecureContext) return;
 
-    window.addEventListener('load', () => {
+    const register = () => {
         navigator.serviceWorker.register('/sw.js').catch((error) => {
             // Not being able to keep a copy is not a failure worth interrupting
             // anybody for.
             console.warn('The offline app shell is unavailable:', error && error.message);
         });
-    });
+    };
+
+    // This is reached late in start-up, after the library has been drawn -
+    // usually after the page's load event has already fired. Waiting for a
+    // load that has already happened meant the worker was never registered
+    // and there was no offline shell at all, so an already-loaded page
+    // registers at once.
+    if (document.readyState === 'complete') {
+        register();
+    } else {
+        window.addEventListener('load', register, { once: true });
+    }
 }
 
 /**
@@ -3004,7 +3135,25 @@ function initOfflineState() {
                 ? 'Back online'
                 : 'Offline. Music on this device keeps playing; published songs need a connection.'
         );
+
+        // An album that is open was drawn with what was true when it opened: a
+        // published one carries a line saying its songs need a connection.
+        // That line has just stopped being true, so the view is drawn again
+        // rather than left contradicting the music it would now play.
+        if (albumDetailFolder) renderAlbumDetail(albumDetailFolder);
+
+        // The connection is back, so the published catalogue is worth asking
+        // about again - quietly, and only redrawing if it has moved. Nobody
+        // has to restart Spotifie to see what was published while they were
+        // away. One check at a time: scheduleCatalogRevalidation refuses to
+        // start a second while one is running, so a connection that comes and
+        // goes cannot turn into a loop of them.
+        if (online) scheduleCatalogRevalidation();
     };
+
+    // However the change was noticed - the browser saying so, or a request
+    // finding out the hard way - it is said in one place.
+    announceConnection = apply;
 
     document.body.classList.toggle('is-offline', !networkAvailable);
 
@@ -3198,7 +3347,12 @@ async function main() {
         // The end of a track is where the position stops meaning anything, so
         // it is forgotten before anything else happens.
         rememberProgress({ force: true });
-        playNextTrack({ ended: true });
+        const following = playNextTrack({ ended: true });
+
+        // Nothing followed it. Where Android is playing the sound, it is let
+        // go of here: the music has finished, so the media notification goes
+        // rather than sitting there for a player that has stopped.
+        if (!following && currentsong.isNativeEngine && typeof currentsong.stop === 'function') currentsong.stop();
     });
 
     /* ---------- Next / Previous (buttons) ---------- */
@@ -4310,6 +4464,13 @@ function paintTrackArtwork(image, trackId, folder) {
  * nothing binary is written to browser storage and nothing reaches Supabase.
  */
 async function saveLocalAlbumArtwork(file) {
+    // Covers for your own albums are kept by the Spotifie server on your
+    // computer. A copy running in the browser only has none to keep them, so
+    // it says so plainly instead of collecting a 404.
+    if (isPublishedCopy()) {
+        throw new Error('Custom covers need Spotifie running on your computer. The album is saved without one.');
+    }
+
     const response = await fetch('/api/library/artwork', {
         method: 'POST',
         headers: { 'Content-Type': file.type },
@@ -5338,6 +5499,18 @@ function bindAlbumCardEvents() {
 
     cardsArea.dataset.bound = 'yes';
 
+    // A long press on a card opens its options - the same menu its button
+    // opens, where a touch screen shows no button. A tap still opens the
+    // album; the right mouse button and the keyboard's menu key reach the
+    // same menu too.
+    if (window.spotifieLongPress) {
+        window.spotifieLongPress.bind(cardsArea, {
+            selector: '.cardcontainer',
+            accept: (card) => !card.classList.contains('create-album-card') && cardMenuReachable(card),
+            onLongPress: (card, point) => openCardMenuAt(card.querySelector('.card-menu-btn'), point)
+        });
+    }
+
     cardsArea.addEventListener('click', async (event) => {
         // ---- the controls inside a card, each of which is its own action ----
 
@@ -5405,7 +5578,7 @@ function bindAlbumCardEvents() {
  * Split out because the grid's listener now handles the button, and a menu
  * that is opened has to be measured after it is in the page.
  */
-function toggleCardMenu(button) {
+function toggleCardMenu(button, point) {
     const menu = button.closest('.card-menu');
     if (!menu) return;
 
@@ -5420,13 +5593,33 @@ function toggleCardMenu(button) {
     button.setAttribute('aria-expanded', open ? 'true' : 'false');
 
     // It has to be in the page to be measured, so it is placed after it is
-    // shown - and followed while the page moves under it.
+    // shown - and followed while the page moves under it. A menu opened by a
+    // long press is placed at the finger, since there is no button to show.
     if (open) {
-        placeCardMenu(button, dropdown);
-        trackOpenCardMenu(button, dropdown);
+        placeCardMenu(button, dropdown, point);
+        trackOpenCardMenu(button, dropdown, point);
     } else {
         trackOpenCardMenu(null, null);
     }
+}
+
+/**
+ * Open a card's menu - the same one its button opens - at a point, for a long
+ * press. Never a second copy: an open menu stays as it is.
+ */
+function openCardMenuAt(button, point) {
+    if (!button) return;
+    const menu = button.closest('.card-menu');
+    const dropdown = menu ? menu.querySelector('.card-menu-dropdown') : null;
+    if (!dropdown || !dropdown.classList.contains('hidden')) return;
+    toggleCardMenu(button, point || null);
+}
+
+/** Does this card offer options right now? Hidden for a guest, and for a Local Music card with nothing to ask. */
+function cardMenuReachable(card) {
+    const menu = card && card.querySelector('.card-menu');
+    if (!menu || !menu.querySelector('.card-menu-btn')) return false;
+    return window.getComputedStyle(menu).display !== 'none';
 }
 
 /**
@@ -5482,16 +5675,35 @@ async function playAlbumFromCard(folder) {
  * along until it fits, so a card in the first column, the last column or the
  * last row all open a menu that is wholly on screen.
  */
-function placeCardMenu(button, dropdown) {
+function placeCardMenu(button, dropdown, point) {
     if (!button || !dropdown || !button.getBoundingClientRect) return;
 
     const gap = 6;
     const edge = 8;
-    const anchor = button.getBoundingClientRect();
+
+    // What it opens against: the finger, for a long press; otherwise the
+    // button - or, where a touch screen shows no button, the card itself.
+    let anchor;
+    if (point) {
+        anchor = { left: point.x, right: point.x, top: point.y, bottom: point.y };
+    } else {
+        anchor = button.getBoundingClientRect();
+        if (!anchor.width && !anchor.height) {
+            const card = button.closest('.cardcontainer');
+            if (card) anchor = card.getBoundingClientRect();
+        }
+    }
     const menu = dropdown.getBoundingClientRect();
 
     const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    // The bottom of the usable screen is the top of the player, so a menu is
+    // never tucked underneath it.
+    let viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const playbar = document.querySelector('.playbar');
+    if (playbar && playbar.getBoundingClientRect) {
+        const bar = playbar.getBoundingClientRect();
+        if (bar.height && bar.top > 0 && bar.top < viewportHeight) viewportHeight = bar.top;
+    }
 
     // Aligned to the button's right edge, then slid back onto the screen if
     // that would take it off either side.
@@ -5518,8 +5730,8 @@ function placeCardMenu(button, dropdown) {
 /** The menu that is open, so it can follow its card while the page moves. */
 let openCardMenuButton = null;
 
-function trackOpenCardMenu(button, dropdown) {
-    openCardMenuButton = button && dropdown ? { button: button, dropdown: dropdown } : null;
+function trackOpenCardMenu(button, dropdown, point) {
+    openCardMenuButton = button && dropdown ? { button: button, dropdown: dropdown, point: point || null } : null;
 }
 
 /**
@@ -5531,6 +5743,12 @@ function initCardMenuPlacement() {
         if (!openCardMenuButton) return;
         if (openCardMenuButton.dropdown.classList.contains('hidden')) {
             openCardMenuButton = null;
+            return;
+        }
+        // A menu opened at a finger has nothing to follow: moving the page
+        // is putting it away.
+        if (openCardMenuButton.point) {
+            closeAllMenus();
             return;
         }
         placeCardMenu(openCardMenuButton.button, openCardMenuButton.dropdown);
@@ -7836,8 +8054,24 @@ function localAlbumsForBackup() {
     return albums;
 }
 
+/**
+ * Backups are written and read by the Spotifie server on a person's computer,
+ * which is where their library is kept. A copy running in the browser only
+ * has no such server, so it says so rather than asking an origin for a route
+ * it does not have.
+ */
+function backupUnavailableHere() {
+    if (!isPublishedCopy()) return null;
+    const error = new Error('Backups need Spotifie running on your computer, where your library is kept.');
+    error.published = true;
+    return error;
+}
+
 /** Ask the server for this account's library as a document. */
 async function requestLibraryBackup() {
+    const unavailable = backupUnavailableHere();
+    if (unavailable) throw unavailable;
+
     const client = getCatalogClient();
     if (!client) throw new Error('The catalogue is not available');
 
@@ -7847,6 +8081,9 @@ async function requestLibraryBackup() {
 
 /** Hand a document to the server to check, merge and save. */
 async function restoreLibraryBackup(document) {
+    const unavailable = backupUnavailableHere();
+    if (unavailable) throw unavailable;
+
     const client = getCatalogClient();
     if (!client) throw new Error('The catalogue is not available');
 
@@ -7923,7 +8160,9 @@ function showImportSummary(summary) {
 
     if (summary.tracksUnavailable > 0) {
         // Said once, without alarm: these are songs that live somewhere else.
-        console.log(
+        // A developer's note rather than news, so it is behind the same gate as
+        // every other diagnostic and stays out of an ordinary console.
+        debugLog(
             summary.tracksUnavailable +
                 ' song(s) in this backup are not on this device. They stay in your library and reconnect if they turn up.'
         );
@@ -8276,6 +8515,7 @@ function initLocalMusicManager() {
 
     document.getElementById('localReconcileBtn')?.addEventListener('click', () => runLocalScan({ mode: 'check' }));
     document.getElementById('localRescanBtn')?.addEventListener('click', () => runLocalScan({ mode: 'full' }));
+    document.getElementById('localChooseFilesBtn')?.addEventListener('click', () => chooseBrowserFiles());
     document.getElementById('localCancelScanBtn')?.addEventListener('click', cancelLocalScan);
 
     // One listener for every row and every folder: the lists are redrawn
@@ -8321,6 +8561,7 @@ function closeLocalManager() {
  * like copies.
  */
 async function refreshLocalManager() {
+    syncChooseFilesButton();
     const client = getCatalogClient();
     if (!client) return;
 
@@ -8977,6 +9218,55 @@ async function runLocalScan(options) {
  * deleted ones go, and nothing in any other folder is touched. Choosing a new
  * one adds it.
  */
+/** Whether this library can take songs from the system's file picker (the iOS app). */
+function libraryCanChooseFiles(library) {
+    return Boolean(library && typeof library.canChooseFiles === 'function' && library.canChooseFiles());
+}
+
+function syncChooseFilesButton() {
+    document.getElementById('localChooseFilesBtn')?.classList.toggle('hidden', !libraryCanChooseFiles(getBrowserLibrary()));
+}
+
+/**
+ * Several songs from the system's file picker. Offered only where the app's
+ * own library can do it: a Files provider may not list a folder, and songs
+ * chosen one by one are the honest way round that.
+ */
+async function chooseBrowserFiles() {
+    const library = getBrowserLibrary();
+    if (!libraryCanChooseFiles(library)) return false;
+
+    const state = document.getElementById('localScanState');
+
+    try {
+        const summary = await library.chooseFiles();
+
+        await refreshAfterDeviceChange();
+        await refreshLocalManager();
+        updateScanMenuLabel();
+        markLocalMusicAvailable();
+        platformSaysLocalMusic('available');
+
+        if (state) {
+            state.classList.remove('hidden');
+            state.textContent = summary.folder + ' added · ' + summary.trackCount + ' songs';
+        }
+        showToast(
+            summary.trackCount
+                ? summary.trackCount + (summary.trackCount === 1 ? ' song added to Local Music' : ' songs added to Local Music')
+                : 'None of those files can be played here'
+        );
+        return true;
+    } catch (error) {
+        // Closing the picker is an answer, not a fault.
+        if (error && (error.name === 'AbortError' || error.name === 'NotAllowedError')) return false;
+
+        console.warn('Those files could not be read:', error && error.message);
+        showToast('Those files could not be read');
+        return false;
+    }
+}
+
 async function rescanBrowserFolder() {
     const library = getBrowserLibrary();
     if (!library) return false;
@@ -9138,8 +9428,12 @@ function initBackupRestore() {
             
             showToast('Backup exported successfully!');
         } catch (error) {
-            console.error('Export failed:', error);
-            showToast('Export failed. Please try again.');
+            if (error && error.published) {
+                showToast(error.message);
+            } else {
+                console.error('Export failed:', error);
+                showToast('Export failed. Please try again.');
+            }
         } finally {
             exportBackupBtn.disabled = false;
             exportBackupBtn.innerHTML = `
@@ -9221,7 +9515,11 @@ function initBackupRestore() {
             resetImportState();
         } catch (error) {
             console.error('Import failed:', error);
-            showToast('Import failed: ' + error.message);
+            // What went wrong belongs in the console; what is said here is
+            // something a person can act on. A message written for somebody to
+            // read is marked as such and passed through - anything else is a
+            // status code or a parser's complaint, and is not their problem.
+            showToast(error && error.published ? error.message : 'Could not import that backup. Please try again.');
         } finally {
             importBackupBtn.disabled = false;
             importBackupBtn.innerHTML = `
@@ -9320,7 +9618,10 @@ async function handleImportFile(file) {
         showToast(preview.length ? 'Ready to restore: ' + preview.join(', ') : 'Ready to restore');
     } catch (error) {
         console.error('Failed to parse backup file:', error);
-        showToast(error.message || 'Invalid backup file. Please select a valid backup.');
+        // A file that will not parse fails inside JSON.parse, whose complaint
+        // names a character position and helps nobody. The reason is kept for
+        // the console.
+        showToast(error && error.published ? error.message : 'That file is not a Spotifie backup.');
         resetImportState();
     }
 }
@@ -9731,11 +10032,89 @@ function syncVolumeUI() {
  * Feature-detected throughout: a browser without Media Session simply does not
  * get told, and everything else works the same.
  */
+/**
+ * A picture Android itself can fetch for the track that is playing.
+ *
+ * The page is content with a picture it already holds - one out of its own
+ * store, or a file beside the application - but neither means anything to
+ * Android, which fetches the artwork for the lock screen and the notification
+ * itself. So what is asked for here is a published picture's signed address:
+ * the song's own where it has one, otherwise the album it belongs to. Anything
+ * else is left out, and Android shows Spotifie's own icon instead.
+ */
+async function nativeArtworkUrl(trackId, folder) {
+    const client = getCatalogClient();
+    if (!client || typeof client.resolveArtworkUrl !== 'function') return null;
+
+    const track = getLibraryTrack(trackId);
+    if (!track) return null;
+
+    const subjects = [];
+    if (!track.metadata || track.metadata.hasArtwork !== false) {
+        subjects.push({ id: trackId, kind: 'track', version: track.metadata ? track.metadata.artworkVersion : null });
+    }
+    if (track.albumId) {
+        const info = albumInfo[libraryFolderForAlbum(track.albumId)] || albumInfo[folder];
+        subjects.push({ id: track.albumId, kind: 'album', version: info ? info.artworkVersion : null });
+    }
+
+    for (const subject of subjects) {
+        try {
+            const url = await client.resolveArtworkUrl(subject.id, {
+                kind: subject.kind,
+                fallback: null,
+                version: subject.version || null
+            });
+            if (typeof url === 'string' && /^https?:\/\//i.test(url)) return url;
+        } catch (e) {
+            /* try the album next, and then do without */
+        }
+    }
+    return null;
+}
+
 function updateMediaSessionMetadata() {
+    const trackId = window.currentPlayingTrack;
+
+    // Where Android plays the sound, Android is also what shows it: the same
+    // words and picture go to the media session on the lock screen and in the
+    // notification, and the browser's own Media Session is left alone so the
+    // two cannot disagree.
+    if (currentsong.isNativeEngine) {
+        if (!trackId) {
+            currentsong.setMetadata({});
+            return;
+        }
+
+        const playing = getLibraryTrack(trackId);
+        const folder = window.currentPlayingAlbum;
+        const words = {
+            mediaId: trackId,
+            title: trackDisplayTitle(trackId),
+            artist: trackDisplayArtist(trackId),
+            album: (playing && playing.album) || playbackContextName(folder),
+            artwork: trackArtworkSrc(trackId, folder)
+        };
+        currentsong.setMetadata(words);
+
+        // A published picture has to be signed before anything can fetch it,
+        // which takes a moment longer than starting the music. So the track
+        // plays with what is known now, and the picture is sent on when it
+        // arrives - to the track it belongs to, and never to a later one.
+        Promise.resolve(nativeArtworkUrl(trackId, folder))
+            .then((url) => {
+                if (window.currentPlayingTrack !== trackId || !url) return;
+                currentsong.setMetadata(Object.assign({}, words, { artwork: url }));
+            })
+            .catch(() => {
+                /* a picture is a nicety; the music is not waiting for it */
+            });
+        return;
+    }
+
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
     if (typeof window.MediaMetadata !== 'function') return;
 
-    const trackId = window.currentPlayingTrack;
     if (!trackId) {
         navigator.mediaSession.metadata = null;
         return;
@@ -9757,6 +10136,36 @@ function updateMediaSessionMetadata() {
 }
 
 function initMediaSession() {
+    // On Android the media session is Android's own, and its buttons arrive
+    // as commands from the native player. They do exactly what the same
+    // buttons in Spotifie do, so the queue, shuffle and repeat are decided in
+    // one place for every platform.
+    if (currentsong.isNativeEngine) {
+        currentsong.onCommand = (command) => {
+            if (command === 'next') playNextTrack({ ended: false });
+            else if (command === 'previous') playPreviousTrack();
+            else if (command === 'close') {
+                // Stopped from the notification, or by Spotifie being closed.
+                // There is one player and one state: the controls are drawn
+                // from what the engine now says, which is stopped, rather than
+                // a second idea of playback being invented here.
+                rememberProgress({ force: true });
+                updateProgressUI();
+                syncPlaybackUI();
+            }
+        };
+
+        // The music may have been playing all along while this page was
+        // reloaded or the window recreated. What is actually playing is asked
+        // of the player itself, and the controls are drawn from the answer.
+        Promise.resolve(currentsong.adopt()).then((playing) => {
+            if (!playing) return;
+            updateProgressUI();
+            syncPlaybackUI();
+        });
+        return;
+    }
+
     if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
 
     const handlers = {
@@ -10363,12 +10772,27 @@ function renderAlbumDetail(folder) {
     const list = document.getElementById('albumDetailTracks');
     if (!list) return;
 
+    // A published album kept from a previous visit: its cover and its words
+    // are here because this device wrote them down, and its songs are not -
+    // they are streamed, and streaming needs a connection. Said once, in the
+    // album, rather than as a failure when somebody taps a row.
+    const needsConnection = info.source === 'global' && !isOnline();
+
     if (!meta.length) {
-        list.innerHTML = '<li class="album-track-empty">There is nothing in this album yet.</li>';
+        list.innerHTML = needsConnection
+            ? '<li class="album-track-empty">Connect to the internet to load this album’s songs.</li>'
+            : '<li class="album-track-empty">There is nothing in this album yet.</li>';
         return;
     }
 
     const fragment = document.createDocumentFragment();
+
+    if (needsConnection) {
+        const notice = document.createElement('li');
+        notice.className = 'album-track-empty';
+        notice.textContent = 'Connect to the internet to play this album’s songs.';
+        fragment.appendChild(notice);
+    }
 
     meta.forEach((entry, index) => {
         const track = getLibraryTrack(entry.track);

@@ -28,6 +28,28 @@ const DIST = process.env.SPOTIFIE_RELEASE_OUT
     ? path.resolve(process.env.SPOTIFIE_RELEASE_OUT)
     : path.join(ROOT, 'public-release', 'dist');
 
+/**
+ * What the check is being asked about.
+ *
+ * "public" - the default - is a PUBLIC SOURCE RELEASE: the static files that
+ * go to a public host, which must carry no admin frontend source, no secrets
+ * and no private files. "production" is the CLOUDFLARE PRODUCTION WORKER built
+ * from this private tree: the same static files, plus the protected dashboard
+ * document embedded in the worker. There the admin script must not be a public
+ * asset (it is inlined into the gated document), the raw dashboard page must
+ * still never be a static file, and the embedded document must be a real,
+ * secret-free dashboard rather than a null one.
+ */
+const MODE =
+    process.argv.indexOf('--production') !== -1 || process.env.SPOTIFIE_RELEASE_MODE === 'production'
+        ? 'production'
+        : 'public';
+
+// Where the build writes the document the worker holds. Not part of the static
+// assets - it lives in the worker's own source tree - so it is checked apart
+// from the release directory, and only for a production worker build.
+const ADMIN_DOCUMENT_MODULE = path.join(ROOT, 'worker', 'generated', 'adminDocument.mjs');
+
 // ============================================
 // What must never be in a release
 // ============================================
@@ -63,6 +85,11 @@ const FORBIDDEN_PATHS = [
     /(^|[/\\])test([/\\]|$)/i,
     /(^|[/\\])CLAUDE\.md$/i,
     /\.(pem|key|p12|pfx)$/i,
+    // Android packages, signing material and build settings. The one app a
+    // production website may offer is allowed by name in checkRelease.
+    /\.(apk|aab|jks|keystore)$/i,
+    /(^|[/\\])(keystore|signing|local)\.properties$/i,
+    /(^|[/\\])google-services\.json$/i,
     // Somebody's own library state, in any of the shapes it is kept in.
     /(^|[/\\])(state|scan-state|playback)\.json$/i,
     /(^|[/\\])users([/\\]|$)/i,
@@ -126,7 +153,15 @@ function checkRelease(failures) {
         const name = relative(file);
 
         for (const pattern of FORBIDDEN_PATHS) {
-            if (pattern.test(name)) failures.push(name + ' must not be in a public release.');
+            if (pattern.test(name) && !offeredDownload(name, MODE)) failures.push(name + ' must not be in a public release.');
+        }
+
+        // In a production worker build the administrator script is not a public
+        // file: it is inlined into the gated dashboard document. Finding it
+        // among the assets means it would answer at /js/admin.js, outside the
+        // gate. In the public build it is an ordinary asset and allowed.
+        if (MODE === 'production' && /(^|[/\\])js[/\\]admin\.js$/i.test(name)) {
+            failures.push(name + ' must not be a public static asset in a production worker build; it belongs inlined in the gated dashboard document.');
         }
 
         if (AUDIO_EXTENSIONS.test(name)) {
@@ -143,6 +178,197 @@ function checkRelease(failures) {
     }
 
     checkExpectedShape(files, failures);
+    checkDownloads(DIST, MODE, failures);
+
+    // A production worker build is only fit to deploy if the document the
+    // worker holds is a real dashboard. That document is not in the release
+    // directory, so it is checked on its own.
+    if (MODE === 'production') checkEmbeddedDashboard(failures);
+}
+
+// ============================================
+// The Android app download
+// ============================================
+
+/** The files a release may offer for download, and only a production one. */
+const ANDROID_DOWNLOAD = 'downloads/spotifie-android.apk';
+const ANDROID_RELEASE_METADATA = 'downloads/android-release.json';
+// Cloudflare serves no static asset larger than this.
+const ANDROID_DOWNLOAD_LIMIT = 25 * 1024 * 1024;
+
+function offeredDownload(name, mode) {
+    return mode === 'production' && (name === ANDROID_DOWNLOAD || name === ANDROID_RELEASE_METADATA);
+}
+
+/**
+ * The public description of the release must describe this very APK, and say
+ * nothing else: no path on the build machine, no source file name, no secret.
+ */
+function checkReleaseMetadata(dist, failures) {
+    const file = path.join(dist, ...ANDROID_RELEASE_METADATA.split('/'));
+    if (!fs.existsSync(file)) {
+        failures.push(ANDROID_DOWNLOAD + ' has no ' + ANDROID_RELEASE_METADATA + ' describing it.');
+        return;
+    }
+
+    const text = fs.readFileSync(file, 'utf8');
+    let metadata;
+    try {
+        metadata = JSON.parse(text);
+    } catch (e) {
+        failures.push(ANDROID_RELEASE_METADATA + ' is not valid JSON.');
+        return;
+    }
+
+    const apk = path.join(dist, ...ANDROID_DOWNLOAD.split('/'));
+    const digest = require('crypto').createHash('sha256').update(fs.readFileSync(apk)).digest('hex');
+    if (metadata.apk !== '/' + ANDROID_DOWNLOAD) failures.push(ANDROID_RELEASE_METADATA + ' points at another file.');
+    if (metadata.sha256 !== digest) failures.push(ANDROID_RELEASE_METADATA + ' has the wrong SHA-256 for the APK.');
+    if (metadata.size !== fs.statSync(apk).size) failures.push(ANDROID_RELEASE_METADATA + ' has the wrong size for the APK.');
+    if (!Number.isInteger(metadata.versionCode) || metadata.versionCode < 1) failures.push(ANDROID_RELEASE_METADATA + ' has no versionCode.');
+    if (!metadata.version) failures.push(ANDROID_RELEASE_METADATA + ' has no version.');
+    if (/[A-Za-z]:\\|\/Users\/|\/home\/|password|keystore|app-release|app-debug|service.role/i.test(text)) {
+        failures.push(ANDROID_RELEASE_METADATA + ' names something private (a path, a source file or a secret).');
+    }
+}
+
+/** What the build told the page about the Android app, from both places it says so. */
+function advertisedAndroidApp(dist, failures) {
+    const found = [];
+
+    const info = path.join(dist, 'build-info.json');
+    if (fs.existsSync(info)) {
+        try {
+            found.push({ where: 'build-info.json', app: JSON.parse(fs.readFileSync(info, 'utf8')).androidApp || null });
+        } catch (e) {
+            failures.push('build-info.json is not valid JSON.');
+        }
+    }
+
+    const script = path.join(dist, 'js', 'config.js');
+    if (fs.existsSync(script)) {
+        const written = /window\.__SPOTIFIE_BUILD__ = (\{[\s\S]*?\});/.exec(fs.readFileSync(script, 'utf8'));
+        if (written) {
+            try {
+                found.push({ where: 'js/config.js', app: JSON.parse(written[1]).androidApp || null });
+            } catch (e) {
+                failures.push('js/config.js does not carry a readable build description.');
+            }
+        }
+    }
+
+    return found;
+}
+
+/**
+ * The Android app a production website offers.
+ *
+ * Exactly one file, at exactly one address, and only in a production build: a
+ * public source release carries no app binary. Nothing else may sit beside it,
+ * nothing from the Android project may come with it, and the page must offer it
+ * exactly when it is there - never a link to a missing file. The APK itself is
+ * opened and inspected the same way the Android build inspects it: no admin
+ * source, no server, no private files, no secrets, no paths from this machine.
+ */
+function checkDownloads(dist, mode, failures) {
+    if (!fs.existsSync(dist)) return;
+
+    const names = walk(dist).map((file) => path.relative(dist, file).split(path.sep).join('/'));
+
+    for (const name of names) {
+        if (/^android\//i.test(name)) {
+            failures.push(name + ' belongs to the Android project; a release never carries it.');
+        }
+        if (/^ios\//i.test(name)) {
+            failures.push(name + ' belongs to the iOS project; a release never carries it.');
+        }
+        if (/^downloads\//i.test(name) && !offeredDownload(name, mode)) {
+            failures.push(name + ' is not something a release may offer for download.');
+        }
+    }
+
+    const present = names.indexOf(ANDROID_DOWNLOAD) !== -1;
+
+    for (const entry of advertisedAndroidApp(dist, failures)) {
+        if (!entry.app) continue;
+        if (entry.app.url !== '/' + ANDROID_DOWNLOAD) {
+            failures.push(entry.where + ' offers the Android app at an unexpected address.');
+        } else if (!present || mode !== 'production') {
+            failures.push(entry.where + ' offers the Android app but does not carry it (' + ANDROID_DOWNLOAD + ').');
+        }
+    }
+
+    if (!present && names.indexOf(ANDROID_RELEASE_METADATA) !== -1) {
+        failures.push(ANDROID_RELEASE_METADATA + ' describes an APK the release does not carry.');
+    }
+
+    if (!present || mode !== 'production') return;
+
+    checkReleaseMetadata(dist, failures);
+
+    if (!advertisedAndroidApp(dist, []).some((entry) => entry.app)) {
+        failures.push(ANDROID_DOWNLOAD + ' is in the release but no page offers it.');
+    }
+
+    const apk = path.join(dist, ...ANDROID_DOWNLOAD.split('/'));
+    if (fs.statSync(apk).size > ANDROID_DOWNLOAD_LIMIT) {
+        failures.push(ANDROID_DOWNLOAD + ' is larger than a static host serves (25 MB).');
+    }
+
+    let problems;
+    try {
+        problems = require('./androidBuild.js').inspectApk(apk);
+    } catch (e) {
+        problems = ['it could not be opened as an APK (' + e.message + ')'];
+    }
+    problems.forEach((problem) => failures.push(ANDROID_DOWNLOAD + ': ' + problem));
+
+    const headers = path.join(dist, '_headers');
+    const sent = fs.existsSync(headers) ? fs.readFileSync(headers, 'utf8') : '';
+    if (sent.indexOf('/' + ANDROID_DOWNLOAD + '\n  Content-Type: application/vnd.android.package-archive') === -1) {
+        failures.push('_headers does not send ' + ANDROID_DOWNLOAD + ' as an Android package.');
+    }
+}
+
+/**
+ * The dashboard document the production worker holds.
+ *
+ * It is what makes /admin-dashboard serve a page rather than send an
+ * administrator back to the application, so a production worker with a null or
+ * empty document is broken in exactly the way this whole build mode exists to
+ * prevent. It carries the administrator script inline, so it must also carry
+ * no secret.
+ */
+function checkEmbeddedDashboard(failures, target) {
+    const out = target || ADMIN_DOCUMENT_MODULE;
+
+    if (!fs.existsSync(out)) {
+        failures.push(
+            'The production worker has no embedded dashboard document ' +
+                '(worker/generated/adminDocument.mjs is missing). Run npm run build:production.'
+        );
+        return;
+    }
+
+    const text = fs.readFileSync(out, 'utf8');
+
+    if (/export default null/.test(text)) {
+        failures.push('The embedded dashboard document is null. Run npm run build:production from the private working tree.');
+        return;
+    }
+
+    const markers = [
+        ['the dashboard title', /Developer Dashboard \| Spotifie/],
+        ['the dashboard body', /<body class="admin-dashboard">/],
+        ['the administrator initialization code', /initAdminDashboard/]
+    ];
+    for (const [name, pattern] of markers) {
+        if (!pattern.test(text)) failures.push('The embedded dashboard document is missing ' + name + '.');
+    }
+
+    for (const rule of FORBIDDEN_CONTENT) {
+        if (rule.pattern.test(text)) failures.push('The embedded dashboard document contains ' + rule.name + '.');
+    }
 }
 
 /**
@@ -396,12 +622,27 @@ function main() {
         console.log('');
     }
 
+    const rebuild = MODE === 'production' ? 'npm run build:production' : 'npm run build:public';
+
     if (failures.length) {
-        console.error('The release is not fit to publish:');
+        console.error(
+            MODE === 'production'
+                ? 'The production worker build is not fit to deploy:'
+                : 'The release is not fit to publish:'
+        );
         for (const failure of failures) console.error('  - ' + failure);
         console.error('');
-        console.error('Fix the build, run npm run build:public again, and check again.');
+        console.error('Fix the build, run ' + rebuild + ' again, and check again.');
         process.exit(1);
+    }
+
+    if (MODE === 'production') {
+        console.log('The production worker build is fit to deploy: no secrets in the static');
+        console.log('assets, the raw dashboard page is not among them, the administrator');
+        console.log('script is not a public file, and the worker holds a real dashboard.');
+        console.log('');
+        console.log('Deploy it from this private working tree:  npx wrangler deploy');
+        return;
     }
 
     console.log('The release is clean: no admin tooling, no secrets, no music, no private data.');
@@ -413,4 +654,15 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { checkRelease, FORBIDDEN_PATHS, FORBIDDEN_CONTENT, AUDIO_EXTENSIONS, DIST };
+module.exports = {
+    checkRelease,
+    checkEmbeddedDashboard,
+    checkDownloads,
+    ANDROID_DOWNLOAD,
+    ANDROID_RELEASE_METADATA,
+    FORBIDDEN_PATHS,
+    FORBIDDEN_CONTENT,
+    AUDIO_EXTENSIONS,
+    DIST,
+    ADMIN_DOCUMENT_MODULE
+};

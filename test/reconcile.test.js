@@ -593,7 +593,7 @@ test('the grid is wired once, from the container, so a rerender cannot lose it',
     const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
     const binding = player.slice(
         player.indexOf('function bindAlbumCardEvents()'),
-        player.indexOf('function toggleCardMenu(button)')
+        player.indexOf('function toggleCardMenu(')
     );
 
     // Delegated from the container, which outlives every render.
@@ -612,7 +612,7 @@ test('the controls on a card each do their own thing, and only that', () => {
     const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
     const binding = player.slice(
         player.indexOf('function bindAlbumCardEvents()'),
-        player.indexOf('function toggleCardMenu(button)')
+        player.indexOf('function toggleCardMenu(')
     );
 
     // Play plays and does not also open the album.
@@ -633,7 +633,7 @@ test('every kind of album reaches the same place by the same id', () => {
     const player = fs.readFileSync(path.join(ROOT, 'js', 'script.js'), 'utf8');
     const binding = player.slice(
         player.indexOf('function bindAlbumCardEvents()'),
-        player.indexOf('function toggleCardMenu(button)')
+        player.indexOf('function toggleCardMenu(')
     );
 
     // The id is taken as it was rendered and passed on untouched: no prefix

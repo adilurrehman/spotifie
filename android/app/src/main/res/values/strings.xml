@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Spotifie</string>
+    <string name="title_activity_main">Spotifie</string>
+    <string name="package_name">app.spotifie.android</string>
+    <string name="custom_url_scheme">app.spotifie.android</string>
+    <!-- The notification's close action: it stops playback, it does not merely
+         hide the notification. -->
+    <string name="media_close">Stop</string>
+</resources>

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="What Spotifie does, how it handles your music and your data, the terms it is offered under, and how it works with a keyboard, a screen reader and reduced motion.">
     <title>About Spotifie - Features, Privacy, Terms and Accessibility</title>
 
@@ -1337,10 +1337,11 @@
 
             <div class="section-content">
                 <p>
-                    <strong>Your music stays where it already is.</strong> Audio found on this device, and audio you
-                    import from it, is indexed and played by the Spotifie server running on your own machine. It is
-                    never uploaded to Supabase or anywhere else. Supabase holds your account and profile, and serves
-                    the catalogue an administrator has published for everyone — the two stay separate.
+                    <strong>Your music stays where it already is.</strong> The audio on your device is read where it
+                    already sits and played on the device. It is never uploaded to Supabase or anywhere else.
+                    Supabase holds your account and serves the catalogue an administrator has published for
+                    everyone; Cloudflare hosts the website itself. Your own music and your account stay separate,
+                    and deleting one never touches the other.
                 </p>
             </div>
 
@@ -1350,28 +1351,35 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         Local Audio Stays Local
                     </h4>
-                    <p>Files found by the device search, and files you import, are read from disk and streamed by the local server. Only the identifier, tag data and artwork needed to draw the library ever reach the page — the filesystem path never does, and the audio itself is never sent to Supabase.</p>
+                    <p>In the Android app you choose one folder with Android's own folder picker, and Spotifie reads the audio inside it. It asks for no storage permission beyond that folder, and never uploads, copies, moves or deletes a file. In a browser, the same is true of the folder you hand it. Only the identifier, tag data and artwork needed to draw the library ever reach the page — the filesystem path never does, and the audio itself is never sent to Supabase.</p>
                 </div>
                 <div class="info-card">
                     <h4>
                         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        Where the Search Looks
+                        The Published Catalogue
                     </h4>
-                    <p>The search covers the profile folders music normally lives in, the configured music root, and any extra locations the person running the server has configured. System, program and dependency folders are skipped. Folder names are logged on the server only and are never sent to the browser.</p>
+                    <p>Album and track descriptions come from Supabase, and published music is streamed over short-lived signed links — so playing a published song needs a connection. To open quickly and to work offline, Spotifie keeps a copy of the catalogue's descriptions and artwork on your device. No published audio is ever downloaded for offline use. Where Spotifie runs beside a helper on your own machine, that helper searches only the music locations it has been configured for, and logs folder names on that machine alone.</p>
                 </div>
                 <div class="info-card">
                     <h4>
                         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                         Account and Session
                     </h4>
-                    <p>Signing in is optional — guests can listen to the published catalogue and to this device's music. If you do sign in, Supabase handles authentication and your profile: your email, display name and the details that come with an account. The session is kept by the Supabase client in your browser's storage. Spotifie sets no cookies of its own and loads no analytics, advertising or tracking scripts.</p>
+                    <p>Signing in is optional — guests can listen to the published catalogue and to this device's music. If you do sign in, Supabase handles authentication, and the account holds your email address, the display name you choose, and the dates it was created and updated. Your password is handled by Supabase and kept only as a hash; Spotifie never sees it. The session is kept on your device. Spotifie sets no cookies of its own and loads no analytics, advertising or tracking scripts, uses no advertising identifier, and asks for no location, camera, microphone or contacts access.</p>
                 </div>
                 <div class="info-card">
                     <h4>
                         <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                         What Is Kept, and Clearing It
                     </h4>
-                    <p>Your theme, player preferences and collections live in this browser's local storage and IndexedDB. The music index, artwork cache and the position you reached in each track live in Spotifie's own working folder beside the server, never in Supabase. Both are rebuildable: clear the site data, or delete that folder, and Spotifie starts over.</p>
+                    <p>Your playlists, liked songs, listening history, the position you reached in each track, your theme and your player settings are kept on the device you used them on — not in your account, and never in Supabase. The music index and artwork cache live there too. All of it is rebuildable: clear the app's or the site's data and Spotifie starts over.</p>
+                </div>
+                <div class="info-card">
+                    <h4>
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+                        Deleting Your Account
+                    </h4>
+                    <p>You can delete your Spotifie account whenever you like: from inside the app, under your profile, or from the <a href="delete-account.html">account deletion page</a> — which works whether or not you still have Spotifie installed. Deleting an account removes the account itself, the profile held for it, and any administrator rights it had. <strong>It does not delete the music on your device.</strong> Your files and the folder you chose stay exactly as they are, and anything kept on the device — playlists, liked songs, history — is removed by clearing the app's data, not by deleting the account.</p>
                 </div>
             </div>
         </section>

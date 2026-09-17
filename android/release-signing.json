@@ -1,0 +1,4 @@
+{
+    "about": "The SHA-256 fingerprint of Spotifie's Android release signing certificate. Public information (it is printed by apksigner and visible in every signed APK); never a password or a key. The website offers an APK only when it is signed by this certificate. Set it once, after creating the release keystore - see SPOTIFIE_OPERATIONS.private.md.",
+    "certificateSha256": "d0855d23abad6d890cc208c1075cea2bc3d7b057000f4e074a864a9913ea049a"
+}

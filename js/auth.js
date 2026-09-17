@@ -40,6 +40,26 @@
     const CONFIG_UNAVAILABLE = 'Authentication is unavailable: the app configuration could not be loaded. ' + START_HINT;
 
     /**
+     * Step-by-step admin diagnostics, off unless this browser asks for them.
+     *
+     * Turned on by hand, from the console: localStorage.setItem('spotifie_debug', '1').
+     * The lines name an account id and which check answered - never a token,
+     * a cookie or a key - but a production console has no reason to print
+     * them on every load. Warnings and errors are not affected.
+     */
+    function debugEnabled() {
+        try {
+            return Boolean(global.localStorage && global.localStorage.getItem('spotifie_debug') === '1');
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function debugInfo(message) {
+        if (debugEnabled()) console.info(message);
+    }
+
+    /**
      * Where Spotifie is, said one way.
      *
      * The application has one address - the root - and every page that sends
@@ -78,8 +98,64 @@
         }
     }
 
+    /**
+     * An address inside the copy that is running, for navigating within it.
+     *
+     * In a browser that is the published site. Inside a native shell (the
+     * Android app, the desktop app) the application is served by the shell
+     * itself, and the published address is somewhere else entirely - going
+     * there hands the person to the system browser and leaves the app behind.
+     * So inside a shell, moving around the application stays on the origin
+     * the page is already on.
+     */
+    function appUrlFor(path) {
+        if (inNativeShell() && global.location && global.location.origin) {
+            try {
+                return new URL(path, global.location.origin + '/').toString();
+            } catch (e) {
+                return path;
+            }
+        }
+        return siteUrlFor(path);
+    }
+
+    /**
+     * Where a link in an email should bring somebody back to.
+     *
+     * The published site, as always - except in the phone apps, each of which
+     * has its own callback address so a confirmation or reset link reopens the
+     * app rather than the website. That address must be listed in Supabase's
+     * Redirect URLs; until it is, Supabase sends the link to the site instead,
+     * which still works.
+     *
+     * The sign-up and password pages load no shell adapter, and they are
+     * exactly the pages that ask for these links, so the app's own address is
+     * also known from Capacitor's bridge alone.
+     */
+    function authRedirectFor(path) {
+        const shell = nativeShellAdapter();
+        if (shell && typeof shell.authCallbackUrl === 'function') return shell.authCallbackUrl(path);
+        const callback = APP_CALLBACKS[capacitorPlatform()];
+        if (callback) return callback + '?next=' + encodeURIComponent(CALLBACK_PAGES.indexOf(path) !== -1 ? path : '/');
+        return siteUrlFor(path);
+    }
+
+    /**
+     * Each app's callback address: its own URL scheme, which is its
+     * application id. The adapters (js/androidNative.js, js/iosNative.js) carry
+     * the same addresses, and follow a link to one of them when the system
+     * hands it to the app. Each must also be listed in Supabase's Redirect URLs;
+     * until it is, Supabase sends the link to the site instead.
+     */
+    const APP_CALLBACKS = {
+        android: 'app.spotifie.android://auth/callback',
+        ios: 'app.spotifie.ios://auth/callback'
+    };
+    const CALLBACK_PAGES = ['/', '/signin.html', '/reset-password.html'];
+
     /** The application itself. Never index.html: one page, one address. */
     function homeUrl() {
+        if (inNativeShell()) return appUrlFor('/');
         return siteUrlFor('/');
     }
 
@@ -459,8 +535,8 @@
         // "[admin-enter] click" the instant the item is pressed; this logs the
         // instant the function it calls actually runs. Seeing the first without
         // the second would mean the handler fired but enterAdmin did not.
-        console.info('[admin-enter] function');
-        console.info('[admin-enter] target: /admin-dashboard');
+        debugInfo('[admin-enter] function');
+        debugInfo('[admin-enter] target: /admin-dashboard');
 
         const deployment = global.spotifieDeployment;
         const published = Boolean(deployment && deployment.isPublished());
@@ -472,10 +548,23 @@
             return true;
         }
 
+        // A native shell carries no dashboard and has no worker of its own. It
+        // opens the published site - inside the app, never the system browser
+        // - asking it to enter the dashboard, and the worker there verifies
+        // the administrator exactly as it does for anybody else.
+        if (inNativeShell()) {
+            const shell = nativeShellAdapter();
+            if (shell && typeof shell.openAdmin === 'function') {
+                return shell.openAdmin(siteUrlFor('/?admin=enter'));
+            }
+            console.warn('Could not open the admin dashboard: this app cannot show it.');
+            return false;
+        }
+
         // The session's own access token is what the worker verifies. No token,
         // no session - there is nothing to ask entry with.
         const token = await getAccessToken();
-        console.info('[admin-enter] session: ' + (token ? 'yes' : 'no'));
+        debugInfo('[admin-enter] session: ' + (token ? 'yes' : 'no'));
         if (!token) {
             console.warn('Could not open the admin dashboard: no active session.');
             return false;
@@ -486,14 +575,14 @@
             // worker sets its entry cookie on this origin - the one the
             // navigation that follows sends it back to. credentials keeps that
             // Set-Cookie.
-            console.info('[admin-enter] POST starting');
+            debugInfo('[admin-enter] POST starting');
             const response = await fetch('/api/admin/enter', {
                 method: 'POST',
                 headers: { Authorization: 'Bearer ' + token },
                 credentials: 'same-origin'
             });
-            console.info('[admin-enter] POST status: ' + response.status);
-            console.info('[admin-enter] POST ok: ' + response.ok);
+            debugInfo('[admin-enter] POST status: ' + response.status);
+            debugInfo('[admin-enter] POST ok: ' + response.ok);
 
             if (!response.ok) {
                 // Signed in but not granted entry. Stay put; the item only
@@ -503,7 +592,7 @@
             }
 
             // Only after the response - and its Set-Cookie - is in hand.
-            console.info('[admin-enter] navigating: /admin-dashboard');
+            debugInfo('[admin-enter] navigating: /admin-dashboard');
             window.location.assign('/admin-dashboard');
             return true;
         } catch (e) {
@@ -592,7 +681,7 @@
         const settings = options || {};
         const session = await getSession();
         if (!session || !session.user) {
-            if (!settings.retried) console.info('[admin] session: no');
+            if (!settings.retried) debugInfo('[admin] session: no');
             adminAnswer = { userId: null, verified: null };
             return false;
         }
@@ -605,8 +694,8 @@
         if (!settings.retried) {
             // The account id, never the token: an id says who the answer is
             // about and grants nothing; a token would be a way in.
-            console.info('[admin] session: yes');
-            console.info('[admin] uid: ' + userId);
+            debugInfo('[admin] session: yes');
+            debugInfo('[admin] uid: ' + userId);
         }
 
         const client = await tryGetClient();
@@ -620,14 +709,14 @@
         // administrator" for the rest of the visit.
         if (verified === null) {
             if (settings.retried) {
-                console.info('[admin] verifiedAdmin: false (could not reach the database)');
+                debugInfo('[admin] verifiedAdmin: false (could not reach the database)');
                 return false;
             }
             await new Promise((resolve) => setTimeout(resolve, 400));
             return isAdmin({ refresh: true, retried: true });
         }
 
-        console.info('[admin] verifiedAdmin: ' + verified);
+        debugInfo('[admin] verifiedAdmin: ' + verified);
         adminAnswer = { userId: userId, verified: verified };
         return verified;
     }
@@ -696,11 +785,11 @@
             // function being absent is the expected first line on a project
             // whose database has not had the current schema applied yet - the
             // next line shows the fallback answering.
-            console.info('[admin] rpc error: ' + how + ': ' + problem);
+            debugInfo('[admin] rpc error: ' + how + ': ' + problem);
             return;
         }
 
-        console.info('[admin] rpc data: ' + verified + ' (' + how + ')');
+        debugInfo('[admin] rpc data: ' + verified + ' (' + how + ')');
     }
 
     // ============================================
@@ -724,7 +813,7 @@
                 password: password,
                 options: {
                     data: { username: username },
-                    emailRedirectTo: siteUrlFor('/signin.html')
+                    emailRedirectTo: authRedirectFor('/signin.html')
                 }
             });
 
@@ -797,7 +886,7 @@
             if (!client) return configFailure();
 
             const { error } = await client.auth.resetPasswordForEmail(email, {
-                redirectTo: siteUrlFor('/reset-password.html')
+                redirectTo: authRedirectFor('/reset-password.html')
             });
             if (error) {
                 return { success: false, error: error.message };
@@ -955,7 +1044,7 @@
                     // it looks like by then is what gets the item - and an
                     // answer about somebody who has since signed out, or been
                     // replaced, changes nothing.
-                    console.info('[admin] menu rerender');
+                    debugInfo('[admin] menu rerender');
                     applyAdminUI();
                 })
                 .catch((error) => {
@@ -1062,7 +1151,7 @@
             const dropdown = document.getElementById('userDropdown');
             if (dropdown && dropdown.classList) dropdown.classList.remove('active');
 
-            console.info('[admin-enter] click');
+            debugInfo('[admin-enter] click');
             enterAdmin();
         });
     }
@@ -1081,6 +1170,44 @@
      * question again when it opens, and every privileged action is refused by
      * the policies on the tables regardless of what any menu shows.
      */
+    /**
+     * Running inside a native shell - the desktop or the Android app? Neither
+     * has the worker that grants entry to the protected dashboard, and neither
+     * carries the dashboard.
+     *
+     * Asked of each shell's own adapter where the page loaded one, and of the
+     * shell's bridge itself otherwise. The sign-in, sign-up and password pages
+     * load no adapter, and the answer there decides where a successful sign-in
+     * goes: asking only the adapters sent the Android app's sign-in to the
+     * published site, which Android opens in Chrome.
+     */
+    function inNativeShell() {
+        return Boolean(nativeShellAdapter() || capacitorPlatform() || global.__TAURI_INTERNALS__);
+    }
+
+    /** The adapter of the shell this page is running in, where the page loaded one. */
+    function nativeShellAdapter() {
+        if (global.spotifieIOS && global.spotifieIOS.isIOS()) return global.spotifieIOS;
+        if (global.spotifieAndroid && global.spotifieAndroid.isAndroid()) return global.spotifieAndroid;
+        if (global.spotifieDesktop && global.spotifieDesktop.isDesktop()) return global.spotifieDesktop;
+        return null;
+    }
+
+    /**
+     * 'android' or 'ios' inside one of the phone apps, from Capacitor's bridge -
+     * which each app puts into every one of its pages - or null anywhere else.
+     */
+    function capacitorPlatform() {
+        const bridge = global.Capacitor;
+        try {
+            if (!bridge || typeof bridge.isNativePlatform !== 'function' || !bridge.isNativePlatform()) return null;
+            const platform = typeof bridge.getPlatform === 'function' ? bridge.getPlatform() : null;
+            return platform === 'android' || platform === 'ios' ? platform : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     function applyAdminUI() {
         if (typeof document === 'undefined') return;
 
@@ -1093,12 +1220,57 @@
         const verified = Boolean(user && adminAnswer.userId === user.id && adminAnswer.verified === true);
 
         // Made only for an account that has proven itself; anyone else who has
-        // an item has it hidden, and nobody else has one made.
+        // an item has it hidden, and nobody else has one made. The same rule
+        // everywhere: a native shell does not carry the dashboard, but it
+        // opens the protected one (see enterAdmin), so the item is offered
+        // there too.
         const item = verified ? ensureDashboardItem() : findDashboardItem();
         if (!item) return;
 
         setDisplay(item, verified ? 'flex' : 'none');
         markAdminRouteActive(item);
+
+        if (verified) maybeEnterAdminFromLink();
+    }
+
+    /**
+     * Open the dashboard when the page was opened for that purpose.
+     *
+     * A native shell opens the published site with ?admin=enter so that an
+     * administrator lands in the dashboard rather than on the library. Only
+     * ever acted on once, only for an account the database has just confirmed
+     * is an administrator, and through the same entry the menu item uses - the
+     * worker still verifies the session itself before serving anything.
+     */
+    let adminLinkHandled = false;
+
+    function maybeEnterAdminFromLink() {
+        if (adminLinkHandled || inNativeShell()) return;
+        adminLinkHandled = true;
+
+        let params;
+        try {
+            params = new URLSearchParams(global.location && global.location.search ? global.location.search : '');
+        } catch (e) {
+            return;
+        }
+        if (params.get('admin') !== 'enter') return;
+
+        // The request is spent: it is taken out of the address so a reload
+        // does not ask again.
+        params.delete('admin');
+        try {
+            const rest = params.toString();
+            global.history.replaceState(
+                global.history.state,
+                '',
+                global.location.pathname + (rest ? '?' + rest : '') + (global.location.hash || '')
+            );
+        } catch (e) {
+            /* the address stays as it was; nothing else depends on it */
+        }
+
+        enterAdmin();
     }
 
     /**
@@ -1182,7 +1354,7 @@
         const session = await getSession();
 
         if (!session) {
-            global.location.replace(settings.redirectTo || siteUrlFor('/signin.html'));
+            global.location.replace(settings.redirectTo || appUrlFor('/signin.html'));
             return null;
         }
 

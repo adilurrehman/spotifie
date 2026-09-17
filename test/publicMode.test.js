@@ -776,8 +776,11 @@ test('the application has one address, and it is the root', () => {
     // build happened on.
     assert.match(auth, /function siteOrigin\(\)/);
     assert.match(auth, /deployment\.siteUrl\(\)/);
-    assert.match(auth, /emailRedirectTo: siteUrlFor\('\/signin\.html'\)/);
-    assert.match(auth, /redirectTo: siteUrlFor\('\/reset-password\.html'\)/);
+    // Email links come back to the site - or, in the Android app, to the
+    // app's own callback - through one function that falls back to the site.
+    assert.match(auth, /emailRedirectTo: authRedirectFor\('\/signin\.html'\)/);
+    assert.match(auth, /redirectTo: authRedirectFor\('\/reset-password\.html'\)/);
+    assert.match(auth, /function authRedirectFor\(path\) \{[\s\S]{0,400}return siteUrlFor\(path\);/);
 });
 
 test('signing in and out lands on the application, not on a second copy of it', () => {
@@ -1170,8 +1173,8 @@ test('the dashboard is held by the worker, not published as a file', () => {
     // nothing and strips the link.
     assert.match(build, /const ADMIN_FILES = \['admin-dashboard\.html', 'js\/admin\.js'\];/);
     assert.match(build, /const dashboard = ADMIN_FILES\.every\(\(file\) => fs\.existsSync/);
-    assert.match(build, /function writeAdminDocument\(present\)/);
-    assert.match(build, /writeAdminDocument\(dashboard\)/);
+    assert.match(build, /function writeAdminDocument\(present, mode, target\)/);
+    assert.match(build, /writeAdminDocument\(dashboard, mode, adminModulePath\)/);
 
     // What decides anything is still absent, so a released server has no
     // privileged route at all.
@@ -1370,7 +1373,10 @@ function loadAuth(options) {
         Date: Date,
         URL: URL,
         localStorage: {
-            store: new Map(),
+            // The admin diagnostics print only when a browser has asked for
+            // them. These tests read those lines, so this browser has - unless
+            // a test is checking that a browser which has not stays quiet.
+            store: new Map(settings.debug === false ? [] : [['spotifie_debug', '1']]),
             getItem(key) {
                 return this.store.has(key) ? this.store.get(key) : null;
             },
@@ -1387,6 +1393,8 @@ function loadAuth(options) {
     };
 
     sandbox.sessionStorage = sandbox.localStorage;
+    // The desktop shell, as js/desktopNative.js reports it.
+    if (settings.desktop) sandbox.spotifieDesktop = { isDesktop: () => true };
     sandbox.window = sandbox;
     sandbox.globalThis = sandbox;
     sandbox.location = {
@@ -1404,6 +1412,58 @@ function loadAuth(options) {
 
 const ADMIN_SESSION = { user: { id: 'admin-0001', email: 'someone@example.test', user_metadata: { username: 'Someone' } } };
 const LISTENER_SESSION = { user: { id: 'listener-0002', email: 'other@example.test', user_metadata: { username: 'Other' } } };
+
+test('inside a native shell a verified administrator still gets the dashboard item', async () => {
+    // The shell carries no dashboard, but it opens the protected one on the
+    // published site; whether the item shows is the database's answer alone.
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client, desktop: true });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex', 'the item is there in the shell');
+    assert.strictEqual(await loaded.auth.isAdmin(), true);
+
+    // And a listener - no administrator - gets no item there either.
+    const listenerPage = fakeHeaderPage();
+    const listener = loadAuth({
+        document: listenerPage,
+        client: fakeSessionDatabase({
+            session: LISTENER_SESSION,
+            rpc: (name, args) => (name === 'is_admin' && !args ? { data: false, error: null } : null)
+        }),
+        desktop: true
+    });
+    await listener.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.notStrictEqual(listenerPage.elements.get('dashboardLink').style.display, 'flex', 'no item for a listener');
+});
+
+test('a browser that has not asked for diagnostics prints none of them', async () => {
+    // The production console stays quiet: the admin decision still happens
+    // and the item still appears, but the step-by-step lines are opt-in.
+    const page = fakeHeaderPage();
+    const client = fakeSessionDatabase({
+        session: ADMIN_SESSION,
+        rpc: (name, args) => (name === 'is_admin' && !args ? { data: true, error: null } : null)
+    });
+
+    const loaded = loadAuth({ document: page, client: client, debug: false });
+    await loaded.auth.ready();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    assert.strictEqual(page.elements.get('dashboardLink').style.display, 'flex', 'the admin item still appears');
+    assert.deepStrictEqual(
+        loaded.logs.filter((line) => /^\[admin/.test(line)),
+        [],
+        'but nothing is printed about how it was decided'
+    );
+});
 
 test('an administrator gets the item, and it does not wait for a refresh', async () => {
     const page = fakeHeaderPage();
@@ -1650,7 +1710,10 @@ test('the item is put into the visible menu, not just shown or hidden', () => {
     // carried, so nothing appeared. Now the item is ensured inside the real
     // dropdown for a verified administrator, created there if it is missing.
     const apply = auth.slice(auth.indexOf('function applyAdminUI()'), auth.indexOf('function initAuthUI()'));
+    // Offered to a verified administrator, on every platform: whether the
+    // item shows is the database's answer, never which shell is running.
     assert.match(apply, /const item = verified \? ensureDashboardItem\(\) : findDashboardItem\(\);/);
+    assert.ok(!/inNativeShell\(\)/.test(apply.slice(0, apply.indexOf('maybeEnterAdminFromLink'))), 'no platform hides it');
 
     const ensure = auth.slice(auth.indexOf('function ensureDashboardItem()'), auth.indexOf('function wireAdminEntry'));
     assert.match(ensure, /document\.getElementById\('userDropdown'\)/, 'into the visible dropdown');

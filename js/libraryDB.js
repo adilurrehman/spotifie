@@ -35,7 +35,6 @@ const LibraryDB = (function() {
 
             request.onsuccess = () => {
                 db = request.result;
-                console.log('LibraryDB initialized successfully');
                 resolve(db);
             };
 
@@ -66,9 +65,6 @@ const LibraryDB = (function() {
                 if (!database.objectStoreNames.contains(STORES.USER_PLAYLISTS)) {
                     database.createObjectStore(STORES.USER_PLAYLISTS, { keyPath: 'id' });
                 }
-
-
-                console.log('LibraryDB schema created');
             };
         });
     }
@@ -403,10 +399,8 @@ const LibraryDB = (function() {
             localStorage.removeItem('spotify_pinned_albums');
             localStorage.removeItem('spotify_deleted_albums');
             localStorage.removeItem('spotify_edited_albums');
-            console.log('LocalStorage cleared');
         }
         
-        console.log('LibraryDB cleared');
     }
 
     /**
@@ -648,7 +642,6 @@ const LibraryDB = (function() {
             }
         }
 
-        console.log('LibraryDB imported:', imported);
         return imported;
     }
 

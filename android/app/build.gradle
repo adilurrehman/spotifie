@@ -1,0 +1,142 @@
+import groovy.json.JsonSlurper
+
+apply plugin: 'com.android.application'
+
+// ============================================
+// Version: package.json is the one authority
+// ============================================
+//
+// versionName is package.json's version exactly as written (1.0.0).
+// versionCode is derived from it, never edited by hand, and rises with every
+// release in version order:
+//
+//     major * 1000000 + minor * 10000 + patch * 100 + (rc N ? N : 99)
+//
+//     1.0.0-rc.1 -> 1000001    1.0.0-rc.2 -> 1000002    1.0.0 -> 1000099
+//     1.0.1-rc.1 -> 1000101    1.1.0      -> 1010099
+//
+// tools/releaseVersion.js computes the same numbers, and the release tool
+// checks the finished APK carries them.
+def spotifieVersion = new JsonSlurper().parse(file('../../package.json')).version as String
+def spotifieVersionCode = { String version ->
+    def match = version =~ /^(\d+)\.(\d+)\.(\d+)(?:-rc\.(\d+))?$/
+    if (!match.matches()) {
+        throw new GradleException("package.json version '${version}' must be x.y.z or x.y.z-rc.N.")
+    }
+    int major = match.group(1) as int
+    int minor = match.group(2) as int
+    int patch = match.group(3) as int
+    int step = match.group(4) != null ? (match.group(4) as int) : 99
+    if (minor > 99 || patch > 99 || step < 1 || (match.group(4) != null && step > 98)) {
+        throw new GradleException("package.json version '${version}' is outside what versionCode can count (minor and patch up to 99, rc.1 to rc.98).")
+    }
+    return major * 1000000 + minor * 10000 + patch * 100 + step
+}.call(spotifieVersion)
+
+// ============================================
+// Release signing: from the environment only
+// ============================================
+//
+// No path, alias or password is ever written in this file or anywhere in the
+// repository. A release build reads them from the environment of the person
+// building it (see SPOTIFIE_OPERATIONS.private.md), and refuses to run without
+// them. It is never signed with the debug key instead.
+def releaseSigning = [
+    storeFile    : System.getenv('SPOTIFIE_ANDROID_KEYSTORE'),
+    storePassword: System.getenv('SPOTIFIE_ANDROID_KEYSTORE_PASSWORD'),
+    keyAlias     : System.getenv('SPOTIFIE_ANDROID_KEY_ALIAS'),
+    keyPassword  : System.getenv('SPOTIFIE_ANDROID_KEY_PASSWORD')
+]
+def releaseSigningReady = releaseSigning.values().every { it != null && !it.trim().isEmpty() }
+
+android {
+    namespace = "app.spotifie.android"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "app.spotifie.android"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode spotifieVersionCode
+        versionName spotifieVersion
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (releaseSigningReady) {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (releaseSigningReady) signingConfig signingConfigs.release
+        }
+    }
+}
+
+// A release is signed with the release key or not built at all: never left
+// unsigned for someone to sign by hand, never signed with the debug key.
+gradle.taskGraph.whenReady { graph ->
+    def releasing = graph.allTasks.any { task ->
+        task.project == project && task.name ==~ /(assemble|bundle|package|sign)Release.*/
+    }
+    if (!releasing) return
+
+    if (!releaseSigningReady) {
+        throw new GradleException(
+            'Release signing is not configured. Set SPOTIFIE_ANDROID_KEYSTORE, SPOTIFIE_ANDROID_KEY_ALIAS, ' +
+            'SPOTIFIE_ANDROID_KEYSTORE_PASSWORD and SPOTIFIE_ANDROID_KEY_PASSWORD in the environment ' +
+            '(see SPOTIFIE_OPERATIONS.private.md). A release is never signed with the debug key.'
+        )
+    }
+    def store = file(releaseSigning.storeFile)
+    if (!store.isFile()) {
+        throw new GradleException('SPOTIFIE_ANDROID_KEYSTORE does not name a keystore file.')
+    }
+    if (store.name.equalsIgnoreCase('debug.keystore') || releaseSigning.keyAlias == 'androiddebugkey') {
+        throw new GradleException('That is the Android debug key. A release is never signed with it.')
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    // Background playback: ExoPlayer plays the audio, MediaSession puts it on
+    // the lock screen, in the shade and on Bluetooth and headset controls.
+    implementation "androidx.media3:media3-exoplayer:$media3Version"
+    implementation "androidx.media3:media3-session:$media3Version"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

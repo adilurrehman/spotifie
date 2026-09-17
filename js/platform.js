@@ -471,6 +471,77 @@
         return capabilities.onChange(listener);
     };
 
+    /**
+     * What this installation can do with the music on this device, one
+     * feature at a time.
+     *
+     * Worked out from the adapters that are actually present, never from a
+     * user-agent string:
+     *
+     * - the desktop shell's native commands (DesktopNativeAdapter), when the
+     *   shell offers them;
+     * - the local helper on this machine (LocalHelperAdapter), when it has
+     *   answered;
+     * - the browser's own folder picker (the browser folder adapter), when
+     *   this browser has one.
+     *
+     * Each answer is a plain yes or no, safe to show or log. The interface
+     * asks these questions rather than asking which browser or which build it
+     * is running in.
+     */
+    Platform.prototype.localMusicFeatures = function () {
+        var shell = global.spotifieDesktop;
+        var native = shell && shell.isDesktop() ? shell.adapter.capabilities() : {};
+
+        // The two phone apps answer the same questions the same way; at most
+        // one of them is ever present.
+        var droid = global.spotifieAndroid;
+        var apple = global.spotifieIOS;
+        var inAndroid = Boolean(droid && droid.isAndroid());
+        var inIOS = Boolean(apple && apple.isIOS());
+        var android = inAndroid ? droid.adapter.capabilities() : inIOS ? apple.adapter.capabilities() : {};
+
+        var folders = global.spotifieBrowserLibrary;
+        var picker = Boolean(folders && typeof folders.supported === 'function' && folders.supported());
+        var helper = this.local.available === true;
+
+        var adapter = 'none';
+        if (native.canUseNativeFilesystem) adapter = 'desktop-native';
+        else if (android.canScanManagedFolders) adapter = inIOS ? 'ios-native' : 'android-native';
+        else if (helper) adapter = 'local-helper';
+        else if (picker) adapter = 'browser-folders';
+
+        // The web Media Session reaches the system's controls in a browser. In
+        // the Android shell it does not - the WebView keeps it to itself - so
+        // there it takes the shell's own media service to say yes.
+        var webMediaSession = Boolean(global.navigator && global.navigator.mediaSession);
+
+        var readable = Boolean(native.canOpenLocalTrack || android.canReadLocalAudio || helper || picker);
+
+        return {
+            adapter: adapter,
+            canChooseDirectory: Boolean(native.canChooseDirectory || android.canChooseDirectory || picker),
+            // Several songs at once from the system's file picker - where a
+            // folder cannot be chosen or its provider will not list it.
+            canChooseFiles: Boolean(android.canChooseFiles),
+            canScanManagedFolders: Boolean(native.canScanManagedFolders || android.canScanManagedFolders || helper || picker),
+            // A browser remembers the folder but may ask for permission again;
+            // a native shell (a persisted grant) or the helper keeps access.
+            canPersistFolderAccess: Boolean(native.canPersistFolderAccess || android.canPersistFolderAccess || helper),
+            canOpenLocalTrack: readable,
+            canReadLocalAudio: readable,
+            // Only a native media service is counted: ordinary playback that
+            // happens to continue for a while is not a guarantee.
+            canUseBackgroundAudio: Boolean(android.canUseBackgroundAudio),
+            // In the iOS app the web Media Session is not counted either until
+            // the system's controls have been seen answering on an iPhone.
+            canUseMediaControls: Boolean(android.canUseMediaControls || (!inAndroid && !inIOS && webMediaSession)),
+            canRevealFile: Boolean(native.canRevealFile || android.canRevealFile),
+            canShareFile: Boolean(android.canShareFile),
+            canUseNativeFilesystem: Boolean(native.canUseNativeFilesystem || android.canUseNativeFilesystem)
+        };
+    };
+
     Platform.prototype.setCloudCatalogue = function (state) {
         capabilities.set({ cloudCatalogue: state });
     };

@@ -598,6 +598,29 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Every page loads js/config.js before anything else. A published build
+    // writes that file beside the application; a checkout has none, and a 404
+    // there is a body the browser refuses to execute - an error on every page
+    // load. So when the file is not on disk, the server answers with a script
+    // that sets nothing, which is how a page knows it is a local run and asks
+    // /api/config instead. A release that has the file keeps serving it.
+    if (pathname === '/js/config.js' && !fs.existsSync(path.join(ROOT_DIR, 'js', 'config.js'))) {
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+            sendJson(res, 405, { error: 'Method not allowed' });
+            return;
+        }
+
+        const script = '// Local runtime: this page reads its settings from /api/config.\n';
+        res.writeHead(200, {
+            'Content-Type': 'text/javascript; charset=utf-8',
+            'Content-Length': Buffer.byteLength(script),
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff'
+        });
+        res.end(req.method === 'HEAD' ? undefined : script);
+        return;
+    }
+
     // Unified catalogue API (local library + global admin catalogue)
     if (pathname === '/api/catalog' || pathname.startsWith('/api/catalog/')) {
         const handled = await catalogRoutes.handle(req, res, pathname, parsedUrl.query || {});

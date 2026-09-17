@@ -431,11 +431,54 @@ test('a cover address that is not an address for a picture is refused', () => {
 // The public release
 // ============================================
 
+// Left to its defaults, the build writes over the working tree's own
+// public-release/dist and rewrites worker/generated/adminDocument.mjs - the
+// dashboard document a production deploy ships. A test has no business with
+// either, so the release is built into a throwaway directory. That is set
+// before the builder is loaded, because it reads the location once, and a
+// build aimed elsewhere leaves the worker's document alone.
+const os = require('os');
+const crypto = require('crypto');
+
+process.env.SPOTIFIE_RELEASE_OUT = fs.mkdtempSync(path.join(os.tmpdir(), 'spotifie-security-release-'));
+
+/** The deployable artifacts in the working tree that no test may touch. */
+const DEPLOYABLE = [path.join(ROOT, 'worker', 'generated', 'adminDocument.mjs'), path.join(ROOT, 'public-release', 'dist')];
+
+/** Exact bytes, as a hash: of a file, or of every path and file in a directory. */
+function fingerprint(target) {
+    if (!fs.existsSync(target)) return 'absent';
+    const hash = crypto.createHash('sha256');
+    if (fs.statSync(target).isFile()) return hash.update(fs.readFileSync(target)).digest('hex');
+    const visit = (directory) => {
+        fs.readdirSync(directory, { withFileTypes: true })
+            .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+            .forEach((entry) => {
+                const full = path.join(directory, entry.name);
+                if (entry.isDirectory()) visit(full);
+                else hash.update(path.relative(target, full) + '\0').update(fs.readFileSync(full));
+            });
+    };
+    visit(target);
+    return hash.digest('hex');
+}
+
+const deployableBefore = DEPLOYABLE.map(fingerprint);
+
 const { build, OUT } = require('../tools/buildPublic.js');
 
 // Built once. Rebuilding while a released server is running would try to
 // delete the directory out from under it.
 build();
+
+test('building the release for these tests leaves the deployable working tree alone', () => {
+    assert.notStrictEqual(path.resolve(OUT), path.join(ROOT, 'public-release', 'dist'), 'built into a throwaway directory');
+    assert.deepStrictEqual(
+        DEPLOYABLE.map(fingerprint),
+        deployableBefore,
+        'worker/generated/adminDocument.mjs and public-release/dist are byte-for-byte unchanged'
+    );
+});
 
 function releaseFiles() {
     const files = [];
@@ -574,19 +617,30 @@ function releaseServer() {
 // The run does not end while a child is still listening, so it is stopped
 // once, after the last test that used it.
 after(async () => {
-    if (!releaseServerPromise) return;
-    const started = await releaseServerPromise;
-    started.child.kill();
+    if (releaseServerPromise) {
+        const started = await releaseServerPromise;
+        // Waited for, not just signalled: Windows will not remove a directory
+        // a running process is still using as its working directory.
+        await new Promise((resolve) => {
+            if (started.child.exitCode !== null || started.child.signalCode !== null) return resolve();
+            const timer = setTimeout(resolve, 5000);
+            started.child.once('exit', () => {
+                clearTimeout(timer);
+                resolve();
+            });
+            started.child.kill();
+        });
+    }
 
-    // And the working data it wrote goes with it.
-    //
-    // A Spotifie keeps its index and its device state beside itself, so a
-    // release started from its own directory - which is what starting it here
-    // does - leaves a .spotifie there. That belongs to this test rather than
-    // to the release, and a release with one in it is a release that would
-    // publish somebody's library state. It is removed here so the directory is
-    // left exactly as the build wrote it.
-    fs.rmSync(path.join(OUT, '.spotifie'), { recursive: true, force: true });
+    // And the throwaway release goes with it, including the .spotifie a
+    // released server writes beside itself while it runs. It is in the
+    // system's temporary directory, so one the system will not let go of yet
+    // is left for it to clear rather than failing the run.
+    try {
+        fs.rmSync(OUT, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    } catch (e) {
+        console.warn('Could not remove the throwaway release at ' + OUT + ': ' + e.code);
+    }
 });
 
 function ask(port, pathname, method) {

@@ -2383,22 +2383,23 @@ button:focus-visible {
     }
 }
 
-/* Touch, or any coarse pointer including hybrids: always there, and large
-   enough to press without aiming.
- *
- * Asked of the pointer rather than of the window. A tablet held in two hands
- * is a wide screen with no mouse on it, and a rule written against a width
- * would have hidden this button behind a hover that device cannot perform -
- * leaving the card with no way to reach its own options at all. */
+/* Touch, or any coarse pointer: no button over the artwork at all. A circle on
+   every card clutters the grid and covers the cover. The same menu opens with a
+   long press on the card instead (see bindCardGrid), and a tap still opens the
+   album. Asked of the pointer, not the window width: a tablet is a wide screen
+   with no mouse. The menu's container stays, empty and zero-sized, so the
+   options still have somewhere to belong. */
 @media (hover: none), (pointer: coarse) {
     .card-menu-btn {
-        opacity: 1;
-        width: 44px;
-        height: 44px;
+        display: none;
     }
 
-    .card-menu-btn:active {
-        transform: scale(1.1);
+    /* A long press is Spotifie's, not the browser's: no image callout, and no
+       stray text selection under a finger. */
+    .cardcontainer {
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        user-select: none;
     }
 }
 
@@ -3724,7 +3725,13 @@ body {
     }
 
     .right {
-        width: 100vw;
+        /* The library is a drawer at these widths, so the main column takes
+           the row it is in rather than the whole window. A full window width
+           plus this column's own margin is wider than the screen, which is a
+           page that can be dragged sideways. */
+        width: auto;
+        flex: 1 1 auto;
+        min-width: 0;
     }
 
     /* The library is a drawer here, so it needs a way in and a way out. */
@@ -3955,6 +3962,268 @@ body {
         padding: 8px 22px;
     }
 
+}
+
+/* ==================== Installed application ====================
+   The Install action, the "Update available" notice and the offline word in
+   the header. Restrained on purpose: none of them interrupts anything. */
+.install-app-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 500px;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.install-app-btn:hover {
+    background: var(--surface-hover);
+}
+
+.install-app-btn[hidden],
+[data-display-mode='standalone'] .install-app-btn,
+[data-display-mode='desktop'] .install-app-btn {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    .install-app-btn {
+        padding: 6px;
+    }
+
+    /* The word stays for a screen reader; the icon carries it on screen. */
+    .install-app-btn .install-app-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+}
+
+/* Download Android App: the native app as an APK, a different thing from
+   installing the web app. Hidden unless js/pwa.js finds a build that carries
+   the app, and never shown inside the app itself. */
+.android-download {
+    position: relative;
+    display: inline-flex;
+}
+
+.android-download[hidden] {
+    display: none;
+}
+
+.android-download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 500px;
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.android-download-btn:hover,
+.android-download-btn[aria-expanded='true'] {
+    background: var(--surface-hover);
+}
+
+.android-download-panel {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 1000;
+    width: min(280px, calc(100vw - 32px));
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    box-shadow: 0 16px 24px rgba(0, 0, 0, 0.35);
+    white-space: normal;
+}
+
+.android-download-panel[hidden] {
+    display: none;
+}
+
+.android-download-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.android-download-version {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.android-download-checksum {
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.android-download-checksum[hidden] {
+    display: none;
+}
+
+.android-download-checksum summary {
+    cursor: pointer;
+}
+
+.android-download-checksum code {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+    word-break: break-all;
+    user-select: all;
+}
+
+.android-download-note {
+    margin: 10px 0 12px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.android-download-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    border-radius: 500px;
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.android-download-link:hover {
+    opacity: 0.9;
+}
+
+@media (max-width: 600px) {
+    .android-download-btn {
+        padding: 6px;
+    }
+
+    /* The words stay for a screen reader; the icon carries them on screen. */
+    .android-download-btn .android-download-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+}
+
+/* Easy to hit with a thumb, and kept at full size: the small-screen header
+   shrinks the first button in each group, which this one must not be. */
+@media (pointer: coarse) {
+    .btns .android-download .android-download-btn {
+        min-width: 40px;
+        min-height: 40px;
+        justify-content: center;
+        transform: none;
+    }
+
+    .android-download-link {
+        min-height: 48px;
+    }
+}
+
+.update-notice {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: var(--layer-toast);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: calc(100vw - 24px);
+    padding: 6px 6px 6px 16px;
+    border-radius: 500px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.update-notice-action {
+    border: 0;
+    border-radius: 500px;
+    padding: 6px 14px;
+    background: var(--accent-primary);
+    color: var(--text-on-accent);
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.update-notice-dismiss {
+    border: 0;
+    border-radius: 500px;
+    padding: 6px 10px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.update-notice-dismiss:hover {
+    color: var(--text-primary);
+}
+
+.connection-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 500px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.connection-status[hidden] {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .connection-status-detail {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .update-notice {
+        transition: none;
+        animation: none;
+    }
 }
 
 /* Toast Notification */
@@ -5733,9 +6002,14 @@ textarea::placeholder {
         height: auto;
         min-height: var(--player-height);
         bottom: calc(10px + var(--player-inset));
-        width: calc(100vw - 16px);
-        left: 50%;
-        transform: translateX(-50%);
+        /* Held to both edges rather than given a width of its own: a window
+           width minus a guess is one rounding error away from a page that
+           scrolls sideways, and this also keeps clear of a rounded corner or
+           a notch when the phone is on its side. */
+        left: max(8px, env(safe-area-inset-left, 0px));
+        right: max(8px, env(safe-area-inset-right, 0px));
+        width: auto;
+        transform: none;
         border-radius: 10px;
     }
 
@@ -5869,17 +6143,21 @@ textarea::placeholder {
         box-sizing: border-box;
     }
 
-    /* Now Playing takes the whole screen rather than sitting in a card. */
+    /* Now Playing takes the whole screen rather than sitting in a card. It
+       fills the view it is in rather than measuring the window itself: a
+       window width takes no notice of what the device keeps for itself down
+       the sides. */
     .now-playing-panel {
-        width: 100vw;
-        max-width: 100vw;
+        width: 100%;
+        max-width: 100%;
         height: 100dvh;
         max-height: 100dvh;
         border-radius: 0;
         border: none;
         justify-content: center;
         gap: 16px;
-        padding: 16px 18px calc(20px + var(--player-inset));
+        padding: calc(16px + env(safe-area-inset-top, 0px)) calc(18px + env(safe-area-inset-right, 0px))
+            calc(20px + var(--player-inset)) calc(18px + env(safe-area-inset-left, 0px));
     }
 
     .now-playing-artwork {
@@ -6006,7 +6284,9 @@ textarea::placeholder {
     }
 
     .playbar {
-        width: calc(100vw - 12px);
+        left: max(6px, env(safe-area-inset-left, 0px));
+        right: max(6px, env(safe-area-inset-right, 0px));
+        width: auto;
         padding: 6px 8px;
         column-gap: 6px;
     }
@@ -6067,9 +6347,23 @@ textarea::placeholder {
 }
 
 /* Nothing in the page scrolls sideways: a name that is too long is cut with
-   an ellipsis instead of pushing the layout wider. */
+   an ellipsis instead of pushing the layout wider.
+
+   The elements that could have been wider than the screen are held to it
+   where they are written - the main column takes its row rather than the
+   window, and the player is fixed to both edges. This is the guard behind
+   that: a stray long word, or a menu opened hard against the edge, cannot
+   turn the whole page into something that can be dragged sideways on a phone.
+
+   Both the document and the body, because the body alone only holds where a
+   browser passes its overflow up to the viewport. `clip` rather than `hidden`
+   so neither becomes a scroll container - which would break `position:
+   sticky` - with `hidden` left first for a WebView too old to know `clip`. */
+html,
 body {
+    max-width: 100%;
     overflow-x: hidden;
+    overflow-x: clip;
 }
 
 .cardcontainer,
@@ -6147,6 +6441,9 @@ body {
 
 .container {
     min-width: 0;
+    /* Edge to edge (viewport-fit=cover): the header stays below the status
+       bar, a notch or the Dynamic Island. Zero wherever there is none. */
+    padding-top: env(safe-area-inset-top, 0px);
 }
 
 .right {
@@ -6197,7 +6494,7 @@ body.sidebar-open .sidebar-backdrop {
         bottom: 0;
         left: -100%;
         width: min(86vw, 380px);
-        max-width: 100vw;
+        max-width: 100%;
         z-index: 1000;
         overflow: hidden;
         overscroll-behavior: contain;
@@ -6206,6 +6503,12 @@ body.sidebar-open .sidebar-backdrop {
 
     body.sidebar-open .left {
         left: 0;
+    }
+
+    /* The drawer's top stays clear of an iPhone's notch or Dynamic Island. */
+    .left {
+        padding-top: env(safe-area-inset-top, 0px);
+        box-sizing: border-box;
     }
 
     /* While the drawer is open the page behind it stays where it is. */
@@ -6224,9 +6527,10 @@ body.sidebar-open .sidebar-backdrop {
    Phones set their own width, further down. */
 @media screen and (max-width: 1400px) and (min-width: 769px) {
     .playbar {
-        left: 50%;
-        transform: translateX(-50%);
-        width: calc(100vw - 32px);
+        left: max(16px, env(safe-area-inset-left, 0px));
+        right: max(16px, env(safe-area-inset-right, 0px));
+        width: auto;
+        transform: none;
     }
 }
 
@@ -7221,4 +7525,75 @@ img[src$="img/music.svg"],
 .local-music-unavailable .local-music-card .play,
 .local-music-unavailable .local-music-card .card-menu {
     display: none;
+}
+
+/* ==================== Account actions ====================
+   Deleting an account, and the link to what Spotifie does with your data.
+   Kept at the bottom of the profile dialog and away from Log Out, so nothing
+   destructive sits where a stray tap lands. */
+.profile-account-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+
+.profile-account-links a {
+    color: var(--text-secondary);
+    font-size: 13px;
+    text-decoration: underline;
+}
+
+.profile-account-links a:hover,
+.profile-account-links a:focus-visible {
+    color: var(--text-primary);
+}
+
+/* A button, not a link: it does something rather than going somewhere. Marked
+   by its words as well as its colour. */
+.profile-delete-link {
+    background: none;
+    border: none;
+    padding: 4px 2px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ff6b6b;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.profile-delete-link:hover,
+.profile-delete-link:focus-visible {
+    color: #ff4d4d;
+}
+
+/* The typed confirmation, shared by the dialog in the app and the page on the
+   website. */
+.account-field {
+    display: block;
+    margin: 16px 0 6px;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.account-input {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-size: 16px;
+    letter-spacing: 0.08em;
+}
+
+.account-input:focus-visible {
+    outline: 2px solid var(--accent-color, #1db954);
+    outline-offset: 2px;
 }

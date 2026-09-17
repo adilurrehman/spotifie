@@ -731,8 +731,11 @@ test('the library is drawn from the copy before the catalogue is checked', () =>
     assert.match(PLAYER_SOURCE, /if \(drewFromCache\) scheduleCatalogRevalidation\(\);/);
 
     // The check happens after the library is on screen, not before it.
+    // Named exactly, because the catalogue is also checked again when the
+    // connection comes back - and that call sits earlier in the file, in the
+    // watcher, without saying anything about what start-up waits for.
     const drawn = PLAYER_SOURCE.indexOf('await getAlbums();');
-    const checked = PLAYER_SOURCE.indexOf('scheduleCatalogRevalidation();');
+    const checked = PLAYER_SOURCE.indexOf('if (drewFromCache) scheduleCatalogRevalidation();');
     assert.ok(drawn !== -1 && checked > drawn, 'nothing waits on the check');
 });
 

@@ -73,6 +73,19 @@ const SHELL_ASSETS = [
     '/js/personalClient.js',
     '/js/libraryClient.js',
     '/js/libraryDB.js',
+    // The settings every page reads first, the catalogue reader a published
+    // copy uses, and the installed-application and desktop-shell modules - so
+    // an installed copy opens with no network after one successful visit.
+    '/js/config.js',
+    '/js/cloudCatalog.js',
+    '/js/desktopNative.js',
+    '/js/pwa.js',
+    '/js/androidPlayback.js',
+    '/js/nativeLibrary.js',
+    '/js/androidNative.js',
+    '/js/iosNative.js',
+    '/js/longPress.js',
+    '/favicons/favicon-192x192.png',
     // The cover shown when there is no cover. It has to be there precisely
     // when other things are not.
     '/img/music.svg',
@@ -99,6 +112,9 @@ function isAlwaysLive(url) {
     // Anything personal, anything privileged, and anything that streams.
     if (url.pathname.startsWith('/api/')) return true;
     if (url.pathname.startsWith('/admin')) return true;
+    // The Android app download: a large file the browser saves, never
+    // something the application keeps.
+    if (url.pathname.startsWith('/downloads/')) return true;
     return false;
 }
 

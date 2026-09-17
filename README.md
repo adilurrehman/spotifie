@@ -1,603 +1,317 @@
 # Spotifie
 
-A full-featured hybrid music player: a catalogue published for everyone through Supabase, and the music already on your own device, in one library behind one player.
+**Hybrid Local & Global Music Player**
+
+Spotifie puts a published music catalogue and the music already on your own
+device into one library, one search and one player, on the web and on Android.
+
+> Spotifie is an independent project. It is not affiliated with, endorsed by or
+> connected to Spotify AB. "Spotify" is a trademark of Spotify AB.
 
 ---
 
-## Overview
+## 1. Current status
 
-Spotifie runs from a single Node server on the machine you start it on. That one process serves the interface, indexes the audio already present on the device, streams it, and reads the catalogue an administrator has published for everyone.
+**Version 1.0.1** (see [CHANGELOG.md](CHANGELOG.md)).
 
-Two sources of music sit side by side in one library:
-
-- **Global** — albums an administrator publishes. Metadata lives in Supabase tables, media in private Supabase Storage buckets. Anyone who opens Spotifie can browse and play it, signed in or not.
-- **Local** — the audio on this machine, discovered by a background search and served by the local server. It is indexed locally, played locally, and never uploaded anywhere.
-
-Both are namespaced (`global:<uuid>`, `local:<sha256>`) so they can never collide, and both reach the browser as identifiers and URLs — never as filesystem paths.
-
-## Key Features
-
-**Music sources**
-
-- Global catalogue published by an administrator, available to guests and signed-in listeners alike
-- Automatic discovery of the music already on the device, presented as one **Local Music** collection listed first in the library
-- Incremental rescanning: a full pass the first time, then only what changed, matched by path, size and modification time
-- Personal imports of audio from the device, kept private to the account that imported them
-- No user audio is ever uploaded to Supabase
-
-**Player**
-
-- One canonical player across the whole application: desktop, tablet and mobile play bars, plus an expanded Now Playing view
-- Play/pause, previous/next, seek with a keyboard-operable slider, volume
-- Shuffle, and repeat in three modes: off, all, one
-- Playback position remembered per track and restored on the next listen
-- Artwork resolved once, centrally, with a track → album → default fallback chain
-- System media controls where the browser provides them
-
-**Library**
-
-- Album detail pages with track lists, playing indication and a single play action
-- Search across every album and song in the merged library
-- Albums of your own, built from anything in the library
-- A Liked Songs collection
-- Playlists you make: create, rename, describe, re-cover, delete, and add, remove or reorder tracks
-- Recently Played and Recently Added, and artist browsing derived from the music itself
-- Personal overrides: rename, re-cover or re-describe a published album for yourself without touching the shared record
-- Hide global content for your own account only
-- Export and restore your collections and preferences
-
-**Interface**
-
-- Full light and dark themes built from semantic colour tokens
-- Layouts designed for phone, tablet and desktop rather than scaled from one of them
-- Keyboard navigation, visible focus, accessible names, live regions and reduced-motion support
-
-**Accounts**
-
-- Optional sign-in through Supabase, with profiles created by a database trigger
-- Guest listening for the global catalogue and this device's music
-- Administrator dashboard for publishing and removing global content
-
-## Architecture
-
-```
-                        ┌─────────────────────────────┐
-                        │        Browser (SPA)        │
-                        │  player · library · search  │
-                        └──────────────┬──────────────┘
-                                       │  one origin
-                        ┌──────────────┴──────────────┐
-                        │   Local Node server         │
-                        │   server.js + lib/          │
-                        └───┬──────────────────────┬──┘
-                            │                      │
-        ┌───────────────────┴──────┐    ┌──────────┴──────────────────┐
-        │  GLOBAL ADMIN MUSIC      │    │  USER / DEVICE MUSIC        │
-        │  Supabase catalogue      │    │  local filesystem + index   │
-        │  tables + private        │    │  (.spotifie/device, media)  │
-        │  Storage buckets         │    │  never uploaded             │
-        └──────────────────────────┘    └─────────────────────────────┘
-                            │
-                 ┌──────────┴───────────┐
-                 │  PERSONAL STATE      │
-                 │  local state files   │
-                 │  + browser storage   │
-                 └──────────────────────┘
-```
-
-- **Global admin music** → Supabase catalogue tables (`catalog_albums`, `catalog_tracks`) plus private Storage buckets (`catalog-audio`, `catalog-artwork`). Public to read, administrator-only to write, enforced by Row Level Security.
-- **User / device music** → the local filesystem and a local index only. Nothing about it is written to Supabase.
-- **Personal state** → local state files beside the server (`.spotifie/users/<uid>/state.json` for an account, `.spotifie/device/` for a guest), plus theme and player preferences in browser storage.
-
-The catalogue service merges the two sources into a single model before the browser sees either, so the player has one shape of track to deal with regardless of where the audio comes from. If one source is unavailable the other still works: an unreachable Supabase leaves the device library fully usable, and a broken local index does not hide the global catalogue.
-
-## Local vs Global Music Model
-
-| | Local | Global |
-| --- | --- | --- |
-| Identifier | `local:<sha256 of file contents>` | `global:<uuid>` |
-| Where the audio lives | the device's own filesystem | private Supabase Storage bucket |
-| Who can play it | anyone using this installation | anyone who opens Spotifie, guests included |
-| Who can add to it | the person using the machine | administrators only |
-| Uploaded to Supabase | never | yes, by an administrator |
-| Removing it | affects this device only; the file is not deleted | hidden per account, or deleted for everyone by an administrator |
-
-Every track, from either source, carries `id`, `source`, `title`, `artist`, `album`, `albumId`, `duration`, `artworkUrl`, `streamUrl` and `metadata`. No filesystem path and no Storage path ever reaches the browser.
-
-Content-hash identifiers mean a local file that is moved or renamed keeps the same id, so likes, personal albums and listening positions survive a reorganised music folder.
-
-## Technology Stack
-
-| Layer | What is used |
+| Platform | Status |
 | --- | --- |
-| Server | Node.js 18+, the built-in `http` module — no web framework |
-| Runtime dependency | `music-metadata` (tag and embedded-artwork reading) |
-| Frontend | Vanilla HTML, CSS and JavaScript — no build step, no bundler |
-| Styling | CSS custom properties with light and dark token sets |
-| Local storage | JSON index files under `.spotifie/`, plus browser `localStorage` and IndexedDB (collections, and a copy of the published catalogue) |
-| Cloud | Supabase — authentication, profiles, catalogue tables and Storage |
-| Tests | `node:test` |
+| Web / PWA | Supported |
+| Android | Supported, as a signed APK downloaded from the website. The site offers it only once that exact version has been signed |
+| Google Play | Preparation only. **Not published** |
+| iOS | Prepared. Building it needs a Mac with Xcode; never compiled or run |
+| Desktop | Tauri foundation. Runtime verification still pending |
 
-## Local Music Discovery
+## 2. Production addresses
 
-The device search looks in the folders music normally lives in, and nowhere else:
-
-- the profile's Music, Downloads, Desktop and Documents folders
-- the configured music root (`MUSIC_ROOT`, default `./music`)
-- any extra locations listed in `SPOTIFIE_MUSIC_LOCATIONS`
-- the account's own imported media
-
-System, program, dependency, cache and version-control folders are excluded outright, and the walk is depth- and count-limited.
-
-How it behaves:
-
-- Supported files: `.mp3`, `.flac`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.opus`
-- The first run is a full pass; afterwards a file whose path, size and modification time are unchanged is neither rehashed nor reparsed
-- The walk runs in the background with bounded concurrency and yields between batches, so the interface stays responsive
-- One scan job per device at a time; a second request joins the running one, so a refresh or a second tab watches it rather than starting another
-- Progress is reported as counts at `GET /api/library/scan`. Folder names are logged server-side only — set `SPOTIFIE_SCAN_DEBUG=1` to see them
-- Everything found appears as one system collection, `system:local-music` ("Local Music"), listed first in the library. It is never split into albums invented from file tags
-- The device index lives under `.spotifie/device/` and is shared by everyone who opens Spotifie on that machine, guests included
-
-The index and artwork cache are rebuildable at any time: delete `.spotifie/` and the next start rebuilds them from the files themselves. The audio always stays in the original files — nothing is copied into a database and nothing is Base64-encoded.
-
-## Global Admin Catalogue
-
-Administrators publish albums and tracks from the admin dashboard. Metadata goes to `catalog_albums` and `catalog_tracks`; audio and artwork go to the private `catalog-audio` and `catalog-artwork` Storage buckets.
-
-- Reading is public: a visitor with no account sees the same albums and tracks a member does, because the read request goes out with the anon key and Row Level Security decides what comes back
-- Writing requires an `app_admins` row, checked server-side by `lib/adminAuth.js` and again by Row Level Security
-- Only stable Storage object paths are stored in the database — never a signed URL. Playback asks for a short-lived signed URL when needed, and an expired one is simply resolved again
-- A track uses its own artwork if it has any, otherwise its album's, otherwise the default cover
-
-### Drawn before the catalogue arrives
-
-Waiting on Supabase before anything could be shown made every refresh as slow as the network, for a catalogue that had usually not changed. The published catalogue is now cached on the device and checked afterwards:
-
-- The browser keeps a copy of the published albums and tracks in IndexedDB — descriptions and the version of each cover, never audio, never a signed URL, and nothing belonging to a person. It is device-level: a guest reads the same copy a signed-in listener does
-- On load, the library is drawn from that copy joined to `GET /api/catalog/local`, which answers from this machine alone and carries the listener's own overrides and hidden items. Nothing waits on Supabase
-- The real catalogue is then read in the background. Every album and track is reduced to its id, its `updated_at` and its artwork version; if that fingerprint is unchanged, nothing is redrawn and nothing is re-fetched
-- A catalogue that cannot be reached leaves the library exactly as it is, and never replaces a good copy with an empty one
-- The copy carries a schema version. A record it does not understand is dropped, not migrated, and a corrupt one cannot break startup
-
-Covers are served from this origin at `GET /api/catalog/{albums,tracks}/:id/artwork/image?v=<version>`. The server signs the Storage object internally, streams the bytes, and sets an `ETag` with `Cache-Control: public, max-age=31536000, immutable` — so the same cover is the same address the browser already has, and a replaced cover is a different address it fetches. No signed URL ever reaches the page. Catalogue JSON stays `no-store`, because it is one person's view.
-
-An administrator's write clears both halves: the server forgets what it read from Supabase, and the dashboard drops the browser's copy.
-
-### Who can see what
-
-| | Guest | Signed-in listener | Administrator |
-| --- | --- | --- | --- |
-| Browse, search and play the global catalogue | yes | yes | yes |
-| Play the music on this device | yes | yes | yes |
-| Personal albums, likes, hidden items, backups | no | yes | yes |
-| Import audio from the device to an account | no | yes | yes |
-| Publish or delete global content | no | no | yes |
-
-While signed out, the actions that belong to a person — Create Album, adding music, Like, hiding global content, backup and restore — are hidden or ask the visitor to sign in rather than pretending to work. No other account's personal state is ever returned.
-
-## Your Own Library
-
-Everything a listener builds on top of the music belongs to their account and lives on this machine, in `.spotifie/users/<uid>/state.json`. None of it goes to Supabase, which holds accounts and the published catalogue and nothing personal.
-
-| | Where it lives | What is written |
-| --- | --- | --- |
-| Liked songs | that account's state file | canonical track ids, newest first |
-| Playlists | that account's state file | a title, a description, an artwork id, and an ordered list of track ids |
-| Recently played | that account's state file | track id and time, one entry per song, latest 200 |
-| Personal album edits, hidden content | that account's state file | as before |
-
-What is stored is references and nothing else. No audio, no pictures, no Base64, no signed addresses, and no filesystem paths — so the file stays small, readable, and ready for a later export.
-
-**Resolved at render time.** A collection is a list of ids; the songs are looked up against the library every time it is shown. A file that has moved, a track an administrator has withdrawn, or music on a machine this account has not used, is a **missing row** — still listed, so its owner can see it and take it out, never a broken page and never invented audio.
-
-**Two people, one machine.** They share the device library and the published catalogue. They share nothing else: separate playlists, likes, history, album overrides and hidden content. Signing out empties what is held in memory before the guest view is drawn, so the next person starts from nothing.
-
-**Guests.** A guest browses and plays both the published catalogue and this device's music. Every personal write is refused with `401` and an invitation to sign in; every personal read answers empty. Listening is not refused — there is simply nowhere of their own to write it down.
-
-### Playlists
-
-Create, rename, describe, re-cover, delete; add, remove and reorder tracks; play or shuffle. A playlist may name the same song more than once, because somebody may have meant to put it there twice — an album's membership stays deduplicated, because an album holds each song once. Removing one entry from a playlist removes that entry, by position, and not every copy of the song.
-
-A cover is a file saved on this machine; the playlist keeps only its id. Nothing is uploaded and nothing is encoded into the state.
-
-### Views
-
-Albums, Playlists, Artists, Liked Songs, Recently Played, Recently Added and Local Music. Each narrows which cards the grid shows; none is a new kind of page, and back and forward work across them as they do everywhere else.
-
-**Artists** are worked out from the tracks themselves — there is no artist table to keep in step. A track that says nothing about who it is by belongs to `Unknown Artist`, a real group of real tracks; no artist is ever invented from an id or a file name.
-
-**Recently Added** sorts by dates that already exist: when a file was last written, for music on this device, and when a track was published, for the catalogue. No tag is touched to produce it.
-
-### Searching
-
-One normalized index, built when the library changes and not when somebody types. Songs, albums, playlists and artists all come out of the same pass, across both the published catalogue and this device's music. Nothing is fetched while somebody is typing.
-
-| Route | Purpose |
+| What | Where |
 | --- | --- |
-| `GET /api/catalog/me` | Everything this account has, resolved, in one request |
-| `GET`/`POST /api/catalog/liked`, `DELETE /api/catalog/liked/:id` | Liked songs |
-| `GET`/`POST /api/catalog/playlists` | List and create |
-| `GET`/`PATCH`/`DELETE /api/catalog/playlists/:id` | One playlist |
-| `POST`/`PUT /api/catalog/playlists/:id/tracks` | Add, move, rearrange |
-| `DELETE /api/catalog/playlists/:id/tracks/:trackId?position=` | Remove one entry |
-| `GET`/`POST`/`DELETE /api/catalog/recent` | Listening history |
-| `GET /api/catalog/recently-added` | The newest music |
-| `GET /api/catalog/artists?name=` | Artists, or one of them with their tracks |
+| Public app | `https://spotifie.adilurrehmanofficial.workers.dev` |
+| Supabase project | `https://pkntkyvdekaykhzfecky.supabase.co` |
+| Android package | `app.spotifie.android` |
 
-Every one of these answers `Cache-Control: no-store`: they belong to one person.
+No key or secret belongs in this file. The Supabase publishable key is browser
+configuration and is injected at build time, not stored here.
 
-## Authentication
+## 3. Architecture
 
-Supabase handles authentication and profiles. It holds no user audio.
+**Global music.** A catalogue an administrator publishes: rows in Supabase,
+audio and artwork in Supabase Storage. Media is fetched through short-lived
+signed links; only the stable storage path is ever saved.
 
-- The Supabase session is the only proof of a login. Nothing written to `localStorage` or `sessionStorage` grants access, and keys left by older versions are purged on load
-- Profiles are created by a database trigger on `auth.users`, not by the browser
-- Administrators are rows in `app_admins`, keyed by user id. A signed-in user can check whether their own id is an admin and nothing else; the table grants no writes, so nobody can promote themselves
-- Privileged endpoints verify the caller's access token and admin row server-side. Hiding the dashboard link is not the control
-- Public Supabase settings come from `lib/publicConfig.js` and are served to the browser at `GET /api/config`
+**Local music.** Audio on the person's own device, read where it already is and
+never uploaded. In a browser it is a folder handed over through the File System
+Access API; on Android it is one folder granted through the Storage Access
+Framework, which needs no storage permission. Files are never copied, moved or
+deleted.
 
-Pages: `signin.html`, `signup.html`, `forgot-password.html`, `reset-password.html`, `admin-login.html`.
+**Player.** One player everywhere. On the web it is an HTML `<audio>` element;
+in the Android app the audio belongs to Media3/ExoPlayer in a
+`MediaSessionService`, so it keeps playing in the background and appears on the
+lock screen. Exactly one engine is ever created, so nothing can play twice.
 
-## Player Features
+**Cache.** The device keeps a copy of the published catalogue's descriptions and
+artwork so the library draws before the network answers. **No published audio is
+ever downloaded.**
 
-| Area | Behaviour |
-| --- | --- |
-| Transport | Play/pause, previous, next |
-| Seek | A focusable `role="slider"` bar: drag it, or use the arrow keys, Page Up/Down, Home and End |
-| Volume | Native range input, with an on-demand popover on tablet and mobile |
-| Shuffle | Walks a collection once through, without repeats, before wrapping |
-| Repeat | Off, all, one |
-| Now Playing | An expanded view over the page that never interrupts what is playing |
-| Position memory | Where you stopped is remembered per track and restored on the next listen; a finished track is forgotten |
-| Artwork | Resolved by one canonical resolver, cached in memory with expiry, invalidated and retried once on failure, then the default cover |
-| Media Session | System media controls where the browser supports them |
+**Auth.** Supabase Auth. Signing in is optional; guests can browse and play the
+published catalogue.
 
-Position memory is served at `GET /api/catalog/progress`: a signed-in listener's is written to their own state file, a guest's to `.spotifie/device/playback.json`. Neither is sent to Supabase.
+**Admin.** Authority is a row in `app_admins`, decided by the database. The
+dashboard is not a public file: a Cloudflare Worker serves it only after it has
+verified an administrator against Supabase.
 
-## Responsive Experience
+**Account deletion.** In the app under Profile, and on the website at
+`/delete-account.html`. Both call a Supabase Edge Function that reads who is
+asking from a verified token; no client can name an account.
 
-- **Desktop** — persistent library sidebar, three-zone play bar, full album detail hero
-- **Tablet** — the same controls with volume in an on-demand popover
-- **Mobile** — an off-canvas library drawer with backdrop, Escape and scroll lock; a compact multi-row play bar that respects `env(safe-area-inset-bottom)`; a two-column album grid; a compact horizontal album-detail hero
+## 4. Database objects
 
-Touch targets are sized for a finger, hover effects are confined to `@media (hover: hover) and (pointer: fine)`, and `prefers-reduced-motion` turns animations and transitions off.
+`profiles`, `app_admins`, `catalog_albums`, `catalog_tracks`,
+`public.is_admin()`, `public.admin_user_count()`.
 
-## Privacy Architecture
+Schema lives in `supabase-setup.sql` and is idempotent. `profiles.id` and
+`app_admins.user_id` both reference `auth.users(id)` `ON DELETE CASCADE`, which
+is what makes account deletion clean up after itself.
 
-- Audio found on the device, and audio imported from it, is read from disk and streamed by the local server. It is never uploaded to Supabase or anywhere else
-- The browser receives identifiers, tag data and URLs. Filesystem paths and Storage paths never leave the server
-- A person's imported media is served only to that account, through a short-lived HMAC ticket, because an `<audio>` element cannot send an authorization header
-- Supabase holds the account and profile, and the catalogue an administrator published. The two are kept apart in the model and on disk
-- Personal state — hidden global content, personal edits to published albums, listening positions — lives in local state files, not in Supabase
-- Theme and player preferences live in this browser's `localStorage`; collections and the cached copy of the published catalogue live in IndexedDB. That copy holds published descriptions only — no audio, no signed URL, and nothing belonging to an account
-- Spotifie sets no cookies of its own and loads no analytics, advertising or tracking scripts
-- Everything under `.spotifie/` is a rebuildable cache. Deleting it loses nothing that cannot be rebuilt from the files themselves
+## 5. Storage buckets
 
-## Project Structure
+`catalog-audio`, `catalog-artwork`. Both private; access is through signed
+links.
 
-| Path | Purpose |
-| --- | --- |
-| `server.js` | The single local Node server: static frontend, library API, catalogue API, `/health` |
-| `index.html` and the other `*.html` pages | Player, about, developer, authentication and admin pages |
-| `css/` | `style.css` (application), `auth.css` (authentication pages), `utlity.css` |
-| `js/script.js` | Player, library UI, search, album detail, themes |
-| `js/auth.js` | Supabase session, profiles and admin checks |
-| `js/admin.js` | Admin dashboard for the global catalogue |
-| `js/catalogClient.js` | Browser client for the unified catalogue |
-| `js/libraryClient.js` | Browser client for the library API (identifiers and URLs only) |
-| `js/libraryDB.js` | Local collection storage (IndexedDB) |
-| `js/catalogCache.js` | The device's copy of the published catalogue (IndexedDB) |
-| `js/personalClient.js` | The browser's one view of this account's liked songs, playlists and history |
-| `lib/config.js`, `lib/safeFs.js` | Configuration and root-confined filesystem helpers |
-| `lib/libraryService.js`, `lib/libraryIndex.js`, `lib/libraryRoutes.js` | Local library layer and its HTTP routes |
-| `lib/adapters/localFileSystemAdapter.js` | The current library backend |
-| `lib/catalogService.js`, `lib/catalogRoutes.js` | The merged local + global catalogue |
-| `lib/globalCatalog.js`, `lib/supabaseRest.js` | The Supabase catalogue and a minimal REST client |
-| `lib/deviceScan.js`, `lib/deviceLibrary.js` | Device music discovery and the device-wide index |
-| `lib/userMedia.js`, `lib/mediaTickets.js` | Per-account imported audio and its short-lived access tickets |
-| `lib/userArtwork.js` | Covers a person adds to their own albums |
-| `lib/userState.js`, `lib/playbackProgress.js` | Per-account local state and listening positions |
-| `lib/sessionAuth.js` | Who is calling: one verified identity per token, shared by the whole server |
-| `lib/adminAuth.js`, `lib/publicConfig.js` | Server-side admin verification (private), public Supabase settings |
-| `lib/adminCatalogRoutes.js`, `lib/adminAlbumRoutes.js` | Administrator writes (private; absent from the public release) |
-| `tools/buildPublic.js`, `tools/releaseCheck.js` | Building and validating the public release |
-| `SECURITY.md` | Security policy and architecture |
-| `img/`, `favicons/`, `robots.txt` | Static assets |
-| `music/` | Default local music root (`MUSIC_ROOT`) |
-| `songs/`, `songs.json` | On-disk album folders used by the `/api/*-album` endpoints |
-| `.spotifie/` | Rebuildable index, artwork cache, imported media and local state |
-| `supabase-setup.sql` | Profiles, admin authorization and the global catalogue schema |
-| `test/` | `node:test` suite |
-| `CLAUDE.md` | Permanent project rules |
+## 6. Canonical ids
 
-## Installation
-
-Requires Node.js 18 or newer.
-
-```bash
-npm install
+```
+local:<stable-id>          a track on this device
+global:<uuid>              a published track
+global-album:<uuid>        a published album
+system:local-music         the device's own collection
+system:recently-played     the recently played collection
 ```
 
-## Environment Setup
+Namespaced so local and global ids can never collide.
 
-```bash
-cp .env.example .env
+## 7. Environment variables
+
+Names only. Never commit values.
+
+Public settings, needed by any build that packages the frontend:
+
+```
+SUPABASE_URL
+SUPABASE_ANON_KEY
+PUBLIC_SITE_URL
 ```
 
-Fill in your own values. Never commit `.env`.
+Android signing, needed only when building a release:
 
-| Variable | Purpose |
-| --- | --- |
-| `HOST` | Interface to bind (default `127.0.0.1`) |
-| `PORT` | Port to listen on (default `3000`) |
-| `MUSIC_ROOT` | Local music root, scanned recursively (default `./music`) |
-| `SUPABASE_URL` | Supabase project URL — a public, browser-safe setting |
-| `SUPABASE_ANON_KEY` | Supabase anon key — a public, browser-safe setting |
-
-Optional, read from the process environment:
-
-| Variable | Purpose |
-| --- | --- |
-| `PUBLIC_SITE_URL` | Where this installation is published, e.g. `https://example.com`. Unset in development |
-| `SPOTIFIE_MUSIC_LOCATIONS` | Extra folders to search, separated by the platform path delimiter |
-| `SPOTIFIE_SCAN_DEBUG` | Set to `1` to log the folders the search visits |
-| `SPOTIFIE_SCAN_CONCURRENCY`, `SPOTIFIE_SCAN_BUSY_CONCURRENCY` | Parallelism of the walk |
-| `SPOTIFIE_SCAN_MAX_DEPTH`, `SPOTIFIE_SCAN_MAX_FILES` | Limits on how far and how wide the walk goes |
-
-A service-role key must never enter this project, `.env`, or browser code. Administrators are rows in `app_admins`, not an address in configuration.
-
-## Running Locally
-
-```bash
-npm start
+```
+SPOTIFIE_ANDROID_KEYSTORE
+SPOTIFIE_ANDROID_KEY_ALIAS
+SPOTIFIE_ANDROID_KEYSTORE_PASSWORD
+SPOTIFIE_ANDROID_KEY_PASSWORD
 ```
 
-Then open `http://127.0.0.1:3000`.
+Local server options: `HOST`, `PORT`, `MUSIC_ROOT`.
 
-The server reads `HOST` and `PORT` from the process environment, so export them before starting rather than relying on `.env` being loaded automatically.
-
-Opening the HTML files with `file://` is not supported, and a separate static server (an editor's live-server extension, for example) will not work either: the frontend loads its Supabase settings from `GET /api/config` on the same origin, which only this server provides.
-
-### "Port 3000 is already in use" / "/api/config was not found"
-
-Both symptoms have one cause: another program is answering on the port, so the pages you are looking at are not being served by Spotifie. A live-preview extension or an older `node server.js` are the usual suspects — they serve the HTML fine but have no `/api/config`, `/health` or `/api/library` routes, so every API call returns 404 and sign-in fails.
-
-Stop the other server, or run Spotifie elsewhere:
-
-```bash
-PORT=3010 npm start
-```
-
-On Windows, find what holds the port with `Get-NetTCPConnection -LocalPort 3000 -State Listen`.
-
-## Supabase Setup
-
-1. Create a Supabase project.
-2. Open the SQL Editor and run `supabase-setup.sql` in full. It is idempotent and safe to re-run. It creates the profiles table and its trigger, the `app_admins` authorization table, the catalogue tables, the private `catalog-audio` and `catalog-artwork` buckets, and the Row Level Security policies for all of them.
-3. Put the project URL and anon key in `.env` (or leave the defaults in `lib/publicConfig.js` if they are already correct for your project).
-4. Sign up through `signup.html` so the trigger creates your profile.
-
-Apply the SQL before signing in for the first time.
-
-## Device Music Scan
-
-The page asks for a scan when Spotifie loads; the server owns the job.
-
-| Request | Purpose |
-| --- | --- |
-| `POST /api/library/scan` | Start a scan, reusing the index and reading only what changed |
-| `POST /api/library/scan?mode=full` | Start a full pass that reads every file again |
-| `GET /api/library/scan` | Current job state and counts (`?playing=true` tells it to give way to playback) |
-| `DELETE /api/library/scan` | Cancel the running scan |
-| `POST /api/library/rescan` | Rescan the configured music root (`MUSIC_ROOT`) |
-
-The first full pass shows progress in the interface. Later passes are silent unless something changed, in which case a brief toast reports how many tracks were added. To search additional folders, set `SPOTIFIE_MUSIC_LOCATIONS` before starting the server.
-
-## Admin Setup
-
-Administrators are created in the database, once, by hand — there is no application code path that inserts into `app_admins`.
-
-1. Create the account through normal signup first.
-2. In the Supabase SQL Editor, run the bootstrap statement documented at the end of `supabase-setup.sql`, which inserts that user's id into `public.app_admins`.
-3. Sign in at `admin-login.html` and open `admin-dashboard.html` to publish albums and tracks.
-
-Revoking an administrator is a matching `DELETE`, also documented in that file.
-
-## Public App vs Private Admin Tooling
-
-**This repository is the private working copy.** It holds both halves of the project, and it is not the thing to publish.
-
-| | Public app | Private admin tooling |
-| --- | --- | --- |
-| Pages | `index.html`, `about.html`, `developer.html`, the sign-in and password pages | `admin-login.html`, `admin-dashboard.html` |
-| Browser code | `js/script.js`, `js/auth.js`, `js/catalogClient.js`, `js/catalogCache.js`, `js/libraryClient.js`, `js/libraryDB.js` | `js/admin.js` |
-| Server | `server.js` and the shared `lib/` modules | `lib/adminAuth.js`, `lib/adminCatalogRoutes.js`, `lib/adminAlbumRoutes.js` |
-| Can do | browse, search and play; the device library; personal collections and overrides | publish, edit and delete global albums and tracks; rescan the music root |
-
-The seam is a real one, not a naming convention. `server.js`, `lib/catalogRoutes.js` and `lib/libraryRoutes.js` look for the admin modules on disk and build themselves without the privileged routes when they are absent. A release that does not ship them has no such route to reach: a request for one ends at the same 404 as a made-up path.
-
-That is packaging, not access control. The authorization described under [Security Notes](#security-notes) applies whether or not the admin half is present, and is what actually stops an ordinary account writing to the catalogue.
-
-### Building the public release
-
-```bash
-npm run build:public
-```
-
-Writes `public-release/dist` from an allowlist in `tools/buildPublic.js` — a list of what goes in, never a copy-then-delete. A file nobody named is simply not there. On the way out it also:
-
-- removes the dashboard link from `index.html`
-- clears this project's own Supabase settings from `lib/publicConfig.js`, so the release arrives pointed at nobody's project
-- gives the release its own `README.md` (from `public-release/README.public.md`) and `robots.txt`
-- strips the administrator bootstrap procedure from `supabase-setup.sql`, keeping every policy
-
-### Checking it
-
-```bash
-npm run release:check
-```
-
-Reads what was actually produced and fails if it finds admin pages or modules, a service-role key, a private key, a password literal, `.env`, `.spotifie`, user audio, or a release missing half the application. It also reports what `git ls-files` tracks in this working copy, as a reminder of what publishing *this* repository would expose.
-
-### Publishing
-
-**Deleting a file does not remove it from git history.** This repository has carried the admin code and its configuration from the beginning, so making it public — now or after any amount of deleting — would publish all of it to anyone who runs `git log`.
-
-The safe route is a fresh repository:
-
-1. keep this repository **private**;
-2. `npm run build:public`;
-3. `npm run release:check`, and fix anything it reports;
-4. create a **new, empty** public repository;
-5. copy the contents of `public-release/dist` into it and make the first commit there.
-
-The public repository then has no history to leak, because it starts at the release.
-
-## Deploying Spotifie on Cloudflare
-
-Spotifie runs in two places, and only one of them is Cloudflare.
-
-**Cloudflare hosts the application**: the pages, the styles, the scripts, the icons, the manifest and the
-service worker, plus `robots.txt`, `sitemap.xml` and `llms.txt`. **The machine somebody is sitting at
-hosts their music**: the local server finds it, indexes it, and streams it from their own disk. Audio is
-never uploaded, and Cloudflare is never asked to store any of it.
+## 8. Android signing
 
 | | |
 | --- | --- |
-| Build command | `npm run build:public` |
-| Output directory | `public-release/dist` |
-| Framework preset | None — it is static files |
+| Approved certificate SHA-256 | `d0855d23abad6d890cc208c1075cea2bc3d7b057000f4e074a864a9913ea049a` |
+| Key alias | `spotifie` |
+| Pinned in | `android/release-signing.json` |
+| Keystore location | **Outside this repository.** The build refuses a keystore inside it |
 
-Set these in the Cloudflare project, as build-time environment variables. All three are public values.
+**Never generate a new signing identity for a normal update.** The keystore is
+Spotifie's identity on Android: replace it and no existing installation can ever
+be updated again. Back it up, with its passwords stored separately. A
+fingerprint is public; a password never goes in a file here.
 
-| Variable | Purpose |
-| --- | --- |
-| `PUBLIC_SITE_URL` | The deployed origin, e.g. `https://spotifie.example`. Canonical URLs, the sitemap and the structured data follow it |
-| `SUPABASE_URL` | The Supabase project URL |
-| `SUPABASE_ANON_KEY` | The anon/publishable key |
+## 9. Versioning
 
-**A service-role key must never be set here, or anywhere a browser can reach.** The build refuses to write
-one into the release, and `npm run release:check` refuses to pass a release that carries one.
+`package.json` is the only place a version is written. Everything else derives
+from it.
 
-### What the build produces
+```
+major*1000000 + minor*10000 + patch*100 + (rc N ? N : 99)
 
-Alongside the application, `npm run build:public` writes three files a static host needs:
-
-- `config.json` — the two public Supabase values, for a copy with no server to ask. A build without them
-  writes `"configured": false`, and the app reports that rather than looking broken.
-- `_headers` — the security headers and a cache rule per kind of file. Pages and `sw.js` are revalidated
-  on every visit; styles, scripts and images may be kept.
-- `.assetsignore` — the half of the release that is a Node application. Wrangler leaves `server.js`,
-  `lib/`, `package.json` and `supabase-setup.sql` out of the upload, so no server source and no database
-  schema is ever served as a downloadable file.
-
-`wrangler.jsonc` points at `./public-release/dist`. There is no SPA fallback and none is needed: every
-address is a real file, and the player never changes the path it is on.
-
-### Public and private stay separate
-
-The release is built from an allowlist, so the administrator pages, the admin modules and this project's
-own Supabase settings are absent by construction rather than by being filtered out. Publish by deploying
-`public-release/dist` — never this repository, whose history holds the private half.
-
-### What a deployed copy can and cannot do
-
-The published catalogue, signing in, playlists, liked songs and the public pages all work from Cloudflare.
-Local Music needs the local server: with none running, the collection is shown as not reachable rather
-than emptied, and it comes back on its own when the server appears — no reload.
-
-One caveat worth knowing before you promise it to anybody: a page served over HTTPS reaching
-`http://127.0.0.1` is mixed content. Chromium treats loopback as trustworthy and allows it; other
-browsers vary. Running Spotifie locally with `npm start` is the supported way to use Local Music.
-
-### After deploying
-
-- `/` loads, and `/about.html` and `/developer.html` resolve
-- `/robots.txt`, `/sitemap.xml` and `/llms.txt` answer, and the sitemap names the deployed origin
-- The canonical URL on `/` is the deployed address, not `127.0.0.1`
-- `/server.js`, `/lib/…`, `/package.json` and `/supabase-setup.sql` all answer 404
-- `/admin-dashboard.html` and `/js/admin.js` answer 404
-- Signing in works, which means `config.json` reached the browser
-
-## Discoverability
-
-Everything Spotifie says about itself to a machine is written in `lib/siteMeta.js` and served by the
-application, so the pages, the sitemap, `robots.txt` and the plain-text summary cannot drift apart.
-
-| Address | What it is |
-| --- | --- |
-| `/robots.txt` | What may be crawled. The API, the auth forms and `.spotifie` are excluded |
-| `/sitemap.xml` | The stable public pages only. 404 until `PUBLIC_SITE_URL` is set |
-| `/llms.txt` | A short factual summary of what Spotifie is, for anything reading documentation |
-
-Each page carries its own title, description, robots directive, theme colour and Open Graph and Twitter
-card metadata. The canonical URL, the social image and the JSON-LD record are filled in as the page is
-served, at the `<!--site-meta-->` marker in its head — they are statements about where the application
-is deployed, and the files are the same wherever that is.
-
-**`PUBLIC_SITE_URL` is the whole configuration.** Set it to the deployed origin and the canonical URLs,
-the sitemap and the structured data all follow. Leave it unset — or set it to a loopback address — and
-nothing claims an address at all: no canonical, no `og:url`, and `/sitemap.xml` answers 404. That is
-deliberate. A canonical URL pointing at somebody's own machine is worse than none.
-
-Nothing about a person's library is published. The structured data describes the application; the
-sitemap lists three pages that are the same for everybody; playlists, liked songs, local albums and the
-music on a device appear in none of it.
-
-Before deploying:
-
-- [ ] `PUBLIC_SITE_URL` is set to the real origin, over HTTPS
-- [ ] `/robots.txt`, `/sitemap.xml` and `/llms.txt` all answer
-- [ ] The canonical URL on `/` is the deployed address, not `127.0.0.1`
-- [ ] The JSON-LD in the served page parses
-- [ ] `npm run release:check` passes
-
-## Testing
-
-```bash
-npm test
-npm run check
+1.0.1  ->  Android versionCode 1000199
+1.1.0  ->  1010099        2.0.0 -> 2000099
+1.1.0-rc.1 -> 1010001
 ```
 
-`npm test` runs the `node:test` suite in `test/` — the library layer, the catalogue, authentication, admin authorization, the device scan and import, playback, playback sequence and progress, artwork, navigation, album detail and membership, theming and responsive layout, and the security rules in `test/security.test.js` — authorization, the database policies, static serving and traversal, escaping, and the shape of the public release. `npm run check` runs a syntax check over every server and browser module.
+To release a new version, change `package.json` and nothing else. Android
+refuses an update whose versionCode does not rise.
 
-## Security Notes
+## 10. Commands
 
-- Filesystem access is confined to configured roots and checked with `lib/safeFs.js`; paths never leave the server
-- Privileged endpoints verify the access token and the `app_admins` row server-side
-- `app_admins` grants no writes to `anon` or `authenticated`, so an account cannot promote itself
-- Storage buckets are private. Media is reached only through short-lived signed URLs, and only object paths are persisted
-- A person's imported audio is served only to that account, through a short-lived HMAC ticket bound to the track
-- No passwords or tokens are written to `localStorage` or `sessionStorage` by the application
-- The anon key is a public, browser-safe setting by design. A service-role key belongs nowhere in this project
-- Static serving works from a list of what may be served — pages, `css/`, `js/`, `img/`, `favicons/` and `songs/`. The server's own source, its modules, the database script, the tests and the working data have no route at all, there is no directory listing, and traversal is rejected in every spelling
-- Every response carries a content security policy, `nosniff`, a referrer policy, a permissions policy and `frame-ancestors 'none'`. HSTS is deliberately not set: this server is reached over plain HTTP on loopback
-- Titles, artists, album names, descriptions and profile names are treated as untrusted text. They are escaped — quotes included, because most of them land in attributes — and names are written with `textContent` rather than built into markup
+```bash
+npm install
+npm test                  # the whole suite
 
-Full detail, and how to report a vulnerability, is in [SECURITY.md](SECURITY.md).
+npm start                 # the local server (frontend + library API + /health)
 
-## Current Platform Scope
+npm run build:public      # the public web release into public-release/dist
+npm run release:check     # verify that release carries nothing private
 
-Spotifie today is a web application served by a local Node server, run on the machine whose music it indexes. It is developed and tested on Windows with Node 18+, and the library layer sits behind an adapter interface so the filesystem backend is replaceable.
+npm run build:mobile      # the Android frontend into mobile/www
+npm run android:build     # debug APK (needs the Android SDK and a JDK 21)
+npm run android:dev       # build and run on a device or emulator
+npm run android:release   # signed release APK (needs the signing environment)
+npm run android:bundle    # signed App Bundle
 
-It is not a native iOS or Android application. The global catalogue requires network access to Supabase; there is no offline cache of it.
+npm run build:ios         # the iOS frontend (runs on any OS)
+npm run ios:sync          # also copy it into ios/ and check the Xcode project
 
-## Future Packaging / Roadmap
+npm run build:desktop     # the desktop frontend
+npm run desktop:build     # unsigned Windows installer
 
-Clearly future work, not present behaviour:
+npx wrangler deploy --dry-run   # verify a deploy without performing one
+```
 
-- Desktop packaging around the existing local server
-- Additional library adapters behind the existing `LibraryService` interface
-- Formal accessibility audit against a WCAG conformance level
+Deploying production is an operator task and is described in the private
+operations notes kept outside the public release, not here.
+
+## 11. Android toolchain
+
+- **JDK 21.** The tooling finds it from `SPOTIFIE_ANDROID_JAVA_HOME`, then
+  `JAVA_HOME`, then Android Studio's bundled runtime.
+- **Android SDK** with build-tools and platform-tools. `adb` lives at
+  `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe` on Windows and
+  `$ANDROID_HOME/platform-tools/adb` elsewhere. Prefer those variables to a
+  hard-coded path.
+- compileSdk 36, targetSdk 36, minSdk 26.
+
+## 12. Releasing
+
+1. Back up the signing keystore and its passwords, separately.
+2. Set the public settings in the environment.
+3. Set the signing variables.
+4. `npm test` - all green.
+5. `npm run android:release`
+6. `npm run android:bundle`
+7. Check the printed certificate matches the approved fingerprint. If it does
+   not, stop.
+8. Build and check the production website (private operations notes).
+9. `npx wrangler deploy --dry-run`
+10. Install the signed APK **over** the previous version, without uninstalling,
+    and confirm it upgrades and keeps its data.
+11. Owner approval.
+12. Deploy.
+13. Download the live APK and check its SHA-256 against the build output.
+
+## 13. Security rules
+
+Never commit: `.env`, `*.jks`, `*.keystore`, passwords, service-role keys,
+database passwords, Cloudflare API tokens, the private administrator source,
+anybody's music, or the private QA documents.
+
+The Supabase **publishable** key is browser configuration, not a service secret.
+A **service-role** key must never appear in any client, build output or
+repository; the only place one exists is inside the Supabase Edge Function's own
+environment.
+
+The working repository is private. Publishing means copying a checked
+`public-release/dist` into a **new, empty** repository, because deleting a file
+does not remove it from history.
+
+## 14. Account deletion
+
+- In the app: Profile -> Delete account, confirmed by typing `DELETE`.
+- On the web: `/delete-account.html`, which works with nothing installed.
+- Backed by the Supabase Edge Function `delete-account`
+  (`supabase/functions/delete-account/`), which derives the account from a
+  verified token. A client cannot name an account.
+- Deleting an account removes the account, its profile row and any administrator
+  grant. **It never deletes music on the device**, the granted folder, or any
+  file.
+
+## 15. Offline behaviour
+
+| | |
+| --- | --- |
+| Local Music | Plays offline, exactly as usual |
+| Cached published albums | Visible offline, with artwork |
+| Published audio | Needs a connection, and says so rather than failing quietly |
+
+A failed refresh never erases a good cache.
+
+## 16. Android media
+
+Media3 / ExoPlayer inside a `MediaSessionService`, with a MediaStyle
+notification: artwork, title, artist, previous, play/pause, next, **stop**, and
+a seek bar.
+
+| Action | Result |
+| --- | --- |
+| Press Home | Keeps playing; notification stays |
+| Swipe out of Recents | Playback stops, service stops, notification goes |
+| Notification stop | Playback stops, notification goes |
+| End of queue | Session released, no stale notification |
+
+## 17. Folder map
+
+```
+index.html, about.html, signin.html, ...  the pages
+delete-account.html                       account deletion, needs nothing installed
+js/                                       browser code (player, auth, catalogue, adapters)
+css/, img/, favicons/                     assets
+lib/                                      server-side library, catalogue and auth modules
+worker/                                   the Cloudflare Worker
+server.js                                 the local Node server
+tools/                                    build, release and inspection tooling
+test/                                     the node:test suite
+supabase/functions/                       Supabase Edge Functions
+supabase-setup.sql                        database schema and policies
+android/                                  Capacitor Android project (Media3, SAF plugin)
+ios/                                      Capacitor iOS project (prepared, unbuilt)
+src-tauri/                                desktop shell
+music/                                    local music root scanned by the library
+```
+
+Generated, never committed: `node_modules/`, `public-release/dist/`,
+`mobile/`, `desktop/`, `android/app/build/`, `src-tauri/target/`, `.spotifie/`,
+`.wrangler/`, `release-backup/`.
+
+## 18. Private and recovery files
+
+Operational records live beside this repository as `*.private.md` and are
+git-ignored: the signing notes, the release records, production operations, the
+Play readiness and store material, the account-deletion QA, and the Mac/iOS
+handoff. Read those before a release.
+
+If a personal secrets note (for example `spotiie-secrets.md`) exists, it belongs
+**outside** this repository. It is git-ignored as a safety net; do not commit it.
+
+Signed builds that were actually published are archived in `release-backup/`
+with the records describing them. Keep that folder; never commit it.
+
+## 19. Known limitations
+
+- **Google Play is not live.** Nothing has been submitted.
+- **iOS is prepared only** and needs a Mac with Xcode to compile, sign or run.
+- **Desktop runtime verification is pending** (Windows Smart App Control).
+- **Local Music on Android has not been verified offline end to end**, because
+  granting a folder needs a person at the system picker.
+- The release APK is signed with the v2 scheme only; v3 would additionally allow
+  key rotation.
+
+## 20. Outstanding actions
+
+Remove each line as it is done.
+
+- [ ] Deploy the `delete-account` Edge Function; until then both deletion routes
+      fail at runtime.
+- [ ] Test deletion end to end with a **disposable** account, via the web page
+      and in the app.
+- [ ] Build and sign the **1.0.1** APK and AAB. The signed artifact currently
+      archived is 1.0.0, which predates account deletion, so the website offers
+      no download until 1.0.1 is signed.
+- [ ] Decide the brand/trademark question and the Play App Signing strategy
+      before any Play upload; both are irreversible afterwards.
 
 ## License
 
-Private and unlicensed (`"private": true`, `"license": "UNLICENSED"` in `package.json`). All rights reserved.
-
-Spotifie is an independent project. It is not affiliated with, endorsed by or connected to Spotify AB, and the Spotify name and logo are trademarks of Spotify AB.
-
-## Rules
-
-Permanent project rules for contributors and agents are in [CLAUDE.md](CLAUDE.md).
-"# spotifie" 
+Private and unlicensed (`"license": "UNLICENSED"` in `package.json`). All rights
+reserved.

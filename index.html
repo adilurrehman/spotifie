@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="Spotifie brings the music already on your device together with a published global catalogue in one library - playlists, liked songs, offline playback of local files, and a responsive player for desktop, tablet and phone.">
     <title>Spotifie - Hybrid Local & Global Music Player</title>
 
@@ -394,6 +394,39 @@
                     <div id="searchResults" class="search-results" aria-live="polite" aria-label="Search results"></div>
                 </div>
                 <div class="btns">
+                    <!-- Install Spotifie. Shown only when this browser has said it
+                         can install the application, and never once it is
+                         installed; js/pwa.js decides. -->
+                    <button type="button" class="install-app-btn" id="installAppBtn" aria-label="Install Spotifie as a web app" hidden>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                            <path d="M12 3v12M12 15l-4-4M12 15l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/>
+                        </svg>
+                        <span class="install-app-label">Install Web App</span>
+                    </button>
+                    <!-- Download Android App: the native app as an APK, which is
+                         not the same as installing the web app above. Shown on
+                         the website only, and only by a build that carries the
+                         app - js/pwa.js decides, gives the link its address, and
+                         never shows any of it inside the app itself. -->
+                    <div class="android-download" id="androidDownload" hidden>
+                        <button type="button" class="android-download-btn" id="androidDownloadBtn" aria-expanded="false" aria-controls="androidDownloadPanel">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                                <rect x="6" y="2" width="12" height="20" rx="2"/>
+                                <path d="M12 6v7M9 10l3 3 3-3M10 18h4"/>
+                            </svg>
+                            <span class="android-download-label">Download Android App</span>
+                        </button>
+                        <div class="android-download-panel" id="androidDownloadPanel" role="group" aria-labelledby="androidDownloadTitle" hidden>
+                            <p class="android-download-title" id="androidDownloadTitle">Spotifie for Android</p>
+                            <p class="android-download-version" id="androidDownloadVersion" hidden></p>
+                            <details class="android-download-checksum" id="androidDownloadChecksum" hidden>
+                                <summary>SHA-256 checksum</summary>
+                                <code id="androidDownloadSha"></code>
+                            </details>
+                            <p class="android-download-note">Android APK &mdash; direct installation. Your browser may ask permission to install apps from this source.</p>
+                            <a class="android-download-link" id="androidDownloadLink">Download APK</a>
+                        </div>
+                    </div>
                     <!-- Theme Toggle Button -->
                     <div class="theme-toggle" id="themeToggle" role="button" tabindex="0" aria-label="Toggle theme">
                         <div class="theme-toggle-track">
@@ -498,7 +531,7 @@
                     <h1 id="libraryTitle" data-auth="library-title">Spotifie Library <span class="emoji-large">&#10084;</span></h1>
                     <div class="header-actions">
                         <div class="card-size-toggle" aria-label="Change card size">
-                            <button id="cardSizeBtn" class="card-size-btn" title="Change card size">
+                            <button id="cardSizeBtn" class="card-size-btn" aria-label="Change card size" title="Change card size">
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <rect x="3" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
                                     <rect x="14" y="3" width="7" height="7" rx="1" stroke="currentColor" stroke-width="2"/>
@@ -1049,6 +1082,9 @@
                     <div class="local-actions">
                         <button type="button" class="secondary-btn" id="localReconcileBtn">Check for changes</button>
                         <button type="button" class="secondary-btn" id="localRescanBtn">Rescan Local Music</button>
+                        <!-- Several songs at once from the system's file picker, where
+                             the app's library can do that and a folder may not list. -->
+                        <button type="button" class="secondary-btn hidden" id="localChooseFilesBtn">Choose music files</button>
                         <button type="button" class="secondary-btn hidden" id="localCancelScanBtn">Stop scanning</button>
                     </div>
 
@@ -1275,6 +1311,49 @@
                         Log Out
                     </button>
                 </div>
+                <!-- Kept apart from Log Out, and last: nothing here should be
+                     reachable by a stray tap meant for something else. -->
+                <div class="profile-account-links">
+                    <a href="about.html#privacy" id="profilePrivacyLink">Privacy and your data</a>
+                    <button type="button" class="profile-delete-link" id="profileDeleteAccount">
+                        Delete account
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deleting an account: deliberate, and never one tap. The word has to be
+         typed, and only a deletion that actually succeeded signs anybody out. -->
+    <div class="modal modal-confirm hidden" id="deleteAccountModal" role="dialog" aria-labelledby="deleteAccountTitle" aria-modal="true">
+        <div class="modal-backdrop" data-close-delete-account></div>
+        <div class="modal-content modal-content-small">
+            <div class="modal-header">
+                <h2 id="deleteAccountTitle">Delete your Spotifie account?</h2>
+                <button type="button" class="modal-close" id="deleteAccountClose" aria-label="Close">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p class="confirm-message">
+                    This permanently deletes your Spotifie account, the profile held for it, and any
+                    administrator rights it had. It cannot be undone.
+                </p>
+                <p class="confirm-message">
+                    <strong>The music on this device is not deleted.</strong> Your files and the folder you chose
+                    stay exactly as they are.
+                </p>
+                <label class="account-field" for="deleteAccountWord">Type <strong>DELETE</strong> to confirm</label>
+                <input class="account-input" id="deleteAccountWord" type="text" autocomplete="off"
+                    autocapitalize="characters" spellcheck="false" placeholder="DELETE"
+                    aria-describedby="deleteAccountError">
+                <p class="confirm-message hidden" id="deleteAccountError" role="alert" aria-live="assertive"></p>
+                <div class="form-actions">
+                    <button type="button" id="deleteAccountCancel" class="btn-secondary">Cancel</button>
+                    <button type="button" id="deleteAccountConfirm" class="btn-danger" disabled>Delete my account</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1292,19 +1371,36 @@
          machine, whether the published catalogue can be reached, and whether
          there is a network at all. Everything below reads the answer rather
          than assuming one. -->
+    <!-- Whether this is the desktop shell, and what it offers. Asked by the
+         platform below, so it comes first. -->
+    <script src="js/desktopNative.js"></script>
     <script src="js/platform.js"></script>
     <script src="js/auth.js"></script>
+    <!-- Asking for an account to be deleted. The same code the website's
+         deletion page uses, so both ask in exactly one way. -->
+    <script src="js/deleteAccount.js"></script>
     <!-- The published catalogue, for a copy with no server to assemble it. -->
     <script src="js/cloudCatalog.js"></script>
     <!-- The music on this device, read by the browser itself when a person
          hands it a folder. A copy with no server has no other way to it. -->
     <script src="js/browserLibrary.js"></script>
+    <!-- Inside the Android app, the phone's chosen folders take the place of
+         the browser's folder picker, behind the same interface. Does nothing
+         anywhere else. -->
+    <script src="js/androidPlayback.js"></script>
+    <script src="js/nativeLibrary.js"></script>
+    <script src="js/androidNative.js"></script>
+    <script src="js/iosNative.js"></script>
     <script src="js/libraryClient.js"></script>
     <script src="js/catalogCache.js"></script>
     <script src="js/catalogClient.js"></script>
     <script src="js/personalClient.js"></script>
     <script src="js/libraryDB.js"></script>
+    <!-- A deliberate long press: an album's options on a touch screen. -->
+    <script src="js/longPress.js"></script>
     <script src="js/script.js"></script>
+    <!-- Installing, "Update available", and the offline word in the header. -->
+    <script src="js/pwa.js"></script>
     <script>
         // Session UI and profile modal.
         // All authentication decisions live in js/auth.js; this file only
@@ -1355,6 +1451,100 @@
             function closeProfileModal() {
                 profileModal.classList.add('hidden');
                 document.body.style.overflow = '';
+            }
+
+            // ---- Deleting the account ----
+            //
+            // Deliberate on purpose: the word has to be typed, and only a
+            // deletion that actually happened signs anybody out. A failure
+            // leaves the person exactly where they were, still signed in.
+            //
+            // A guest never reaches this: the profile modal is the only way in,
+            // and it refuses to open without a session.
+            const deleteModal = document.getElementById('deleteAccountModal');
+            const deleteOpen = document.getElementById('profileDeleteAccount');
+            const deleteWord = document.getElementById('deleteAccountWord');
+            const deleteConfirm = document.getElementById('deleteAccountConfirm');
+            const deleteCancel = document.getElementById('deleteAccountCancel');
+            const deleteClose = document.getElementById('deleteAccountClose');
+            const deleteError = document.getElementById('deleteAccountError');
+
+            function sayDeleteError(text) {
+                if (!deleteError) return;
+                deleteError.textContent = text || '';
+                deleteError.classList.toggle('hidden', !text);
+            }
+
+            function refreshDeleteButton() {
+                const deleter = window.spotifieDeleteAccount;
+                if (!deleteConfirm || !deleter) return;
+                deleteConfirm.disabled = !deleter.confirms(deleteWord ? deleteWord.value : '');
+            }
+
+            function closeDeleteModal() {
+                if (!deleteModal) return;
+                deleteModal.classList.add('hidden');
+                if (deleteWord) deleteWord.value = '';
+                sayDeleteError('');
+                refreshDeleteButton();
+                document.body.style.overflow = '';
+            }
+
+            function openDeleteModal() {
+                if (!deleteModal) return;
+                closeProfileModal();
+                deleteModal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+                if (deleteWord) {
+                    deleteWord.value = '';
+                    deleteWord.focus();
+                }
+                sayDeleteError('');
+                refreshDeleteButton();
+            }
+
+            if (deleteOpen) deleteOpen.addEventListener('click', openDeleteModal);
+            if (deleteCancel) deleteCancel.addEventListener('click', closeDeleteModal);
+            if (deleteClose) deleteClose.addEventListener('click', closeDeleteModal);
+            if (deleteWord) deleteWord.addEventListener('input', refreshDeleteButton);
+
+            if (deleteModal) {
+                const deleteBackdrop = deleteModal.querySelector('[data-close-delete-account]');
+                if (deleteBackdrop) deleteBackdrop.addEventListener('click', closeDeleteModal);
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape' && !deleteModal.classList.contains('hidden')) closeDeleteModal();
+                });
+            }
+
+            if (deleteConfirm) {
+                deleteConfirm.addEventListener('click', async () => {
+                    const deleter = window.spotifieDeleteAccount;
+                    if (!deleter || !deleter.confirms(deleteWord ? deleteWord.value : '')) return;
+
+                    deleteConfirm.disabled = true;
+                    sayDeleteError('');
+
+                    const result = await deleter.deleteAccount();
+
+                    if (result && result.success) {
+                        closeDeleteModal();
+                        // The account is gone and the session with it, so the
+                        // application is opened afresh as a guest rather than
+                        // left describing somebody who no longer exists.
+                        const home =
+                            window.spotifieAuth && typeof window.spotifieAuth.homeUrl === 'function'
+                                ? window.spotifieAuth.homeUrl()
+                                : '/';
+                        window.location.replace(home || '/');
+                        return;
+                    }
+
+                    sayDeleteError(
+                        (result && result.error) || 'Your account could not be deleted right now. Please try again.'
+                    );
+                    refreshDeleteButton();
+                });
             }
 
             if (profileLink) {

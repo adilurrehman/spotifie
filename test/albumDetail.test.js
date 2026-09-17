@@ -202,6 +202,10 @@ function buildView(options) {
     sandbox.syncSequenceUI = () => {};
     sandbox.updateProgressUI = () => {};
     sandbox.showToast = () => {};
+    // Whether this device can reach the internet is decided in one place in
+    // the player; the album view only asks. A published album says its songs
+    // need a connection when the answer is no.
+    sandbox.isOnline = () => settings.online !== false;
     sandbox.expandBtn = null;
 
     sandbox.globalThis = sandbox;

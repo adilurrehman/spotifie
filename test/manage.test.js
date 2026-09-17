@@ -553,8 +553,10 @@ test('several tracks can be chosen, and deleting them asks first', () => {
     assert.match(section, /Every listener loses access and the stored audio is removed\. This cannot be undone\./);
     assert.match(section, /if \(!agreed\) return;/);
 
-    // Each deletion is the ordinary guarded path, not a shortcut past it.
-    assert.match(section, /await catalogClient\(\)\.deleteGlobalTrack\(id\)/);
+    // Each deletion is the ordinary guarded path, not a shortcut past it: the
+    // wrapper writes through Supabase RLS on a published copy, or the server's
+    // catalogue client on a checkout.
+    assert.match(section, /await deleteGlobalTrack\(id\)/);
 
     // And the copy every browser keeps is dropped afterwards.
     assert.match(section, /forgetCachedCatalogue\(\);/);
