@@ -316,8 +316,9 @@ The key is public browser configuration, not a secret. It is supplied at build
 time as `SUPABASE_ANON_KEY`; `.env` does not set it, so a build takes whatever
 the shell happens to hold. That is how a wrong value reached a signed release.
 
-- [ ] **Deploy the corrected website build.** `npm run deploy:production` with
-      the correct `SUPABASE_ANON_KEY` set. This fixes the web and PWA.
+- [ ] **Rebuild and deploy the website** with the correct `SUPABASE_ANON_KEY`,
+      following the operator procedure in the private operations notes. This
+      fixes the web and the PWA.
 - [ ] **Rebuild and re-sign the Android APK and AAB** with the correct key, on
       the **same signing identity**. This changes their SHA-256, so update the
       archived records. Consider releasing it as **1.0.2**, since the bytes
