@@ -14,13 +14,15 @@ device into one library, one search and one player, on the web and on Android.
 
 **Version 1.0.1** (see [CHANGELOG.md](CHANGELOG.md)).
 
-Spotifie is **released and in maintenance mode**. There is no active
-development phase; changes happen only when the owner deliberately starts one.
+Spotifie 1.0.1 is released, but **the 1.0.1 build carries a Supabase
+publishable key that the project rejects**, so the published catalogue and
+sign-in fail in it. See [Outstanding actions](#20-outstanding-actions) before
+relying on or distributing this version.
 
 | Platform | Status |
 | --- | --- |
-| Web / PWA | **Released** |
-| Android | **Released**, as a signed APK downloaded from the website. The site offers it only once that exact version has been signed |
+| Web / PWA | **Released.** A corrected build is ready and waiting to be deployed |
+| Android | **Signed and downloadable, but must be rebuilt.** The 1.0.1 APK cannot reach Supabase |
 | Google Play | **Not published.** Optional future work |
 | iOS | **Prepared, not released.** Building it needs a Mac with Xcode; never compiled or run |
 | Desktop | **Foundation only, not released.** Tauri shell; runtime verification still pending |
@@ -302,12 +304,33 @@ with the records describing them. Keep that folder; never commit it.
 
 ## 20. Outstanding actions
 
-Nothing is blocked. 1.0.1 is signed, deployed and serving; the account-deletion
-backend is deployed and live. What is left needs a person, not a build.
+### The 1.0.1 build has the wrong Supabase key
+
+The release build of 1.0.1 was made with a publishable key the Supabase project
+rejects (`Invalid API key`, HTTP 401). Everything that needs Supabase - the
+published catalogue, signing in, and therefore account deletion - fails. Local
+Music is unaffected, because it never uses Supabase. 1.0.0 shipped the correct
+key, so this is a regression in the 1.0.1 build, not a change in the project.
+
+The key is public browser configuration, not a secret. It is supplied at build
+time as `SUPABASE_ANON_KEY`; `.env` does not set it, so a build takes whatever
+the shell happens to hold. That is how a wrong value reached a signed release.
+
+- [ ] **Deploy the corrected website build.** `npm run deploy:production` with
+      the correct `SUPABASE_ANON_KEY` set. This fixes the web and PWA.
+- [ ] **Rebuild and re-sign the Android APK and AAB** with the correct key, on
+      the **same signing identity**. This changes their SHA-256, so update the
+      archived records. Consider releasing it as **1.0.2**, since the bytes
+      behind versionCode 1000199 would otherwise differ from what was published.
+- [ ] **Do not distribute the current 1.0.1 APK** until it is rebuilt.
+- [ ] Put `SUPABASE_ANON_KEY` in `.env` so a release cannot silently take a
+      wrong one from the environment again.
+
+### Needs a person, not a build
 
 - [ ] Verify account deletion end to end with a **disposable** account, on the
-      web page and in the app. It needs someone to sign in at the real form, so
-      it cannot be automated. Never use the administrator account.
+      web page and in the app, once the key is fixed. It needs someone to sign
+      in at the real form. Never use the administrator account.
 - [ ] Decide the brand/trademark question and the Play App Signing strategy
       before any Play upload; both are irreversible afterwards, and neither
       affects the current direct-download release.
