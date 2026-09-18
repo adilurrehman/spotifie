@@ -282,6 +282,13 @@ function main() {
     const problems = signingProblems(process.env);
     if (problems.length) throw new Error(problems.join('\n  '));
 
+    // Before the frontend is built and long before Gradle signs anything: can
+    // this build reach Supabase with the key it is about to bake in? 1.0.1 was
+    // signed and published without anybody asking, and could not load the
+    // catalogue or sign anybody in. A signed artifact is forever; this check
+    // costs one request.
+    run('node', [path.join('tools', 'releasePreflight.js'), 'the signed Android ' + kind]);
+
     const version = readVersion();
     const versionCode = androidVersionCode(version);
 

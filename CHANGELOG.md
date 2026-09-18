@@ -4,7 +4,42 @@ All notable changes to Spotifie are recorded here. Versions follow
 [Semantic Versioning](https://semver.org/); release candidates carry an
 `-rc.N` suffix.
 
+## [1.0.2] - 2026-09-18
+
+A hotfix. It replaces 1.0.1, which could not reach Supabase at all.
+
+### Spotifie can reach its own catalogue again
+
+- **1.0.1 shipped a Supabase publishable key the project rejects.** Every copy
+  of 1.0.1 - the website, the PWA, the signed APK and the signed App Bundle -
+  answered `Invalid API key` to anything that needed Supabase, so the published
+  catalogue never loaded and nobody could sign in or delete an account. Local
+  Music was unaffected throughout, because it never uses Supabase.
+- 1.0.2 is built with the key the project accepts. **Do not install or
+  distribute the 1.0.1 APK**; it is kept only as a record of what was built.
+
+### A release now proves its settings before it is signed
+
+- Every check 1.0.1 passed asked about the *shape* of the key: present, not a
+  secret, not a placeholder, long enough. None asked Supabase whether the key
+  was real, so a signed release went out that could not work.
+- Building a signed APK or App Bundle, or a production website, now begins by
+  reading one row of the published catalogue with the configured settings. A
+  key the project rejects, or a project that cannot be reached, stops the
+  release **before anything is signed or deployed**. The key itself is never
+  printed.
+
+### Unchanged
+
+- The signing identity is the same permanent key. 1.0.2 installs over 1.0.1 as
+  an ordinary update.
+- `v1.0.1` stays exactly where it is. Nothing was rewritten or removed.
+
 ## [1.0.1] - 2026-09-17
+
+**Superseded by 1.0.2.** The release configuration carried an invalid Supabase
+publishable key, so the catalogue, signing in and account deletion all failed
+in this version. Its artifacts must not be distributed.
 
 ### You can delete your account
 

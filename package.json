@@ -1,6 +1,6 @@
 {
   "name": "spotifie",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Spotifie - hybrid music player. One local Node server serves the interface, indexes and streams the music on this device, and reads the global catalogue an administrator publishes through Supabase; Supabase also handles authentication, profiles and admin authorization. User audio is never uploaded.",
   "license": "UNLICENSED",

@@ -12,17 +12,17 @@ device into one library, one search and one player, on the web and on Android.
 
 ## 1. Current status
 
-**Version 1.0.1** (see [CHANGELOG.md](CHANGELOG.md)).
+**Version 1.0.2** (see [CHANGELOG.md](CHANGELOG.md)).
 
-Spotifie 1.0.1 is released, but **the 1.0.1 build carries a Supabase
-publishable key that the project rejects**, so the published catalogue and
-sign-in fail in it. See [Outstanding actions](#20-outstanding-actions) before
-relying on or distributing this version.
+1.0.2 is a hotfix for 1.0.1, which shipped a Supabase publishable key the
+project rejects and so could not load the catalogue or sign anybody in.
+**Do not install or distribute any 1.0.1 build.** A release now proves its
+settings against the real project before anything is signed or deployed.
 
 | Platform | Status |
 | --- | --- |
-| Web / PWA | **Released.** A corrected build is ready and waiting to be deployed |
-| Android | **Signed and downloadable, but must be rebuilt.** The 1.0.1 APK cannot reach Supabase |
+| Web / PWA | **Released.** The 1.0.2 build is ready; deploying it is an operator step |
+| Android | **1.0.2 not yet signed.** Until it is, the website offers no download at all, rather than the broken 1.0.1 APK |
 | Google Play | **Not published.** Optional future work |
 | iOS | **Prepared, not released.** Building it needs a Mac with Xcode; never compiled or run |
 | Desktop | **Foundation only, not released.** Tauri shell; runtime verification still pending |
@@ -100,6 +100,12 @@ Namespaced so local and global ids can never collide.
 
 Names only. Never commit values.
 
+**Nothing in this project reads a `.env` file.** There is a `.env.example` to
+copy from, but no loader: every one of these is read from the real environment
+of whoever runs the command. A build therefore takes whatever the shell happens
+to hold, which is how 1.0.1 was signed with a key the project rejects. Set them
+deliberately for each release, and let the preflight confirm them.
+
 Public settings, needed by any build that packages the frontend:
 
 ```
@@ -141,7 +147,7 @@ from it.
 ```
 major*1000000 + minor*10000 + patch*100 + (rc N ? N : 99)
 
-1.0.1  ->  Android versionCode 1000199
+1.0.2  ->  Android versionCode 1000299
 1.1.0  ->  1010099        2.0.0 -> 2000099
 1.1.0-rc.1 -> 1010001
 ```
@@ -194,7 +200,9 @@ operations notes kept outside the public release, not here.
 2. Set the public settings in the environment.
 3. Set the signing variables.
 4. `npm test` - all green.
-5. `npm run android:release`
+5. `npm run android:release` - it checks the configured Supabase settings
+   against the real project first, and refuses to sign anything if the key is
+   rejected or the project cannot be reached.
 6. `npm run android:bundle`
 7. Check the printed certificate matches the approved fingerprint. If it does
    not, stop.
@@ -304,34 +312,24 @@ with the records describing them. Keep that folder; never commit it.
 
 ## 20. Outstanding actions
 
-### The 1.0.1 build has the wrong Supabase key
+### Finishing the 1.0.2 hotfix
 
-The release build of 1.0.1 was made with a publishable key the Supabase project
-rejects (`Invalid API key`, HTTP 401). Everything that needs Supabase - the
-published catalogue, signing in, and therefore account deletion - fails. Local
-Music is unaffected, because it never uses Supabase. 1.0.0 shipped the correct
-key, so this is a regression in the 1.0.1 build, not a change in the project.
+The source, the version, the documentation and the release preflight are done.
+What remains needs either the signing keystore or a person at a form.
 
-The key is public browser configuration, not a secret. It is supplied at build
-time as `SUPABASE_ANON_KEY`; `.env` does not set it, so a build takes whatever
-the shell happens to hold. That is how a wrong value reached a signed release.
-
-- [ ] **Rebuild and deploy the website** with the correct `SUPABASE_ANON_KEY`,
-      following the operator procedure in the private operations notes. This
-      fixes the web and the PWA.
-- [ ] **Rebuild and re-sign the Android APK and AAB** with the correct key, on
-      the **same signing identity**. This changes their SHA-256, so update the
-      archived records. Consider releasing it as **1.0.2**, since the bytes
-      behind versionCode 1000199 would otherwise differ from what was published.
-- [ ] **Do not distribute the current 1.0.1 APK** until it is rebuilt.
-- [ ] Put `SUPABASE_ANON_KEY` in `.env` so a release cannot silently take a
-      wrong one from the environment again.
+- [ ] **Deploy the 1.0.2 website**, following the operator procedure in the
+      private operations notes. The build is made and checked.
+- [ ] **Build and sign the 1.0.2 APK and AAB** with the **same permanent
+      signing identity**, then archive them with their checksum records. Until
+      this happens the website offers no Android download, which is deliberate:
+      no download is better than the broken one.
+- [ ] **Never distribute a 1.0.1 build.** They are kept only as a record.
 
 ### Needs a person, not a build
 
 - [ ] Verify account deletion end to end with a **disposable** account, on the
-      web page and in the app, once the key is fixed. It needs someone to sign
-      in at the real form. Never use the administrator account.
+      web page and in the app. It needs someone to sign in at the real form.
+      Never use the administrator account.
 - [ ] Decide the brand/trademark question and the Play App Signing strategy
       before any Play upload; both are irreversible afterwards, and neither
       affects the current direct-download release.

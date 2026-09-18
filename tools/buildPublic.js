@@ -1362,8 +1362,44 @@ function report(mode, androidDownload) {
     }
 }
 
+/**
+ * Stop a release that cannot reach Supabase, before anything is written.
+ *
+ * Only a build that is going to be deployed asks. A library caller and an
+ * ordinary public build are untouched, so the check guards releases without
+ * putting the network in the way of development or of the tests.
+ */
+function releaseSettingsLookReady() {
+    const url = (process.env.SUPABASE_URL || '').trim();
+    const key = (process.env.SUPABASE_ANON_KEY || '').trim();
+    const siteUrl = (process.env.PUBLIC_SITE_URL || '').trim();
+
+    if (!url || !key || !siteUrl) return false;
+    return placeholderProblems({ SUPABASE_URL: url, SUPABASE_ANON_KEY: key, PUBLIC_SITE_URL: siteUrl }).length === 0;
+}
+
+function preflightOrExit(label) {
+    const result = require('child_process').spawnSync(
+        process.execPath,
+        [path.join(__dirname, 'releasePreflight.js'), label],
+        { stdio: 'inherit' }
+    );
+    if (result.status !== 0) process.exit(result.status === null ? 1 : result.status);
+}
+
 if (require.main === module) {
     try {
+        // 1.0.1 was deployed with a key the project rejects. A production build
+        // now proves the settings before it writes the output that would carry
+        // them, so a broken release cannot become a deployable one.
+        //
+        // Settings that are missing or still hold example values are the
+        // build's own to report, and it names every one of them; asking
+        // Supabase about them first would replace that with a worse message.
+        // The preflight answers only the question nothing local can.
+        if (detectMode() === 'production' && releaseSettingsLookReady()) {
+            preflightOrExit('the production website build');
+        }
         build();
     } catch (err) {
         console.error('Could not build the release: ' + err.message);
