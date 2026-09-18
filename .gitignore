@@ -184,3 +184,6 @@ spotifie-secrets.md
 
 # Claude Code local tooling (launch configs and local settings), like .vscode/.
 .claude/
+
+# Supabase CLI local link state (machine-specific, never committed)
+supabase/.temp/

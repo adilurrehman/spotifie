@@ -14,13 +14,16 @@ device into one library, one search and one player, on the web and on Android.
 
 **Version 1.0.1** (see [CHANGELOG.md](CHANGELOG.md)).
 
+Spotifie is **released and in maintenance mode**. There is no active
+development phase; changes happen only when the owner deliberately starts one.
+
 | Platform | Status |
 | --- | --- |
-| Web / PWA | Supported |
-| Android | Supported, as a signed APK downloaded from the website. The site offers it only once that exact version has been signed |
-| Google Play | Preparation only. **Not published** |
-| iOS | Prepared. Building it needs a Mac with Xcode; never compiled or run |
-| Desktop | Tauri foundation. Runtime verification still pending |
+| Web / PWA | **Released** |
+| Android | **Released**, as a signed APK downloaded from the website. The site offers it only once that exact version has been signed |
+| Google Play | **Not published.** Optional future work |
+| iOS | **Prepared, not released.** Building it needs a Mac with Xcode; never compiled or run |
+| Desktop | **Foundation only, not released.** Tauri shell; runtime verification still pending |
 
 ## 2. Production addresses
 
@@ -183,7 +186,7 @@ operations notes kept outside the public release, not here.
   hard-coded path.
 - compileSdk 36, targetSdk 36, minSdk 26.
 
-## 12. Releasing
+## 12. Releasing a future version
 
 1. Back up the signing keystore and its passwords, separately.
 2. Set the public settings in the environment.
@@ -299,17 +302,15 @@ with the records describing them. Keep that folder; never commit it.
 
 ## 20. Outstanding actions
 
-Remove each line as it is done.
+Nothing is blocked. 1.0.1 is signed, deployed and serving; the account-deletion
+backend is deployed and live. What is left needs a person, not a build.
 
-- [ ] Deploy the `delete-account` Edge Function; until then both deletion routes
-      fail at runtime.
-- [ ] Test deletion end to end with a **disposable** account, via the web page
-      and in the app.
-- [ ] Build and sign the **1.0.1** APK and AAB. The signed artifact currently
-      archived is 1.0.0, which predates account deletion, so the website offers
-      no download until 1.0.1 is signed.
+- [ ] Verify account deletion end to end with a **disposable** account, on the
+      web page and in the app. It needs someone to sign in at the real form, so
+      it cannot be automated. Never use the administrator account.
 - [ ] Decide the brand/trademark question and the Play App Signing strategy
-      before any Play upload; both are irreversible afterwards.
+      before any Play upload; both are irreversible afterwards, and neither
+      affects the current direct-download release.
 
 ## License
 
